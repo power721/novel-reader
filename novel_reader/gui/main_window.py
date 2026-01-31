@@ -183,6 +183,8 @@ class MainWindow(QMainWindow):
 
         # 播放控制信号
         self.player_widget.play_requested.connect(self._play_book)
+        self.player_widget.pause_requested.connect(self._pause_playback)
+        self.player_widget.resume_requested.connect(self._resume_playback)
         self.player_widget.stop_requested.connect(self._stop_playback)
         self.player_widget.play_previous_chapter_requested.connect(self._play_previous_chapter)
         self.player_widget.play_next_chapter_requested.connect(self._play_next_chapter)
@@ -700,6 +702,27 @@ class MainWindow(QMainWindow):
         self._stop_playback_worker_safely()
         self.player_widget.set_playing_state(False)
         self.statusBar().showMessage("播放已停止", 3000)
+
+    @Slot()
+    def _pause_playback(self):
+        """暂停播放"""
+        if self.playback_worker and self.playback_worker.isRunning():
+            self.playback_worker.pause()
+            self.player_widget.set_paused_state(True)
+            self.statusBar().showMessage("播放已暂停", 3000)
+
+    @Slot()
+    def _resume_playback(self):
+        """恢复播放"""
+        if self.playback_worker and self.playback_worker.isRunning():
+            self.playback_worker.resume()
+            self.player_widget.set_playing_state(True)
+            self.statusBar().showMessage("继续播放", 3000)
+        else:
+            # 如果没有正在播放的worker，可能是暂停后重新播放
+            current_book_id = self.player_widget.current_book_id
+            if current_book_id is not None:
+                self._play_book(current_book_id)
 
     @Slot()
     def _on_playback_finished(self):

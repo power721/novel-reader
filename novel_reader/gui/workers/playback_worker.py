@@ -22,6 +22,7 @@ class PlaybackWorker(QThread):
         self.book_id = book_id
         self.start_chunk = start_chunk
         self._is_running = True
+        self._is_paused = False  # 添加暂停标志
         self._current_chapter_index: Optional[int] = None  # Track current chapter index
 
     def run(self):
@@ -95,6 +96,20 @@ class PlaybackWorker(QThread):
                 # 检查是否应该停止
                 if not self._is_running:
                     print("\n⏹ 播放已停止")
+                    break
+
+                # 检查是否暂停，如果暂停则等待恢复
+                while self._is_paused and self._is_running:
+                    import time
+                    time.sleep(0.1)  # 每100ms检查一次是否恢复
+                    if not self._is_running:
+                        print("\n⏹ 播放已停止")
+                        break
+                    if not self._is_paused:
+                        print("▶️ 恢复播放")
+                        break
+
+                if not self._is_running:
                     break
 
                 # 检查是否是章节的最后一个chunk，如果是则提前转换下一章
@@ -209,6 +224,22 @@ class PlaybackWorker(QThread):
     def stop(self):
         """停止播放"""
         self._is_running = False
+        self._is_paused = False  # 重置暂停状态
         from novel_reader.core.player import stop_playback
         stop_playback()
         self.terminate()
+
+    def pause(self):
+        """暂停播放"""
+        if self._is_running and not self._is_paused:
+            self._is_paused = True
+            print("⏸ 播放已暂停")
+            # 停止当前的音频播放
+            from novel_reader.core.player import stop_playback
+            stop_playback()
+
+    def resume(self):
+        """恢复播放"""
+        if self._is_paused:
+            self._is_paused = False
+            print("▶️ 恢复播放")
