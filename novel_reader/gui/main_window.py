@@ -1133,10 +1133,13 @@ class MainWindow(QMainWindow):
         if self.playback_worker and self.playback_worker.isRunning():
             self.playback_worker.stop()
             self.playback_worker.wait()
+            # 停止后将 worker 设置为 None，避免 _play_from_chunk 中的 isRunning() 检查失败
+            self.playback_worker = None
 
         if self.tts_worker and self.tts_worker.isRunning():
             self.tts_worker.stop()
             self.tts_worker.wait()
+            self.tts_worker = None
 
         book = get_book(target_book_id)
         if not book:
@@ -1226,10 +1229,13 @@ class MainWindow(QMainWindow):
         if self.playback_worker and self.playback_worker.isRunning():
             self.playback_worker.stop()
             self.playback_worker.wait()
+            # 停止后将 worker 设置为 None，避免 _play_from_chunk 中的 isRunning() 检查失败
+            self.playback_worker = None
 
         if self.tts_worker and self.tts_worker.isRunning():
             self.tts_worker.stop()
             self.tts_worker.wait()
+            self.tts_worker = None
 
         book = get_book(target_book_id)
         if not book:
@@ -1311,10 +1317,12 @@ class MainWindow(QMainWindow):
         if self.playback_worker and self.playback_worker.isRunning():
             self.playback_worker.stop()
             self.playback_worker.wait()
+            self.playback_worker = None
 
         if self.tts_worker and self.tts_worker.isRunning():
             self.tts_worker.stop()
             self.tts_worker.wait()
+            self.tts_worker = None
 
         from novel_reader.core import get_book
         from novel_reader.utils import load_txt_file, parse_txt
@@ -1362,10 +1370,12 @@ class MainWindow(QMainWindow):
         if self.playback_worker and self.playback_worker.isRunning():
             self.playback_worker.stop()
             self.playback_worker.wait()
+            self.playback_worker = None
 
         if self.tts_worker and self.tts_worker.isRunning():
             self.tts_worker.stop()
             self.tts_worker.wait()
+            self.tts_worker = None
 
         from novel_reader.core import get_book
         from novel_reader.core.tts import AUDIO_DIR
