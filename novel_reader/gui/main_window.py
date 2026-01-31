@@ -656,14 +656,12 @@ class MainWindow(QMainWindow):
             self.playback_worker.wait()
 
         self.player_widget.set_playing_state(False)
-        # self.book_list_widget.load_books()
         self.statusBar().showMessage("播放已停止", 3000)
 
     @Slot()
     def _on_playback_finished(self):
         """播放完成"""
         self.player_widget.set_playing_state(False)
-        # self.book_list_widget.load_books()
         self.statusBar().showMessage("播放完成", 3000)
 
         # 检查是否启用自动播放下一本书
@@ -829,7 +827,7 @@ class MainWindow(QMainWindow):
             if chapter['start_chunk'] == next_chapter_start:
                 next_chapter_title = chapter['title']
                 break
-            elif i + 1 < len(chapters) and i + 1 < len(chapters) and chapters[i + 1]['start_chunk'] == next_chapter_start:
+            elif i + 1 < len(chapters) and chapters[i + 1]['start_chunk'] == next_chapter_start:
                 next_chapter_title = chapters[i + 1]['title']
                 break
 
@@ -1478,8 +1476,8 @@ class MainWindow(QMainWindow):
 
         audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_{start_chunk:05d}.wav"
 
-        # 等待文件就绪（最多等待60秒，给TTS转换足够的时间）
-        max_wait = 60
+        # 等待文件就绪（最多等待120秒，给TTS转换足够的时间）
+        max_wait = 120
         waited = 0
         file_ready = False
 
@@ -1625,9 +1623,6 @@ class MainWindow(QMainWindow):
         msg += f"\n文本预览:\n{debug_info['text_preview']}..."
 
         QMessageBox.information(self, f"Chunk {current_chunk} 调试", msg)
-        """显示关于对话框"""
-        dialog = AboutDialog(self)
-        dialog.exec()
 
     # ==================== 窗口事件 ====================
 

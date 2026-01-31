@@ -317,11 +317,11 @@ class PlayerConfig:
     audio_cache_size: int = 80  # 音频缓存大小
 
     # 播放
-    first_chunk_timeout: int = 60000  # 首个chunk超时（毫秒）- 增加到60秒以等待TTS转换
+    first_chunk_timeout: int = 120000  # 首个chunk超时（毫秒）- 增加到120秒以等待TTS转换
     auto_play_next_chapter: bool = True  # 自动播放下一章
 
     # 性能
-    tts_timeout: int = 300  # 单个TTS超时（秒）
+    tts_timeout: int = 600  # 单个TTS超时（秒）- 增加到10分钟
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""

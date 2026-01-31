@@ -88,15 +88,32 @@ class PlaybackWorker(QThread):
 
                 audio_path = book_audio_dir / f"chunk_{chunk_id:05d}.wav"
 
-                # 检查音频文件是否存在
+                # 检查音频文件是否存在，如果不存在则等待TTS转换完成
                 if not audio_path.exists():
-                    print(f"⏭ [Chunk {chunk_id}] 音频文件不存在，跳过")
-                    skipped_count += 1
-                    # 更新播放进度（即使是跳过的也要更新）
-                    from novel_reader.core.player import update_progress
-                    update_progress(self.book_id, chunk_id)
-                    self.progress_updated.emit(chunk_id + 1, total_chunks)
-                    continue
+                    print(f"⏳ [Chunk {chunk_id}] 音频文件不存在，等待TTS转换...")
+                    import time
+                    max_wait = 120  # 最多等待120秒（2分钟）
+                    waited = 0
+                    file_ready = False
+
+                    while waited < max_wait and self._is_running:
+                        if audio_path.exists():
+                            file_size = audio_path.stat().st_size
+                            if file_size > 20000:  # 大于20KB认为有效
+                                file_ready = True
+                                print(f"✅ [Chunk {chunk_id}] 音频文件就绪 ({file_size/1024:.1f} KB)")
+                                break
+                        time.sleep(0.5)  # 每0.5秒检查一次
+                        waited += 0.5
+
+                    if not file_ready:
+                        print(f"⏭ [Chunk {chunk_id}] 等待{max_wait}秒后仍未就绪，跳过")
+                        skipped_count += 1
+                        # 更新播放进度（即使是跳过的也要更新）
+                        from novel_reader.core.player import update_progress
+                        update_progress(self.book_id, chunk_id)
+                        self.progress_updated.emit(chunk_id + 1, total_chunks)
+                        continue
 
                 # 播放 chunk
                 print(f"▶ [Chunk {chunk_id}/{total_chunks-1}] 正在播放...")
