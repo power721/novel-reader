@@ -133,9 +133,9 @@ class PlayerWidget(QWidget):
         self.playback_progress.setValue(0)
         progress_layout.addWidget(self.playback_progress)
 
-        # self.playback_status_label = QLabel("未播放")
-        # self.playback_status_label.setMinimumWidth(100)
-        # progress_layout.addWidget(self.playback_status_label)
+        self.playback_status_label = QLabel("未播放")
+        self.playback_status_label.setMinimumWidth(100)
+        progress_layout.addWidget(self.playback_status_label)
 
         player_layout.addLayout(progress_layout)
 
@@ -244,13 +244,6 @@ class PlayerWidget(QWidget):
 
         if is_playing:
             self.play_btn.setText("⏸ 暂停")
-            # 显示书名和章节标题
-            if self.current_book_title and self.current_chapter_title:
-                self.playback_status_label.setText(f"▶ {self.current_book_title} - {self.current_chapter_title}")
-            elif self.current_book_title:
-                self.playback_status_label.setText(f"▶ {self.current_book_title}")
-            else:
-                self.playback_status_label.setText("正在播放...")
         else:
             self.play_btn.setText("▶ 播放")
             self.playback_status_label.setText("未播放")
@@ -263,22 +256,8 @@ class PlayerWidget(QWidget):
 
         if is_paused:
             self.play_btn.setText("▶ 继续")
-            # 暂停时也显示书名和章节
-            if self.current_book_title and self.current_chapter_title:
-                self.playback_status_label.setText(f"⏸ {self.current_book_title} - {self.current_chapter_title}")
-            elif self.current_book_title:
-                self.playback_status_label.setText(f"⏸ {self.current_book_title}")
-            else:
-                self.playback_status_label.setText("已暂停")
         else:
             self.play_btn.setText("⏸ 暂停")
-            # 恢复播放时显示书名和章节
-            if self.current_book_title and self.current_chapter_title:
-                self.playback_status_label.setText(f"▶ {self.current_book_title} - {self.current_chapter_title}")
-            elif self.current_book_title:
-                self.playback_status_label.setText(f"▶ {self.current_book_title}")
-            else:
-                self.playback_status_label.setText("正在播放...")
 
     def set_progress(self, current: int, total: int):
         """设置播放进度"""
