@@ -14,12 +14,14 @@ class PlaybackWorker(QThread):
     progress_updated = Signal(int, int)  # 进度更新，参数：current, total
     chapter_finished = Signal(int, int)  # 章节播放完成，参数：current_chunk, next_chapter_start_chunk
     last_chunk_of_chapter_started = Signal(int)  # 章节最后一个chunk开始播放，参数：next_chapter_start_chunk
+    chapter_index_changed = Signal(int)  # 章节索引变化，参数：current_chunk
 
     def __init__(self, book_id: int, start_chunk: Optional[int] = None, parent=None):
         super().__init__(parent)
         self.book_id = book_id
         self.start_chunk = start_chunk
         self._is_running = True
+        self._current_chapter_index: Optional[int] = None  # Track current chapter index
 
     def run(self):
         """执行播放任务"""
@@ -73,6 +75,20 @@ class PlaybackWorker(QThread):
             # 播放循环
             played_count = 0
             skipped_count = 0
+
+            # Helper function to get chapter index for a chunk
+            def get_chapter_index_for_chunk(cid: int) -> int:
+                """获取指定chunk所属的章节索引（从0开始）"""
+                for i, chapter in enumerate(chapters):
+                    chapter_start = chapter['start_chunk']
+                    if i + 1 < len(chapters):
+                        next_chapter_start = chapters[i + 1]['start_chunk']
+                        if chapter_start <= cid < next_chapter_start:
+                            return i
+                    else:
+                        if chapter_start <= cid:
+                            return i
+                return 0
 
             for chunk_id in range(start, total_chunks):
                 # 检查是否应该停止
@@ -128,6 +144,13 @@ class PlaybackWorker(QThread):
                 # 更新播放进度
                 from novel_reader.core.player import update_progress
                 update_progress(self.book_id, chunk_id)
+
+                # 检查章节是否变化，如果变化则发出信号
+                new_chapter_index = get_chapter_index_for_chunk(chunk_id)
+                if new_chapter_index != self._current_chapter_index:
+                    self._current_chapter_index = new_chapter_index
+                    self.chapter_index_changed.emit(chunk_id)
+
                 self.progress_updated.emit(chunk_id + 1, total_chunks)
 
                 # 检查是否刚播放完一个章节的最后一个chunk

@@ -287,13 +287,21 @@ class MainWindow(QMainWindow):
             book_id: 书籍ID
 
         Returns:
-            如果该书籍正在播放，返回当前chunk；否则返回None
+            如果该书籍正在播放，返回当前chunk；否则返回数据库中保存的current_chunk
         """
-        if not self.playback_worker or not self.playback_worker.isRunning():
-            return None
+        # 如果正在播放该书籍，返回实时播放位置
+        if self.playback_worker and self.playback_worker.isRunning():
+            if self.playback_worker.book_id == book_id:
+                return self.playback_worker.start_chunk if self.playback_worker.start_chunk is not None else None
 
-        if self.playback_worker.book_id != book_id:
-            return None
+        # 如果未播放，返回数据库中保存的播放位置
+        from novel_reader.core import get_book
+        book = get_book(book_id)
+        if book:
+            current_chunk = book.get('current_chunk', 0)
+            return current_chunk if current_chunk > 0 else None
+
+        return None
 
         # 获取播放进度
         from novel_reader.core import get_book
@@ -663,6 +671,7 @@ class MainWindow(QMainWindow):
         self.playback_worker.progress_updated.connect(self._on_playback_progress)
         self.playback_worker.chapter_finished.connect(self._on_chapter_playback_finished)
         self.playback_worker.last_chunk_of_chapter_started.connect(self._on_last_chunk_of_chapter_started)
+        self.playback_worker.chapter_index_changed.connect(self._on_chapter_index_changed)
         self.playback_worker.start()
 
         # 获取书籍信息和当前章节，更新播放显示
@@ -909,6 +918,12 @@ class MainWindow(QMainWindow):
 
         title_msg = f"转换: {chapter_title}" if chapter_title else f"转换从 chunk {start_chunk} 开始"
         self.statusBar().showMessage(f"🔄 后台{title_msg}...")
+
+    @Slot(int)
+    def _on_chapter_index_changed(self, current_chunk: int):
+        """章节索引变化时更新UI高亮"""
+        if self.playback_worker and self.playback_worker.book_id == self.current_book_id:
+            self.chapter_list_widget.highlight_current_chapter(current_chunk)
 
     @Slot(int)
     def _on_chapter_selected(self, start_chunk: int):
@@ -1389,6 +1404,7 @@ class MainWindow(QMainWindow):
         self.playback_worker.progress_updated.connect(self._on_playback_progress)
         self.playback_worker.chapter_finished.connect(self._on_chapter_playback_finished)
         self.playback_worker.last_chunk_of_chapter_started.connect(self._on_last_chunk_of_chapter_started)
+        self.playback_worker.chapter_index_changed.connect(self._on_chapter_index_changed)
         self.playback_worker.start()
 
         # 获取书籍信息和当前章节，更新播放显示
