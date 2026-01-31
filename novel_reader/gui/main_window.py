@@ -1114,6 +1114,47 @@ class MainWindow(QMainWindow):
 
     # ==================== 播放辅助方法 ====================
 
+    def _stop_playback_worker_safely(self):
+        """安全地停止 PlaybackWorker 并断开信号连接"""
+        if self.playback_worker:
+            if self.playback_worker.isRunning():
+                # 先断开所有信号连接，避免旧的信号影响新的播放
+                try:
+                    self.playback_worker.finished.disconnect()
+                    self.playback_worker.error.disconnect()
+                    self.playback_worker.progress_updated.disconnect()
+                    self.playback_worker.chapter_finished.disconnect()
+                    self.playback_worker.last_chunk_of_chapter_started.disconnect()
+                    self.playback_worker.chapter_index_changed.disconnect()
+                except TypeError:
+                    # 信号未连接，忽略错误
+                    pass
+
+                self.playback_worker.stop()
+                self.playback_worker.wait()
+
+            # 清理引用
+            self.playback_worker = None
+
+    def _stop_tts_worker_safely(self):
+        """安全地停止 TTSWorker 并断开信号连接"""
+        if self.tts_worker:
+            if self.tts_worker.isRunning():
+                try:
+                    self.tts_worker.finished.disconnect()
+                    self.tts_worker.error.disconnect()
+                    self.tts_worker.progress.disconnect()
+                    self.tts_worker.log.disconnect()
+                    self.tts_worker.chapter_finished.disconnect()
+                    self.tts_worker.first_chunk_ready.disconnect()
+                except TypeError:
+                    pass
+
+                self.tts_worker.stop()
+                self.tts_worker.wait()
+
+            self.tts_worker = None
+
     def _play_previous_chapter(self):
         """播放上一章"""
         target_book_id = self._get_target_book_id()
@@ -1130,16 +1171,8 @@ class MainWindow(QMainWindow):
             real_chapter_idx = self.playback_worker._current_chapter_index
 
         # 强制停止当前播放，确保进度已保存
-        if self.playback_worker and self.playback_worker.isRunning():
-            self.playback_worker.stop()
-            self.playback_worker.wait()
-            # 停止后将 worker 设置为 None，避免 _play_from_chunk 中的 isRunning() 检查失败
-            self.playback_worker = None
-
-        if self.tts_worker and self.tts_worker.isRunning():
-            self.tts_worker.stop()
-            self.tts_worker.wait()
-            self.tts_worker = None
+        self._stop_playback_worker_safely()
+        self._stop_tts_worker_safely()
 
         book = get_book(target_book_id)
         if not book:
@@ -1226,16 +1259,8 @@ class MainWindow(QMainWindow):
             real_chapter_idx = self.playback_worker._current_chapter_index
 
         # 强制停止当前播放，确保进度已保存
-        if self.playback_worker and self.playback_worker.isRunning():
-            self.playback_worker.stop()
-            self.playback_worker.wait()
-            # 停止后将 worker 设置为 None，避免 _play_from_chunk 中的 isRunning() 检查失败
-            self.playback_worker = None
-
-        if self.tts_worker and self.tts_worker.isRunning():
-            self.tts_worker.stop()
-            self.tts_worker.wait()
-            self.tts_worker = None
+        self._stop_playback_worker_safely()
+        self._stop_tts_worker_safely()
 
         book = get_book(target_book_id)
         if not book:
@@ -1314,15 +1339,8 @@ class MainWindow(QMainWindow):
             return
 
         # 停止当前播放，确保进度已保存
-        if self.playback_worker and self.playback_worker.isRunning():
-            self.playback_worker.stop()
-            self.playback_worker.wait()
-            self.playback_worker = None
-
-        if self.tts_worker and self.tts_worker.isRunning():
-            self.tts_worker.stop()
-            self.tts_worker.wait()
-            self.tts_worker = None
+        self._stop_playback_worker_safely()
+        self._stop_tts_worker_safely()
 
         from novel_reader.core import get_book
         from novel_reader.utils import load_txt_file, parse_txt
@@ -1367,15 +1385,8 @@ class MainWindow(QMainWindow):
             return
 
         # 停止当前播放，确保进度已保存
-        if self.playback_worker and self.playback_worker.isRunning():
-            self.playback_worker.stop()
-            self.playback_worker.wait()
-            self.playback_worker = None
-
-        if self.tts_worker and self.tts_worker.isRunning():
-            self.tts_worker.stop()
-            self.tts_worker.wait()
-            self.tts_worker = None
+        self._stop_playback_worker_safely()
+        self._stop_tts_worker_safely()
 
         from novel_reader.core import get_book
         from novel_reader.core.tts import AUDIO_DIR
