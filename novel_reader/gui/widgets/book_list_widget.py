@@ -223,9 +223,12 @@ class BookListWidget(QWidget):
             current_chunk = book.get('current_chunk', 0)
 
             if total_chapters > 0:
-                progress_text = f"第{current_chapter}章 chunk{current_chunk}"
+                if current_chapter >> 0:
+                    progress_text = f"第{current_chapter}章"
+                else:
+                    progress_text = "无"
             else:
-                progress_text = f"chunk {current_chunk}"
+                progress_text = f"{current_chunk}"
 
             # 格式化最后播放时间
             last_played_at = book.get('last_played_at')
