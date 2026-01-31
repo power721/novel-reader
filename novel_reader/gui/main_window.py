@@ -739,12 +739,13 @@ class MainWindow(QMainWindow):
         if self.playback_worker and self.playback_worker.book_id == self.current_book_id:
             self.chapter_list_widget.highlight_current_chapter(current)
 
-        # 更新播放状态显示（获取当前章节标题）
-        if self.current_book_id:
+        # 更新播放状态显示（获取正在播放的书籍的章节标题）
+        if self.playback_worker:
+            playing_book_id = self.playback_worker.book_id
             from novel_reader.core import get_book, get_book_chapters
-            book = get_book(self.current_book_id)
+            book = get_book(playing_book_id)
             if book:
-                chapters = get_book_chapters(self.current_book_id)
+                chapters = get_book_chapters(playing_book_id)
                 if chapters:
                     # 找到包含current chunk的章节
                     chapter_title = ""
