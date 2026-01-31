@@ -249,8 +249,8 @@ class PlayerWidget(QWidget):
             self.current_chapter_label.setStyleSheet("color: rgba(0, 0, 0, 0.55);")
         else:
             self.current_book_label.setText("未选择书籍")
-            self.current_book_label.setStyleSheet("color: #222; font-style: italic;")
             self.current_chapter_label.setText("未选择章节")
+            self.current_book_label.setStyleSheet("color: #222; font-style: italic;")
             self.current_chapter_label.setStyleSheet("color: rgba(0, 0, 0, 0.55); font-style: italic;")
 
     def set_playing_state(self, is_playing: bool):
