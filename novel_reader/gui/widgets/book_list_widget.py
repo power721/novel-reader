@@ -43,10 +43,10 @@ class BookListWidget(QWidget):
         # 书籍树形列表
         self.books_tree = QTreeWidget()
         self.books_tree.setHeaderLabels(["ID", "书名", "进度", "最后播放"])
-        self.books_tree.setColumnWidth(0, 50)
-        self.books_tree.setColumnWidth(1, 200)
+        self.books_tree.setColumnWidth(0, 30)
+        self.books_tree.setColumnWidth(1, 250)
         self.books_tree.setColumnWidth(2, 100)
-        self.books_tree.setColumnWidth(3, 150)
+        self.books_tree.setColumnWidth(3, 100)
         self.books_tree.setAlternatingRowColors(True)
         self.books_tree.setRootIsDecorated(False)
         self.books_tree.setContextMenuPolicy(Qt.CustomContextMenu)

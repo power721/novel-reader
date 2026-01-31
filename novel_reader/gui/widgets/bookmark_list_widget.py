@@ -35,8 +35,8 @@ class BookmarkListWidget(QWidget):
         # 书签树形列表
         self.bookmarks_tree = QTreeWidget()
         self.bookmarks_tree.setHeaderLabels(["ID", "位置", "笔记"])
-        self.bookmarks_tree.setColumnWidth(0, 60)
-        self.bookmarks_tree.setColumnWidth(1, 100)
+        self.bookmarks_tree.setColumnWidth(0, 30)
+        self.bookmarks_tree.setColumnWidth(1, 60)
         self.bookmarks_tree.setColumnWidth(2, 250)
         self.bookmarks_tree.setAlternatingRowColors(True)
         self.bookmarks_tree.setRootIsDecorated(False)

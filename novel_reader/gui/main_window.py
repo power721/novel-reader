@@ -40,7 +40,7 @@ class MainWindow(QMainWindow):
 
     def _init_ui(self):
         """初始化界面"""
-        self.setWindowTitle("Novel Reader - 有声书阅读器 (PySide6)")
+        self.setWindowTitle("Novel Reader - 有声书阅读器")
         self.setGeometry(100, 100, 1400, 850)
 
         # 创建菜单栏

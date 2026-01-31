@@ -99,7 +99,7 @@ class PlayerWidget(QWidget):
 
         control_layout.addWidget(self.prev_chapter_btn)
         control_layout.addWidget(self.play_btn)
-        control_layout.addWidget(self.pause_btn)
+        # control_layout.addWidget(self.pause_btn)
         control_layout.addWidget(self.stop_btn)
         control_layout.addWidget(self.next_chapter_btn)
         control_layout.addStretch()
