@@ -22,8 +22,14 @@ def get_conn() -> sqlite3.Connection:
     # 确保数据库目录存在
     DB_DIR.mkdir(parents=True, exist_ok=True)
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)  # 设置30秒超时
     conn.row_factory = sqlite3.Row  # 返回字典风格的结果
+
+    # 启用 WAL 模式，允许同时读写
+    # 这解决了多线程访问数据库时的锁定问题
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA busy_timeout=30000')  # 30秒超时
+
     return conn
 
 

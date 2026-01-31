@@ -671,6 +671,7 @@ class MainWindow(QMainWindow):
         self.playback_worker.chapter_finished.connect(self._on_chapter_playback_finished)
         self.playback_worker.last_chunk_of_chapter_started.connect(self._on_last_chunk_of_chapter_started)
         self.playback_worker.chapter_index_changed.connect(self._on_chapter_index_changed)
+        self.playback_worker.chunk_conversion_requested.connect(self._on_chunk_conversion_requested)
         self.playback_worker.start()
 
         # 获取书籍信息和当前章节，更新播放显示
@@ -920,6 +921,39 @@ class MainWindow(QMainWindow):
         """章节索引变化时更新UI高亮"""
         if self.playback_worker and self.playback_worker.book_id == self.current_book_id:
             self.chapter_list_widget.highlight_current_chapter(current_chunk)
+
+    @Slot(int)
+    def _on_chunk_conversion_requested(self, chunk_id: int):
+        """处理chunk转换请求"""
+        print(f"[DEBUG] 收到chunk转换请求: chunk {chunk_id}")
+
+        # 检查TTS worker是否正在运行
+        if self.tts_worker and self.tts_worker.isRunning():
+            print(f"[DEBUG] TTS正在运行，跳过chunk {chunk_id}的转换请求")
+            return
+
+        # 启动TTS转换该chunk
+        if self.playback_worker:
+            book_id = self.playback_worker.book_id
+            print(f"[DEBUG] 启动TTS转换: book_id={book_id}, chunk={chunk_id}")
+
+            # 清空日志
+            self.tts_widget.clear_log()
+            self.tts_widget.set_converting_state(True)
+
+            # 创建TTS工作线程（只转换单个chunk，chapter_mode=False）
+            print(f"[DEBUG] Creating TTSWorker for single chunk...")
+            self.tts_worker = TTSWorker(book_id, start_chunk=chunk_id, chapter_mode=False)
+            print(f"[DEBUG] Connecting signals...")
+            self.tts_worker.progress.connect(self._on_tts_progress)
+            self.tts_worker.log.connect(self._on_tts_log)
+            self.tts_worker.finished.connect(self._on_tts_finished)
+            self.tts_worker.error.connect(self._on_tts_error)
+            print(f"[DEBUG] Starting TTS worker...")
+            self.tts_worker.start()
+            print(f"[DEBUG] TTS worker started")
+
+            self.statusBar().showMessage(f"🔄 正在转换 chunk {chunk_id}...")
 
     @Slot(int)
     def _on_chapter_selected(self, start_chunk: int):
@@ -1438,6 +1472,7 @@ class MainWindow(QMainWindow):
         self.playback_worker.chapter_finished.connect(self._on_chapter_playback_finished)
         self.playback_worker.last_chunk_of_chapter_started.connect(self._on_last_chunk_of_chapter_started)
         self.playback_worker.chapter_index_changed.connect(self._on_chapter_index_changed)
+        self.playback_worker.chunk_conversion_requested.connect(self._on_chunk_conversion_requested)
         self.playback_worker.start()
 
         # 获取书籍信息和当前章节，更新播放显示

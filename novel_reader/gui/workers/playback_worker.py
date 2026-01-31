@@ -15,6 +15,7 @@ class PlaybackWorker(QThread):
     chapter_finished = Signal(int, int)  # 章节播放完成，参数：current_chunk, next_chapter_start_chunk
     last_chunk_of_chapter_started = Signal(int)  # 章节最后一个chunk开始播放，参数：next_chapter_start_chunk
     chapter_index_changed = Signal(int)  # 章节索引变化，参数：current_chunk
+    chunk_conversion_requested = Signal(int)  # 请求转换chunk，参数：chunk_id
 
     def __init__(self, book_id: int, start_chunk: Optional[int] = None, parent=None):
         super().__init__(parent)
@@ -148,8 +149,39 @@ class PlaybackWorker(QThread):
                     played_count += 1
                 except FileNotFoundError as e:
                     print(f"❌ [Chunk {chunk_id}] 播放失败: {e}")
-                    skipped_count += 1
-                    continue
+                    print(f"🔄 [Chunk {chunk_id}] 发出转换请求，等待TTS重新转换...")
+
+                    # 发出转换请求信号
+                    self.chunk_conversion_requested.emit(chunk_id)
+
+                    # 等待TTS转换重新生成该文件
+                    import time
+                    max_wait = 120  # 最多等待120秒
+                    waited = 0
+                    file_ready = False
+
+                    while waited < max_wait and self._is_running:
+                        if audio_path.exists():
+                            file_size = audio_path.stat().st_size
+                            if file_size > 20000:  # 大于20KB认为有效
+                                file_ready = True
+                                print(f"✅ [Chunk {chunk_id}] 重新转换完成 ({file_size/1024:.1f} KB)，重试播放")
+                                break
+                        time.sleep(1.0)  # 每1秒检查一次
+                        waited += 1
+
+                    if file_ready:
+                        # 重试播放
+                        try:
+                            play_audio(str(audio_path))
+                            played_count += 1
+                            print(f"✅ [Chunk {chunk_id}] 重试播放成功")
+                        except FileNotFoundError as retry_error:
+                            print(f"❌ [Chunk {chunk_id}] 重试失败: {retry_error}")
+                            skipped_count += 1
+                    else:
+                        print(f"⏭ [Chunk {chunk_id}] 等待{max_wait}秒后仍未就绪，跳过")
+                        skipped_count += 1
 
                 self.progress_updated.emit(chunk_id + 1, total_chunks)
 
