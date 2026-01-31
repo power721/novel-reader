@@ -86,8 +86,14 @@ class ChapterListWidget(QWidget):
 
         self.chapter_double_clicked.emit(start_chunk)
 
-    def load_chapters(self, book_id: int):
-        """加载章节列表"""
+    def load_chapters(self, book_id: int, current_chunk: Optional[int] = None):
+        """
+        加载章节列表
+
+        Args:
+            book_id: 书籍ID
+            current_chunk: 当前播放的chunk（用于高亮）
+        """
         from novel_reader.core import get_book_chapters, get_book
         from novel_reader.utils import load_txt_file, parse_txt
 
@@ -143,6 +149,10 @@ class ChapterListWidget(QWidget):
             item.setData(0, Qt.UserRole, start_chunk)
 
             self.chapters_tree.addTopLevelItem(item)
+
+        # 如果提供了当前chunk，高亮对应的章节
+        if current_chunk is not None:
+            self.highlight_current_chapter(current_chunk)
 
     def clear(self):
         """清空列表"""

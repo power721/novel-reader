@@ -216,7 +216,8 @@ class MainWindow(QMainWindow):
 
             if selected_book_id:
                 self.current_book_id = selected_book_id
-                self.chapter_list_widget.load_chapters(selected_book_id)
+                current_chunk = self._get_current_playing_chunk(selected_book_id)
+                self.chapter_list_widget.load_chapters(selected_book_id, current_chunk)
                 self.bookmark_list_widget.load_bookmarks(selected_book_id)
                 self.player_widget.set_book(selected_book_id)
                 self.tts_widget.set_book(selected_book_id)
@@ -273,9 +274,33 @@ class MainWindow(QMainWindow):
         """刷新所有数据"""
         self._load_data()
         if self.current_book_id:
-            self.chapter_list_widget.load_chapters(self.current_book_id)
+            current_chunk = self._get_current_playing_chunk(self.current_book_id)
+            self.chapter_list_widget.load_chapters(self.current_book_id, current_chunk)
             self.bookmark_list_widget.load_bookmarks(self.current_book_id)
         self.statusBar().showMessage("已刷新", 3000)
+
+    def _get_current_playing_chunk(self, book_id: int) -> Optional[int]:
+        """
+        获取指定书籍的当前播放chunk
+
+        Args:
+            book_id: 书籍ID
+
+        Returns:
+            如果该书籍正在播放，返回当前chunk；否则返回None
+        """
+        if not self.playback_worker or not self.playback_worker.isRunning():
+            return None
+
+        if self.playback_worker.book_id != book_id:
+            return None
+
+        # 获取播放进度
+        from novel_reader.core import get_book
+        book = get_book(book_id)
+        if book:
+            return book.get('current_chunk')
+        return None
 
     # ==================== 书籍相关槽函数 ====================
 
@@ -285,7 +310,8 @@ class MainWindow(QMainWindow):
         self.current_book_id = book_id
 
         # 更新子组件状态
-        self.chapter_list_widget.load_chapters(book_id)
+        current_chunk = self._get_current_playing_chunk(book_id)
+        self.chapter_list_widget.load_chapters(book_id, current_chunk)
         self.bookmark_list_widget.load_bookmarks(book_id)
         self.player_widget.set_book(book_id)
         self.tts_widget.set_book(book_id)
@@ -688,7 +714,8 @@ class MainWindow(QMainWindow):
 
                 # 切换到下一本书并开始播放
                 self.current_book_id = next_book['id']
-                self.chapter_list_widget.load_chapters(next_book['id'])
+                # 刚开始播放，没有当前chunk，传入None
+                self.chapter_list_widget.load_chapters(next_book['id'], None)
                 self.bookmark_list_widget.load_bookmarks(next_book['id'])
                 self.player_widget.set_book(next_book['id'])
                 self.tts_widget.set_book(next_book['id'])
