@@ -1527,7 +1527,7 @@ class MainWindow(QMainWindow):
 
         # 更新 UI 状态
         self.player_widget.set_playing_state(True)
-        self.statusBar().showMessage(f"正在播放 from chunk: {start_chunk}")
+        self.statusBar().showMessage(f"正在播放: {book['title']}")
 
     # ==================== TTS 相关槽函数 ====================
 

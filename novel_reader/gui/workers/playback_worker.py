@@ -66,7 +66,7 @@ class PlaybackWorker(QThread):
                     last_chunk_of_chapter = next_chapter_start - 1
                     chapter_boundaries[last_chunk_of_chapter] = next_chapter_start
 
-            print(f"[DEBUG] Chapter boundaries: {chapter_boundaries}")
+            # print(f"[DEBUG] Chapter boundaries: {chapter_boundaries}")
 
             # 检查音频目录
             book_audio_dir = AUDIO_DIR / str(self.book_id)
