@@ -235,6 +235,57 @@ def delete_book(book_id: int, delete_audio: bool = True) -> bool:
         return False
 
 
+def update_book_title(book_id: int, new_title: str) -> bool:
+    """
+    更新书籍标题
+
+    Args:
+        book_id: 书籍 ID
+        new_title: 新书名
+
+    Returns:
+        是否更新成功
+    """
+    if not new_title or not new_title.strip():
+        print("✗ 书名不能为空")
+        return False
+
+    new_title = new_title.strip()
+
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    try:
+        # 检查书籍是否存在
+        cursor.execute("SELECT title FROM book WHERE id = ?", (book_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            conn.close()
+            print(f"✗ 书籍不存在 (ID: {book_id})")
+            return False
+
+        old_title = row[0]
+
+        # 更新书名
+        cursor.execute("""
+            UPDATE book
+            SET title = ?, updated_at = ?
+            WHERE id = ?
+        """, (new_title, datetime.now().isoformat(), book_id))
+
+        conn.commit()
+        conn.close()
+
+        print(f"✓ 已更新书名: '{old_title}' → '{new_title}' (ID: {book_id})")
+        return True
+
+    except Exception as e:
+        conn.close()
+        print(f"✗ 更新书名失败: {e}")
+        return False
+
+
 if __name__ == "__main__":
     # 初始化数据库
     from novel_reader.models import init_db

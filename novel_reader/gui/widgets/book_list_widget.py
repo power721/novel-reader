@@ -19,6 +19,8 @@ class BookListWidget(QWidget):
     book_double_clicked = Signal(int)  # 书籍被双击，参数：book_id
     books_updated = Signal()  # 书籍列表更新
     book_delete_requested = Signal(int)  # 请求删除书籍，参数：book_id
+    book_rename_requested = Signal(int, str)  # 请求重命名书籍，参数：book_id, current_title
+    book_imported = Signal(int)  # 书籍导入成功，参数：book_id
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -103,6 +105,13 @@ class BookListWidget(QWidget):
                 f"成功导入 {imported_count} 本书"
             )
 
+            # 为每本导入的书籍发射信号（触发自动转换前2个chunk）
+            from novel_reader.core import list_books
+            books = list_books()
+            # 获取最新导入的书籍（最后导入的几本）
+            for book in books[:imported_count]:
+                self.book_imported.emit(book['id'])
+
         if failed_files:
             error_msg = "以下文件导入失败:\n\n"
             for file_path, reason in failed_files:
@@ -146,13 +155,23 @@ class BookListWidget(QWidget):
         # 创建右键菜单
         menu = QMenu(self)
 
+        # 重命名操作
+        rename_action = menu.addAction("✏️ 重命名")
+
         # 删除操作
         delete_action = menu.addAction("🗑️ 删除书籍")
 
         # 显示菜单并获取用户选择
         action = menu.exec_(self.books_tree.mapToGlobal(pos))
 
-        if action == delete_action:
+        if action == rename_action:
+            # 获取当前书名
+            from novel_reader.core import get_book
+            book = get_book(book_id)
+            if book:
+                self.book_rename_requested.emit(book_id, book['title'])
+
+        elif action == delete_action:
             # 确认删除
             reply = QMessageBox.question(
                 self,
@@ -327,5 +346,8 @@ class BookListWidget(QWidget):
                     f"导入成功！书籍 ID: {book_id}"
                 )
                 self.load_books()
+
+                # 发射导入成功信号
+                self.book_imported.emit(book_id)
             except Exception as e:
                 QMessageBox.critical(self, "错误", f"导入失败: {e}")
