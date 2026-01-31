@@ -40,6 +40,7 @@ PIPER_CONFIG = "zh_CN-xiao_ya-medium.onnx.json"
 # 音频输出目录
 AUDIO_DIR = Path("data/audio")
 
+
 # ================================================
 
 # 自动检测可用的模型
@@ -60,6 +61,7 @@ def auto_detect_model() -> tuple[str, str]:
         if config_path:
             return model_path, config_path
     return None, None
+
 
 # ================================================
 
@@ -123,7 +125,8 @@ def _check_piper_python() -> bool:
         from piper import PiperVoice
         _PIPER_PYTHON_AVAILABLE = True
         return True
-    except ImportError:
+    except ImportError as ex:
+        print(ex)
         _PIPER_PYTHON_AVAILABLE = False
         return False
 
@@ -292,7 +295,8 @@ def check_piper_installed() -> bool:
             timeout=5
         )
         return result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except (FileNotFoundError, subprocess.TimeoutExpired) as ex:
+        print(ex)
         return False
 
 
@@ -382,7 +386,7 @@ def convert_chunk(text: str, book_id: int, chunk_id: int) -> str:
         file_size = Path(output_path).stat().st_size
         if file_size == 0:
             raise RuntimeError(f"转换完成但文件为空: {output_path}")
-        print(f"  ✓ Chunk {chunk_id} 转换成功 ({file_size/1024:.1f} KB)")
+        print(f"  ✓ Chunk {chunk_id} 转换成功 ({file_size / 1024:.1f} KB)")
         return result
     except Exception as e:
         print(f"  ✗ Chunk {chunk_id} 转换失败: {e}")

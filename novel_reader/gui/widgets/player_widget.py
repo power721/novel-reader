@@ -3,7 +3,7 @@
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QProgressBar, QGroupBox, QMessageBox
+    QProgressBar, QGroupBox, QMessageBox, QFrame
 )
 from PySide6.QtCore import Qt, Signal
 from typing import Optional
@@ -50,20 +50,34 @@ class PlayerWidget(QWidget):
         """)
         player_layout = QVBoxLayout()
 
-        # 当前播放信息行 (永久显示)
-        info_layout = QHBoxLayout()
+        info_widget = QWidget()
+        info_widget.setFixedHeight(60)
+
+        info_layout = QHBoxLayout(info_widget)
+        info_layout.setContentsMargins(8, 6, 8, 6)
+        info_layout.setSpacing(6)
+        info_layout.setAlignment(Qt.AlignTop)
+
         info_label = QLabel("📖 正在播放:")
         info_label.setStyleSheet("font-weight: bold;")
-        info_layout.addWidget(info_label)
+        info_label.setAlignment(Qt.AlignTop)
+        info_layout.addWidget(info_label, 0, Qt.AlignTop)
 
-        # 当前书籍和章节显示
+        play_layout = QVBoxLayout()
+        play_layout.setSpacing(2)
+
         self.current_book_label = QLabel("未选择书籍")
-        self.current_book_label.setStyleSheet("color: #555; padding: 5px;")
         self.current_book_label.setWordWrap(True)
-        info_layout.addWidget(self.current_book_label)
-        info_layout.addStretch()
+        play_layout.addWidget(self.current_book_label)
 
-        player_layout.addLayout(info_layout)
+        self.current_chapter_label = QLabel("未选择章节")
+        self.current_chapter_label.setWordWrap(True)
+        play_layout.addWidget(self.current_chapter_label)
+
+        info_layout.addLayout(play_layout, 1)
+        info_layout.setAlignment(play_layout, Qt.AlignTop)
+
+        player_layout.addWidget(info_widget)
 
         # 分隔线
         from PySide6.QtWidgets import QFrame
@@ -229,16 +243,12 @@ class PlayerWidget(QWidget):
         self.current_chapter_title = chapter_title
 
         if book_title or chapter_title:
-            # 显示书名和章节
-            if book_title and chapter_title:
-                text = f"{book_title} - {chapter_title}"
-            elif book_title:
-                text = book_title
-            else:
-                text = chapter_title
-
-            self.current_book_label.setText(text)
+            self.current_book_label.setText(book_title)
+            self.current_chapter_label.setText(chapter_title)
             self.current_book_label.setStyleSheet(
+                "color: #0066cc; padding: 5px; font-weight: bold;"
+            )
+            self.current_chapter_label.setStyleSheet(
                 "color: #0066cc; padding: 5px; font-weight: bold;"
             )
         elif self.current_book_id:
@@ -247,10 +257,18 @@ class PlayerWidget(QWidget):
             self.current_book_label.setStyleSheet(
                 "color: #555; padding: 5px;"
             )
+            self.current_chapter_label.setText("未选择章节")
+            self.current_chapter_label.setStyleSheet(
+                "color: #555; padding: 5px;"
+            )
         else:
             # 未选择
             self.current_book_label.setText("未选择书籍")
             self.current_book_label.setStyleSheet(
+                "color: #999; padding: 5px; font-style: italic;"
+            )
+            self.current_chapter_label.setText("未选择章节")
+            self.current_chapter_label.setStyleSheet(
                 "color: #999; padding: 5px; font-style: italic;"
             )
 

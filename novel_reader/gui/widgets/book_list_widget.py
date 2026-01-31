@@ -223,10 +223,7 @@ class BookListWidget(QWidget):
             current_chunk = book.get('current_chunk', 0)
 
             if total_chapters > 0:
-                if current_chapter >> 0:
-                    progress_text = f"第{current_chapter}章"
-                else:
-                    progress_text = "无"
+                progress_text = f"{current_chapter}/{total_chapters}章"
             else:
                 progress_text = f"{current_chunk}"
 

@@ -68,7 +68,6 @@ class TTSWidget(QWidget):
         # 日志区域
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setMaximumHeight(150)
         self.log_text.setPlaceholderText("转换日志将显示在这里...")
         tts_layout.addWidget(self.log_text)
 
