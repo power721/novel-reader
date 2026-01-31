@@ -15,7 +15,7 @@ class PlaybackWorker(QThread):
     chapter_finished = Signal(int, int)  # 章节播放完成，参数：current_chunk, next_chapter_start_chunk
     last_chunk_of_chapter_started = Signal(int)  # 章节最后一个chunk开始播放，参数：next_chapter_start_chunk
     chapter_index_changed = Signal(int)  # 章节索引变化，参数：current_chunk
-    chunk_conversion_requested = Signal(int)  # 请求转换chunk，参数：chunk_id
+    chunks_conversion_requested = Signal(list)  # 请求转换chunk列表，参数：chunk_id列表
 
     def __init__(self, book_id: int, start_chunk: Optional[int] = None, parent=None):
         super().__init__(parent)
@@ -24,6 +24,7 @@ class PlaybackWorker(QThread):
         self._is_running = True
         self._is_paused = False  # 添加暂停标志
         self._current_chapter_index: Optional[int] = None  # Track current chapter index
+        self._requested_chunks = set()  # 记录已请求转换的chunk，避免重复请求
 
     def run(self):
         """执行播放任务"""
@@ -120,9 +121,37 @@ class PlaybackWorker(QThread):
 
                 audio_path = book_audio_dir / f"chunk_{chunk_id:05d}.wav"
 
-                # 检查音频文件是否存在，如果不存在则等待TTS转换完成
+                # 每次播放chunk时都预转换后续chunk（从下一个开始）
+                from novel_reader.core import get_setting
+                prefetch_count = get_setting("prefetch_chunk_count", 3)
+                chunks_to_convert = []
+
+                # 收集后续需要预转换的chunk
+                for offset in range(1, prefetch_count + 1):
+                    target_chunk = chunk_id + offset
+                    if target_chunk >= total_chunks:
+                        break
+                    if target_chunk not in self._requested_chunks:
+                        target_audio_path = book_audio_dir / f"chunk_{target_chunk:05d}.wav"
+                        if not target_audio_path.exists():
+                            chunks_to_convert.append(target_chunk)
+                            self._requested_chunks.add(target_chunk)
+
+                # 发出预转换请求信号
+                if chunks_to_convert:
+                    print(f"🔄 [Chunk {chunk_id}] 预转换后续chunks: {chunks_to_convert}")
+                    self.chunks_conversion_requested.emit(chunks_to_convert)
+
+                # 检查当前chunk音频文件是否存在
                 if not audio_path.exists():
-                    print(f"⏳ [Chunk {chunk_id}] 音频文件不存在，等待TTS转换...")
+                    print(f"⏳ [Chunk {chunk_id}] 音频文件不存在，请求转换...")
+
+                    # 如果当前chunk还没请求过，立即请求
+                    if chunk_id not in self._requested_chunks:
+                        self._requested_chunks.add(chunk_id)
+                        self.chunks_conversion_requested.emit([chunk_id])
+
+                    # 等待TTS转换完成
                     import time
                     max_wait = 120  # 最多等待120秒（2分钟）
                     waited = 0
@@ -164,10 +193,15 @@ class PlaybackWorker(QThread):
                     played_count += 1
                 except FileNotFoundError as e:
                     print(f"❌ [Chunk {chunk_id}] 播放失败: {e}")
-                    print(f"🔄 [Chunk {chunk_id}] 发出转换请求，等待TTS重新转换...")
+                    print(f"🔄 [Chunk {chunk_id}] 重新请求转换...")
 
-                    # 发出转换请求信号
-                    self.chunk_conversion_requested.emit(chunk_id)
+                    # 从已请求集合中移除，允许重新请求
+                    self._requested_chunks.discard(chunk_id)
+
+                    # 重新发出转换请求
+                    self._requested_chunks.add(chunk_id)
+                    self.chunks_conversion_requested.emit([chunk_id])
+                    print(f"🔄 [Chunk {chunk_id}] 转换请求已发出，等待转换完成...")
 
                     # 等待TTS转换重新生成该文件
                     import time

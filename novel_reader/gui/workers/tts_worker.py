@@ -18,6 +18,7 @@ class TTSWorker(QThread):
     error = Signal(str)  # 转换错误
 
     def __init__(self, book_id: int, start_chunk: Optional[int] = None,
+                 end_chunk: Optional[int] = None,
                  chapter_mode: bool = False, max_preview_chapters: int = 0, parent=None):
         """
         初始化 TTS Worker
@@ -25,12 +26,14 @@ class TTSWorker(QThread):
         Args:
             book_id: 书籍 ID
             start_chunk: 起始 chunk ID（可选）
+            end_chunk: 结束 chunk ID（不包含），用于指定转换范围
             chapter_mode: 是否为章节模式（转换当前章节后继续转换后续章节）
             max_preview_chapters: 预转换后续章节数量（默认0章，即只转换当前章节）
         """
         super().__init__(parent)
         self.book_id = book_id
         self.start_chunk = start_chunk
+        self.end_chunk = end_chunk
         self.chapter_mode = chapter_mode
         self.max_preview_chapters = max_preview_chapters
         self._is_running = True
@@ -70,10 +73,15 @@ class TTSWorker(QThread):
                 start_pos = book['current_chunk']
 
             total = len(chunks)
+
+            # 如果指定了 end_chunk，则只转换到该位置
+            if self.end_chunk is not None:
+                total = min(total, self.end_chunk)
+
             converted = 0
             skipped = 0
 
-            self.log.emit(f"[DEBUG] Conversion range: start={start_pos}, total={total}")
+            self.log.emit(f"[DEBUG] Conversion range: start={start_pos}, end={total}, total_chunks={len(chunks)}")
 
             # 章节模式：确定当前章节的结束位置
             current_chapter_end = None

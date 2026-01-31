@@ -15,6 +15,7 @@ DEFAULT_SETTINGS = {
     "remember_last_book": True,  # 记住最后选择的书籍
     "auto_play_next_book": False,  # 自动播放下一本书
     "auto_play_next_chapter": True,  # 自动播放下一章节
+    "prefetch_chunk_count": 3,  # 预转换后续chunk数量
 }
 
 

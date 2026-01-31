@@ -147,6 +147,26 @@ class MainWindow(QMainWindow):
         self.auto_play_next_book_action.triggered.connect(self._toggle_auto_play_next_book)
         settings_menu.addAction(self.auto_play_next_book_action)
 
+        # TTS 预转换选项
+        settings_menu.addSeparator()
+
+        # 获取当前预转换设置
+        prefetch_count = get_setting("prefetch_chunk_count", 3)
+
+        # 创建子菜单
+        prefetch_menu = settings_menu.addMenu("TTS 预转换数量(&P)")
+
+        # 添加选项
+        for count in [0, 1, 2, 3, 5, 10]:
+            action = QAction(f"{count} 个", self)
+            action.setCheckable(True)
+            action.setChecked(count == prefetch_count)
+            action.setData(count)
+            action.triggered.connect(lambda checked, c=count: self._set_prefetch_count(c))
+            prefetch_menu.addAction(action)
+
+        prefetch_menu.setTitle(f"TTS 预转换数量 (当前: {prefetch_count})")
+
         # 帮助菜单
         help_menu = menubar.addMenu("帮助(&H)")
 
@@ -243,13 +263,6 @@ class MainWindow(QMainWindow):
             print("[DEBUG] Already playing, skipping auto-play")
             return
 
-        # 检查是否有音频文件
-        has_audio, audio_count = self._check_audio_files(self.current_book_id)
-
-        if not has_audio:
-            print("[DEBUG] No audio files, skipping auto-play")
-            return
-
         # 获取当前书籍的播放进度
         from novel_reader.core import get_book
         book = get_book(self.current_book_id)
@@ -258,16 +271,7 @@ class MainWindow(QMainWindow):
 
         current_chunk = book['current_chunk']
 
-        # 检查当前位置是否有音频
-        from novel_reader.core.tts import AUDIO_DIR, chunk_to_audio_path
-        audio_path = chunk_to_audio_path(self.current_book_id, current_chunk)
-
-        from pathlib import Path
-        if not Path(audio_path).exists():
-            print(f"[DEBUG] Current chunk {current_chunk} audio not found, skipping auto-play")
-            return
-
-        # 开始播放
+        # 直接开始播放，依赖预转换机制
         print(f"[INFO] Auto-playing from last position: chunk {current_chunk}")
         self.statusBar().showMessage(f"继续播放: chunk {current_chunk}", 3000)
         self._play_from_chunk(current_chunk)
@@ -454,6 +458,23 @@ class MainWindow(QMainWindow):
         status = "启用" if current_state else "禁用"
         self.statusBar().showMessage(f"已{status}自动播放下一章节", 3000)
         print(f"[INFO] Auto-play next chapter: {status}")
+
+    def _set_prefetch_count(self, count: int):
+        """设置TTS预转换数量"""
+        from novel_reader.core import set_setting
+
+        # 保存设置
+        set_setting("prefetch_chunk_count", count)
+
+        # 显示提示
+        if count == 0:
+            self.statusBar().showMessage("已禁用TTS预转换（只转换当前chunk）", 3000)
+        else:
+            self.statusBar().showMessage(f"已设置TTS预转换数量: {count} 个chunk", 3000)
+        print(f"[INFO] Prefetch chunk count set to: {count}")
+
+        # 更新菜单标题
+        # 重新创建菜单会复杂，所以这里只更新状态栏提示
 
     @Slot(int)
     def _on_delete_book(self, book_id: int):
@@ -673,7 +694,7 @@ class MainWindow(QMainWindow):
         self.playback_worker.chapter_finished.connect(self._on_chapter_playback_finished)
         self.playback_worker.last_chunk_of_chapter_started.connect(self._on_last_chunk_of_chapter_started)
         self.playback_worker.chapter_index_changed.connect(self._on_chapter_index_changed)
-        self.playback_worker.chunk_conversion_requested.connect(self._on_chunk_conversion_requested)
+        self.playback_worker.chunks_conversion_requested.connect(self._on_chunks_conversion_requested)
         self.playback_worker.start()
 
         # 获取书籍信息和当前章节，更新播放显示
@@ -832,50 +853,20 @@ class MainWindow(QMainWindow):
         if not auto_play_next_chapter:
             return
 
-        # 检查下一章节的音频是否存在
-        from novel_reader.core.tts import AUDIO_DIR
-        from pathlib import Path
+        # 播放会自动继续，依赖预转换机制
+        chapters = get_book_chapters(self.current_book_id)
+        # 找到下一章节的标题
+        next_chapter_title = f"chunk {next_chapter_start}"
+        for i, chapter in enumerate(chapters):
+            if chapter['start_chunk'] == next_chapter_start:
+                next_chapter_title = chapter['title']
+                break
+            elif i + 1 < len(chapters) and chapters[i + 1]['start_chunk'] == next_chapter_start:
+                next_chapter_title = chapters[i + 1]['title']
+                break
 
-        next_chapter_audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_{next_chapter_start:05d}.wav"
-
-        if not Path(next_chapter_audio_path).exists():
-            # 下一章节的音频不存在，需要转换
-            chapters = get_book_chapters(self.current_book_id)
-            # 找到下一章节的标题
-            next_chapter_title = f"chunk {next_chapter_start}"
-            for i, chapter in enumerate(chapters):
-                if chapter['start_chunk'] == next_chapter_start:
-                    next_chapter_title = chapter['title']
-                    break
-                elif i + 1 < len(chapters) and chapters[i + 1]['start_chunk'] == next_chapter_start:
-                    next_chapter_title = chapters[i + 1]['title']
-                    break
-
-            print(f"🔄 下一章节音频未找到，开始 TTS 转换: {next_chapter_title} (从 chunk {next_chapter_start})")
-            self.statusBar().showMessage(f"📖 章节播放完成，开始转换: {next_chapter_title}...")
-
-            # 停止当前播放
-            if self.playback_worker and self.playback_worker.isRunning():
-                self.playback_worker.stop()
-                self.playback_worker.wait()
-
-            # 转换下一章节并播放
-            self._convert_chapter_and_play(self.current_book_id, next_chapter_start)
-        else:
-            # 下一章节的音频已存在，播放会自动继续
-            chapters = get_book_chapters(self.current_book_id)
-            # 找到下一章节的标题
-            next_chapter_title = f"chunk {next_chapter_start}"
-            for i, chapter in enumerate(chapters):
-                if chapter['start_chunk'] == next_chapter_start:
-                    next_chapter_title = chapter['title']
-                    break
-                elif i + 1 < len(chapters) and chapters[i + 1]['start_chunk'] == next_chapter_start:
-                    next_chapter_title = chapters[i + 1]['title']
-                    break
-
-            print(f"✅ 下一章节音频已存在，自动继续播放: {next_chapter_title}")
-            self.statusBar().showMessage(f"📖 进入下一章节: {next_chapter_title}")
+        print(f"📖 进入下一章节: {next_chapter_title}")
+        self.statusBar().showMessage(f"📖 进入下一章节: {next_chapter_title}")
 
     @Slot(int)
     def _on_last_chunk_of_chapter_started(self, next_chapter_start: int):
@@ -962,28 +953,33 @@ class MainWindow(QMainWindow):
         if self.playback_worker and self.playback_worker.book_id == self.current_book_id:
             self.chapter_list_widget.highlight_current_chapter(current_chunk)
 
-    @Slot(int)
-    def _on_chunk_conversion_requested(self, chunk_id: int):
-        """处理chunk转换请求"""
-        print(f"[DEBUG] 收到chunk转换请求: chunk {chunk_id}")
+    @Slot(list)
+    def _on_chunks_conversion_requested(self, chunk_ids: list):
+        """处理批量chunk转换请求"""
+        if not chunk_ids:
+            return
+
+        print(f"[DEBUG] 收到批量chunk转换请求: {chunk_ids}")
 
         # 检查TTS worker是否正在运行
         if self.tts_worker and self.tts_worker.isRunning():
-            print(f"[DEBUG] TTS正在运行，跳过chunk {chunk_id}的转换请求")
+            print(f"[DEBUG] TTS正在运行，跳过本次转换请求")
             return
 
-        # 启动TTS转换该chunk
+        # 启动TTS转换这些chunks
         if self.playback_worker:
             book_id = self.playback_worker.book_id
-            print(f"[DEBUG] 启动TTS转换: book_id={book_id}, chunk={chunk_id}")
+            start_chunk = min(chunk_ids)
+            end_chunk = max(chunk_ids) + 1
+            print(f"[DEBUG] 启动TTS转换: book_id={book_id}, range={start_chunk}-{end_chunk}")
 
             # 清空日志
             self.tts_widget.clear_log()
             self.tts_widget.set_converting_state(True)
 
-            # 创建TTS工作线程（只转换单个chunk，chapter_mode=False）
-            print(f"[DEBUG] Creating TTSWorker for single chunk...")
-            self.tts_worker = TTSWorker(book_id, start_chunk=chunk_id, chapter_mode=False)
+            # 创建TTS工作线程（转换指定范围）
+            print(f"[DEBUG] Creating TTSWorker for range {start_chunk}-{end_chunk}...")
+            self.tts_worker = TTSWorker(book_id, start_chunk=start_chunk, end_chunk=end_chunk)
             print(f"[DEBUG] Connecting signals...")
             self.tts_worker.progress.connect(self._on_tts_progress)
             self.tts_worker.log.connect(self._on_tts_log)
@@ -993,11 +989,11 @@ class MainWindow(QMainWindow):
             self.tts_worker.start()
             print(f"[DEBUG] TTS worker started")
 
-            self.statusBar().showMessage(f"🔄 正在转换 chunk {chunk_id}...")
+            self.statusBar().showMessage(f"🔄 正在转换 chunks {chunk_ids[0]}-{chunk_ids[-1]}...")
 
     @Slot(int)
     def _on_chapter_selected(self, start_chunk: int):
-        """章节被选中 - 转换当前章节并自动播放"""
+        """章节被选中 - 从指定位置播放（依赖预转换机制）"""
         print(f"[DEBUG] _on_chapter_selected called: start_chunk={start_chunk}, current_book_id={self.current_book_id}")
 
         if self.current_book_id is None:
@@ -1010,80 +1006,14 @@ class MainWindow(QMainWindow):
             print("[DEBUG] Already converting or playing, returning")
             return  # 已在转换或播放中，不重复触发
 
-        # 获取总 chunk 数
-        from novel_reader.core import get_book
-        from novel_reader.utils import load_txt_file, parse_txt
-        book = get_book(self.current_book_id)
-        text = load_txt_file(book['file_path'])
-        chunks, _ = parse_txt(text)
-        total_chunks = len(chunks)
-
-        # 找到包含 start_chunk 的章节
-        from novel_reader.core import get_book_chapters
-        book_chapters = get_book_chapters(self.current_book_id)
-
-        print(f"[DEBUG] Found {len(book_chapters)} chapters, total chunks: {total_chunks}")
-
-        # 找到包含 start_chunk 的章节的结束位置
-        current_chapter_end = total_chunks  # 默认到文件末尾
-
-        # 遍历章节，找到包含 start_chunk 的章节
-        found_chapter_idx = None
-        for i, chapter in enumerate(book_chapters):
-            chapter_start = chapter['start_chunk']
-            # 当前章节的开始位置 <= start_chunk < 下一章的开始位置
-            if chapter_start <= start_chunk:
-                # 检查是否是包含 start_chunk 的章节
-                if i + 1 < len(book_chapters):
-                    next_chapter_start_in_loop = book_chapters[i + 1]['start_chunk']
-                    if start_chunk < next_chapter_start_in_loop:
-                        found_chapter_idx = i
-                        current_chapter_end = next_chapter_start_in_loop
-                        break
-                else:
-                    # 最后一章
-                    found_chapter_idx = i
-                    current_chapter_end = total_chunks
-                    break
-
-        if found_chapter_idx is not None:
-            print(f"[DEBUG] Found chapter at index {found_chapter_idx}: start={book_chapters[found_chapter_idx]['start_chunk']}, end={current_chapter_end}")
-
-        print(f"[DEBUG] Chapter range: {start_chunk} - {current_chapter_end}")
-
-        # 检查当前章节是否已转换（只检查到章节结束）
-        chapter_has_audio = True
-        from novel_reader.core.tts import AUDIO_DIR
-        from pathlib import Path
-
-        # 确保范围有效
-        if start_chunk >= current_chapter_end:
-            print(f"[DEBUG] Invalid range: {start_chunk} >= {current_chapter_end}")
-            current_chapter_end = min(start_chunk + 1, total_chunks)
-
-        for i in range(start_chunk, current_chapter_end):
-            audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_{i:05d}.wav"
-            if not Path(audio_path).exists():
-                chapter_has_audio = False
-                print(f"[DEBUG] Missing audio for chunk {i}")
-                break
-
-        print(f"[DEBUG] Chapter has audio: {chapter_has_audio}")
-
-        if chapter_has_audio:
-            # 当前章节已转换，可以直接播放
-            self.statusBar().showMessage(f"章节 chunk {start_chunk} 已转换，开始播放...")
-            print("[DEBUG] Calling _play_from_chunk")
-            self._play_from_chunk(start_chunk)
-        else:
-            # 当前章节未转换，开始转换并自动播放
-            self.statusBar().showMessage(f"章节 chunk {start_chunk} 未转换，开始 TTS 转换...")
-            print("[DEBUG] Calling _convert_chapter_and_play")
-            self._convert_chapter_and_play(self.current_book_id, start_chunk)
+        # 直接从指定位置播放，依赖预转换机制
+        self.statusBar().showMessage(f"从 chunk {start_chunk} 开始播放...")
+        print("[DEBUG] Calling _play_from_chunk")
+        self._play_from_chunk(start_chunk)
 
     @Slot(int)
     def _on_chapter_double_clicked(self, start_chunk: int):
-        """章节被双击 - 强制从指定位置播放或转换后播放"""
+        """章节被双击 - 强制从指定位置播放（依赖预转换机制）"""
         print(f"[DEBUG] _on_chapter_double_clicked called: start_chunk={start_chunk}, current_book_id={self.current_book_id}")
 
         if self.current_book_id is None:
@@ -1096,78 +1026,10 @@ class MainWindow(QMainWindow):
         # 强制停止当前转换
         self._stop_tts_worker_safely()
 
-        # 获取总 chunk 数
-        from novel_reader.core import get_book
-        from novel_reader.utils import load_txt_file, parse_txt
-        book = get_book(self.current_book_id)
-        text = load_txt_file(book['file_path'])
-        chunks, _ = parse_txt(text)
-        total_chunks = len(chunks)
-
-        # 找到包含 start_chunk 的章节
-        from novel_reader.core import get_book_chapters
-        book_chapters = get_book_chapters(self.current_book_id)
-
-        print(f"[DEBUG] Found {len(book_chapters)} chapters, total chunks: {total_chunks}")
-
-        # 找到包含 start_chunk 的章节的结束位置
-        current_chapter_end = total_chunks  # 默认到文件末尾
-
-        # 遍历章节，找到包含 start_chunk 的章节
-        found_chapter_idx = None
-        for i, chapter in enumerate(book_chapters):
-            chapter_start = chapter['start_chunk']
-            # 当前章节的开始位置 <= start_chunk < 下一章的开始位置
-            if chapter_start <= start_chunk:
-                # 检查是否是包含 start_chunk 的章节
-                if i + 1 < len(book_chapters):
-                    next_chapter_start_in_loop = book_chapters[i + 1]['start_chunk']
-                    if start_chunk < next_chapter_start_in_loop:
-                        found_chapter_idx = i
-                        current_chapter_end = next_chapter_start_in_loop
-                        break
-                else:
-                    # 最后一章
-                    found_chapter_idx = i
-                    current_chapter_end = total_chunks
-                    break
-
-        if found_chapter_idx is not None:
-            print(f"[DEBUG] Found chapter at index {found_chapter_idx}: start={book_chapters[found_chapter_idx]['start_chunk']}, end={current_chapter_end}")
-
-        print(f"[DEBUG] Chapter range: {start_chunk} - {current_chapter_end}")
-
-        # 检查当前章节是否已转换（只检查到章节结束）
-        chapter_has_audio = True
-        from novel_reader.core.tts import AUDIO_DIR
-        from pathlib import Path
-
-        # 确保范围有效
-        if start_chunk >= current_chapter_end:
-            print(f"[DEBUG] Invalid range: {start_chunk} >= {current_chapter_end}")
-            current_chapter_end = min(start_chunk + 1, total_chunks)
-
-        for i in range(start_chunk, current_chapter_end):
-            audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_{i:05d}.wav"
-            if not Path(audio_path).exists():
-                chapter_has_audio = False
-                print(f"[DEBUG] Missing audio for chunk {i}")
-                break
-
-        print(f"[DEBUG] Chapter has audio: {chapter_has_audio}")
-
-        if chapter_has_audio:
-            # 当前章节已转换，直接播放
-            chapter_title = book_chapters[found_chapter_idx]['title'] if found_chapter_idx is not None else f"chunk {start_chunk}"
-            self.statusBar().showMessage(f"开始播放: {chapter_title}")
-            print("[DEBUG] Calling _play_from_chunk")
-            self._play_from_chunk(start_chunk)
-        else:
-            # 当前章节未转换，转换并自动播放
-            chapter_title = book_chapters[found_chapter_idx]['title'] if found_chapter_idx is not None else f"chunk {start_chunk}"
-            self.statusBar().showMessage(f"转换章节: {chapter_title}")
-            print("[DEBUG] Calling _convert_chapter_and_play")
-            self._convert_chapter_and_play(self.current_book_id, start_chunk)
+        # 直接从指定位置播放，依赖预转换机制
+        self.statusBar().showMessage(f"从 chunk {start_chunk} 开始播放...")
+        print("[DEBUG] Calling _play_from_chunk")
+        self._play_from_chunk(start_chunk)
 
     @Slot(int)
     def _on_bookmark_double_clicked(self, chunk: int):
@@ -1279,31 +1141,9 @@ class MainWindow(QMainWindow):
         prev_chapter_start = chapters[prev_chapter_idx]['start_chunk']
         prev_chapter_title = chapters[prev_chapter_idx]['title']
 
-        # 检查上一章是否有音频
-        from novel_reader.core.tts import AUDIO_DIR
-        from pathlib import Path
-
-        # 计算上一章的结束位置
-        if prev_chapter_idx + 1 < len(chapters):
-            chapter_end = chapters[prev_chapter_idx + 1]['start_chunk']
-        else:
-            text = load_txt_file(book['file_path'])
-            chunks, _ = parse_txt(text)
-            chapter_end = len(chunks)
-
-        chapter_has_audio = True
-        for i in range(prev_chapter_start, chapter_end):
-            audio_path = AUDIO_DIR / str(target_book_id) / f"chunk_{i:05d}.wav"
-            if not Path(audio_path).exists():
-                chapter_has_audio = False
-                break
-
-        if chapter_has_audio:
-            self.statusBar().showMessage(f"开始播放: {prev_chapter_title}")
-            self._play_from_chunk(prev_chapter_start, target_book_id)
-        else:
-            self.statusBar().showMessage(f"转换章节: {prev_chapter_title}")
-            self._convert_chapter_and_play(target_book_id, prev_chapter_start)
+        # 直接播放，依赖预转换机制
+        self.statusBar().showMessage(f"开始播放: {prev_chapter_title}")
+        self._play_from_chunk(prev_chapter_start, target_book_id)
 
     def _play_next_chapter(self):
         """播放下一章"""
@@ -1367,31 +1207,9 @@ class MainWindow(QMainWindow):
         next_chapter_start = chapters[next_chapter_idx]['start_chunk']
         next_chapter_title = chapters[next_chapter_idx]['title']
 
-        # 检查下一章是否有音频
-        from novel_reader.core.tts import AUDIO_DIR
-        from pathlib import Path
-
-        # 计算下一章的结束位置
-        if next_chapter_idx + 1 < len(chapters):
-            chapter_end = chapters[next_chapter_idx + 1]['start_chunk']
-        else:
-            text = load_txt_file(book['file_path'])
-            chunks, _ = parse_txt(text)
-            chapter_end = len(chunks)
-
-        chapter_has_audio = True
-        for i in range(next_chapter_start, chapter_end):
-            audio_path = AUDIO_DIR / str(target_book_id) / f"chunk_{i:05d}.wav"
-            if not Path(audio_path).exists():
-                chapter_has_audio = False
-                break
-
-        if chapter_has_audio:
-            self.statusBar().showMessage(f"开始播放: {next_chapter_title}")
-            self._play_from_chunk(next_chapter_start, target_book_id)
-        else:
-            self.statusBar().showMessage(f"转换章节: {next_chapter_title}")
-            self._convert_chapter_and_play(target_book_id, next_chapter_start)
+        # 直接播放，依赖预转换机制
+        self.statusBar().showMessage(f"开始播放: {next_chapter_title}")
+        self._play_from_chunk(next_chapter_start, target_book_id)
 
     def _play_next_chunk(self):
         """播放下一个分段"""
@@ -1406,8 +1224,6 @@ class MainWindow(QMainWindow):
 
         from novel_reader.core import get_book
         from novel_reader.utils import load_txt_file, parse_txt
-        from novel_reader.core.tts import AUDIO_DIR
-        from pathlib import Path
 
         book = get_book(target_book_id)
         if not book:
@@ -1428,16 +1244,9 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "提示", "已经是最后一个分段了")
             return
 
-        # 检查下一个chunk是否有音频
-        audio_path = AUDIO_DIR / str(target_book_id) / f"chunk_{next_chunk:05d}.wav"
-
-        if Path(audio_path).exists():
-            self.statusBar().showMessage(f"跳转到分段 {next_chunk}")
-            self._play_from_chunk(next_chunk, target_book_id)
-        else:
-            # 下一个chunk没有音频，转换后播放
-            self.statusBar().showMessage(f"转换分段 {next_chunk}")
-            self._convert_chapter_and_play(target_book_id, next_chunk)
+        # 直接播放，依赖预转换机制
+        self.statusBar().showMessage(f"跳转到分段 {next_chunk}")
+        self._play_from_chunk(next_chunk, target_book_id)
 
     def _play_previous_chunk(self):
         """播放上一个分段"""
@@ -1451,8 +1260,6 @@ class MainWindow(QMainWindow):
         self._stop_tts_worker_safely()
 
         from novel_reader.core import get_book
-        from novel_reader.core.tts import AUDIO_DIR
-        from pathlib import Path
 
         book = get_book(target_book_id)
         if not book:
@@ -1468,16 +1275,9 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "提示", "已经是第一个分段了")
             return
 
-        # 检查上一个chunk是否有音频
-        audio_path = AUDIO_DIR / str(target_book_id) / f"chunk_{prev_chunk:05d}.wav"
-
-        if Path(audio_path).exists():
-            self.statusBar().showMessage(f"跳转到分段 {prev_chunk}")
-            self._play_from_chunk(prev_chunk, target_book_id)
-        else:
-            # 上一个chunk没有音频，转换后播放
-            self.statusBar().showMessage(f"转换分段 {prev_chunk}")
-            self._convert_chapter_and_play(target_book_id, prev_chunk)
+        # 直接播放，依赖预转换机制
+        self.statusBar().showMessage(f"跳转到分段 {prev_chunk}")
+        self._play_from_chunk(prev_chunk, target_book_id)
 
     def _play_from_chunk(self, start_chunk: int, book_id: Optional[int] = None):
         """从指定位置播放
@@ -1512,7 +1312,7 @@ class MainWindow(QMainWindow):
         self.playback_worker.chapter_finished.connect(self._on_chapter_playback_finished)
         self.playback_worker.last_chunk_of_chapter_started.connect(self._on_last_chunk_of_chapter_started)
         self.playback_worker.chapter_index_changed.connect(self._on_chapter_index_changed)
-        self.playback_worker.chunk_conversion_requested.connect(self._on_chunk_conversion_requested)
+        self.playback_worker.chunks_conversion_requested.connect(self._on_chunks_conversion_requested)
         self.playback_worker.start()
 
         # 获取书籍信息和当前章节，更新播放显示
