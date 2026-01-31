@@ -961,10 +961,16 @@ class MainWindow(QMainWindow):
 
         print(f"[DEBUG] 收到批量chunk转换请求: {chunk_ids}")
 
-        # 检查TTS worker是否正在运行
+        # 如果 TTS worker 正在运行，停止它并等待完成
         if self.tts_worker and self.tts_worker.isRunning():
-            print(f"[DEBUG] TTS正在运行，跳过本次转换请求")
-            return
+            print(f"[DEBUG] TTS正在运行，停止当前任务并开始新的转换")
+            self._stop_tts_worker_safely()
+            # 等待 worker 完全停止
+            import time
+            for _ in range(50):  # 最多等待5秒
+                if not self.tts_worker or not self.tts_worker.isRunning():
+                    break
+                time.sleep(0.1)
 
         # 启动TTS转换这些chunks
         if self.playback_worker:
@@ -999,6 +1005,15 @@ class MainWindow(QMainWindow):
         if self.current_book_id is None:
             print("[DEBUG] current_book_id is None, returning")
             return
+
+        # 清理已完成的worker对象
+        if self.tts_worker and not self.tts_worker.isRunning():
+            print("[DEBUG] Cleaning up finished TTS worker")
+            self._stop_tts_worker_safely()
+
+        if self.playback_worker and not self.playback_worker.isRunning():
+            print("[DEBUG] Cleaning up finished playback worker")
+            self._stop_playback_worker_safely()
 
         # 检查是否正在转换或播放
         if (self.tts_worker and self.tts_worker.isRunning()) or \
@@ -1063,20 +1078,38 @@ class MainWindow(QMainWindow):
     def _stop_tts_worker_safely(self):
         """安全地停止 TTSWorker 并断开信号连接"""
         if self.tts_worker:
-            if self.tts_worker.isRunning():
-                try:
-                    self.tts_worker.finished.disconnect()
-                    self.tts_worker.error.disconnect()
-                    self.tts_worker.progress.disconnect()
-                    self.tts_worker.log.disconnect()
-                    self.tts_worker.chapter_finished.disconnect()
-                    self.tts_worker.first_chunk_ready.disconnect()
-                except TypeError:
-                    pass
+            # 先断开所有信号连接
+            try:
+                self.tts_worker.finished.disconnect()
+            except TypeError:
+                pass
+            try:
+                self.tts_worker.error.disconnect()
+            except TypeError:
+                pass
+            try:
+                self.tts_worker.progress.disconnect()
+            except TypeError:
+                pass
+            try:
+                self.tts_worker.log.disconnect()
+            except TypeError:
+                pass
+            try:
+                self.tts_worker.chapter_finished.disconnect()
+            except TypeError:
+                pass
+            try:
+                self.tts_worker.first_chunk_ready.disconnect()
+            except TypeError:
+                pass
 
+            # 如果正在运行，停止并等待
+            if self.tts_worker.isRunning():
                 self.tts_worker.stop()
                 self.tts_worker.wait()
 
+            # 清理引用
             self.tts_worker = None
 
     def _play_previous_chapter(self):
