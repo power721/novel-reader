@@ -636,10 +636,9 @@ class MainWindow(QMainWindow):
         """播放书籍"""
         print(f"[DEBUG] _play_book called: book_id={book_id}")
 
-        if self.playback_worker and self.playback_worker.isRunning():
-            print("[DEBUG] Already playing, returning")
-            QMessageBox.information(self, "提示", "正在播放中，请先停止")
-            return
+        # 先安全地停止任何正在播放的内容
+        self._stop_playback_worker_safely()
+        self._stop_tts_worker_safely()
 
         # 保存最后播放的书籍ID
         from novel_reader.core import set_setting
@@ -697,10 +696,7 @@ class MainWindow(QMainWindow):
     @Slot()
     def _stop_playback(self):
         """停止播放"""
-        if self.playback_worker and self.playback_worker.isRunning():
-            self.playback_worker.stop()
-            self.playback_worker.wait()
-
+        self._stop_playback_worker_safely()
         self.player_widget.set_playing_state(False)
         self.statusBar().showMessage("播放已停止", 3000)
 
@@ -1021,18 +1017,10 @@ class MainWindow(QMainWindow):
             return
 
         # 强制停止当前播放
-        if self.playback_worker and self.playback_worker.isRunning():
-            print("[DEBUG] Stopping current playback...")
-            self.playback_worker.stop()
-            self.playback_worker.wait()
-            print("[DEBUG] Playback stopped")
+        self._stop_playback_worker_safely()
 
         # 强制停止当前转换
-        if self.tts_worker and self.tts_worker.isRunning():
-            print("[DEBUG] Stopping current TTS conversion...")
-            self.tts_worker.stop()
-            self.tts_worker.wait()
-            print("[DEBUG] TTS conversion stopped")
+        self._stop_tts_worker_safely()
 
         # 获取总 chunk 数
         from novel_reader.core import get_book
