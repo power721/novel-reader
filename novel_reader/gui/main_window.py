@@ -1124,31 +1124,51 @@ class MainWindow(QMainWindow):
         from novel_reader.core import get_book, get_book_chapters
         from novel_reader.utils import load_txt_file, parse_txt
 
+        # 在停止播放前，先获取实时章节位置（如果正在播放）
+        real_chapter_idx = None
+        if self.playback_worker and self.playback_worker.isRunning():
+            real_chapter_idx = self.playback_worker._current_chapter_index
+
+        # 强制停止当前播放，确保进度已保存
+        if self.playback_worker and self.playback_worker.isRunning():
+            self.playback_worker.stop()
+            self.playback_worker.wait()
+
+        if self.tts_worker and self.tts_worker.isRunning():
+            self.tts_worker.stop()
+            self.tts_worker.wait()
+
         book = get_book(target_book_id)
         if not book:
             return
 
-        current_chunk = book['current_chunk']
+        # 在停止播放后重新获取，确保是最新的位置
         chapters = get_book_chapters(target_book_id)
 
         if not chapters:
             QMessageBox.information(self, "提示", "该书没有章节信息")
             return
 
-        # 找到当前chunk所在的章节
-        current_chapter_idx = -1
-        for i, chapter in enumerate(chapters):
-            chapter_start = chapter['start_chunk']
-            if i + 1 < len(chapters):
-                next_chapter_start = chapters[i + 1]['start_chunk']
-                if chapter_start <= current_chunk < next_chapter_start:
-                    current_chapter_idx = i
-                    break
-            else:
-                # 最后一章
-                if chapter_start <= current_chunk:
-                    current_chapter_idx = i
-                    break
+        # 优先使用实时章节位置，否则根据 current_chunk 计算
+        if real_chapter_idx is not None:
+            current_chapter_idx = real_chapter_idx
+        else:
+            current_chunk = book['current_chunk']
+            # 根据 current_chunk 查找当前章节索引
+            current_chapter_idx = 0
+            for i, chapter in enumerate(chapters):
+                chapter_start = chapter['start_chunk']
+                if i + 1 < len(chapters):
+                    next_chapter_start = chapters[i + 1]['start_chunk']
+                    # 当前chunk在这个章节的范围内
+                    if chapter_start <= current_chunk < next_chapter_start:
+                        current_chapter_idx = i
+                        break
+                else:
+                    # 最后一章
+                    if chapter_start <= current_chunk:
+                        current_chapter_idx = i
+                        break
 
         # 计算上一章的索引
         prev_chapter_idx = current_chapter_idx - 1
@@ -1160,15 +1180,6 @@ class MainWindow(QMainWindow):
         # 获取上一章的起始chunk
         prev_chapter_start = chapters[prev_chapter_idx]['start_chunk']
         prev_chapter_title = chapters[prev_chapter_idx]['title']
-
-        # 强制停止当前播放
-        if self.playback_worker and self.playback_worker.isRunning():
-            self.playback_worker.stop()
-            self.playback_worker.wait()
-
-        if self.tts_worker and self.tts_worker.isRunning():
-            self.tts_worker.stop()
-            self.tts_worker.wait()
 
         # 检查上一章是否有音频
         from novel_reader.core.tts import AUDIO_DIR
@@ -1206,31 +1217,51 @@ class MainWindow(QMainWindow):
         from novel_reader.core import get_book, get_book_chapters
         from novel_reader.utils import load_txt_file, parse_txt
 
+        # 在停止播放前，先获取实时章节位置（如果正在播放）
+        real_chapter_idx = None
+        if self.playback_worker and self.playback_worker.isRunning():
+            real_chapter_idx = self.playback_worker._current_chapter_index
+
+        # 强制停止当前播放，确保进度已保存
+        if self.playback_worker and self.playback_worker.isRunning():
+            self.playback_worker.stop()
+            self.playback_worker.wait()
+
+        if self.tts_worker and self.tts_worker.isRunning():
+            self.tts_worker.stop()
+            self.tts_worker.wait()
+
         book = get_book(target_book_id)
         if not book:
             return
 
-        current_chunk = book['current_chunk']
+        # 在停止播放后重新获取，确保是最新的位置
         chapters = get_book_chapters(target_book_id)
 
         if not chapters:
             QMessageBox.information(self, "提示", "该书没有章节信息")
             return
 
-        # 找到当前chunk所在的章节
-        current_chapter_idx = -1
-        for i, chapter in enumerate(chapters):
-            chapter_start = chapter['start_chunk']
-            if i + 1 < len(chapters):
-                next_chapter_start = chapters[i + 1]['start_chunk']
-                if chapter_start <= current_chunk < next_chapter_start:
-                    current_chapter_idx = i
-                    break
-            else:
-                # 最后一章
-                if chapter_start <= current_chunk:
-                    current_chapter_idx = i
-                    break
+        # 优先使用实时章节位置，否则根据 current_chunk 计算
+        if real_chapter_idx is not None:
+            current_chapter_idx = real_chapter_idx
+        else:
+            current_chunk = book['current_chunk']
+            # 根据 current_chunk 查找当前章节索引
+            current_chapter_idx = 0
+            for i, chapter in enumerate(chapters):
+                chapter_start = chapter['start_chunk']
+                if i + 1 < len(chapters):
+                    next_chapter_start = chapters[i + 1]['start_chunk']
+                    # 当前chunk在这个章节的范围内
+                    if chapter_start <= current_chunk < next_chapter_start:
+                        current_chapter_idx = i
+                        break
+                else:
+                    # 最后一章
+                    if chapter_start <= current_chunk:
+                        current_chapter_idx = i
+                        break
 
         # 计算下一章的索引
         next_chapter_idx = current_chapter_idx + 1
@@ -1242,15 +1273,6 @@ class MainWindow(QMainWindow):
         # 获取下一章的起始chunk
         next_chapter_start = chapters[next_chapter_idx]['start_chunk']
         next_chapter_title = chapters[next_chapter_idx]['title']
-
-        # 强制停止当前播放
-        if self.playback_worker and self.playback_worker.isRunning():
-            self.playback_worker.stop()
-            self.playback_worker.wait()
-
-        if self.tts_worker and self.tts_worker.isRunning():
-            self.tts_worker.stop()
-            self.tts_worker.wait()
 
         # 检查下一章是否有音频
         from novel_reader.core.tts import AUDIO_DIR
@@ -1285,6 +1307,15 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "警告", "请先选择一本书")
             return
 
+        # 停止当前播放，确保进度已保存
+        if self.playback_worker and self.playback_worker.isRunning():
+            self.playback_worker.stop()
+            self.playback_worker.wait()
+
+        if self.tts_worker and self.tts_worker.isRunning():
+            self.tts_worker.stop()
+            self.tts_worker.wait()
+
         from novel_reader.core import get_book
         from novel_reader.utils import load_txt_file, parse_txt
         from novel_reader.core.tts import AUDIO_DIR
@@ -1294,6 +1325,7 @@ class MainWindow(QMainWindow):
         if not book:
             return
 
+        # 在停止播放后重新获取，确保是最新的位置
         current_chunk = book['current_chunk']
 
         # 获取总chunk数
@@ -1307,15 +1339,6 @@ class MainWindow(QMainWindow):
         if next_chunk >= total_chunks:
             QMessageBox.information(self, "提示", "已经是最后一个分段了")
             return
-
-        # 停止当前播放
-        if self.playback_worker and self.playback_worker.isRunning():
-            self.playback_worker.stop()
-            self.playback_worker.wait()
-
-        if self.tts_worker and self.tts_worker.isRunning():
-            self.tts_worker.stop()
-            self.tts_worker.wait()
 
         # 检查下一个chunk是否有音频
         audio_path = AUDIO_DIR / str(target_book_id) / f"chunk_{next_chunk:05d}.wav"
@@ -1335,6 +1358,15 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "警告", "请先选择一本书")
             return
 
+        # 停止当前播放，确保进度已保存
+        if self.playback_worker and self.playback_worker.isRunning():
+            self.playback_worker.stop()
+            self.playback_worker.wait()
+
+        if self.tts_worker and self.tts_worker.isRunning():
+            self.tts_worker.stop()
+            self.tts_worker.wait()
+
         from novel_reader.core import get_book
         from novel_reader.core.tts import AUDIO_DIR
         from pathlib import Path
@@ -1343,6 +1375,7 @@ class MainWindow(QMainWindow):
         if not book:
             return
 
+        # 在停止播放后重新获取，确保是最新的位置
         current_chunk = book['current_chunk']
 
         # 计算上一个chunk
@@ -1351,15 +1384,6 @@ class MainWindow(QMainWindow):
         if prev_chunk < 0:
             QMessageBox.information(self, "提示", "已经是第一个分段了")
             return
-
-        # 停止当前播放
-        if self.playback_worker and self.playback_worker.isRunning():
-            self.playback_worker.stop()
-            self.playback_worker.wait()
-
-        if self.tts_worker and self.tts_worker.isRunning():
-            self.tts_worker.stop()
-            self.tts_worker.wait()
 
         # 检查上一个chunk是否有音频
         audio_path = AUDIO_DIR / str(target_book_id) / f"chunk_{prev_chunk:05d}.wav"

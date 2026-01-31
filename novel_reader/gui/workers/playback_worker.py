@@ -131,6 +131,16 @@ class PlaybackWorker(QThread):
                         self.progress_updated.emit(chunk_id + 1, total_chunks)
                         continue
 
+                # 在播放前更新进度和章节索引，这样点击"下一章"时能获取到实时位置
+                from novel_reader.core.player import update_progress
+                update_progress(self.book_id, chunk_id)
+
+                # 检查章节是否变化，如果变化则发出信号
+                new_chapter_index = get_chapter_index_for_chunk(chunk_id)
+                if new_chapter_index != self._current_chapter_index:
+                    self._current_chapter_index = new_chapter_index
+                    self.chapter_index_changed.emit(chunk_id)
+
                 # 播放 chunk
                 print(f"▶ [Chunk {chunk_id}/{total_chunks-1}] 正在播放...")
                 try:
@@ -140,16 +150,6 @@ class PlaybackWorker(QThread):
                     print(f"❌ [Chunk {chunk_id}] 播放失败: {e}")
                     skipped_count += 1
                     continue
-
-                # 更新播放进度
-                from novel_reader.core.player import update_progress
-                update_progress(self.book_id, chunk_id)
-
-                # 检查章节是否变化，如果变化则发出信号
-                new_chapter_index = get_chapter_index_for_chunk(chunk_id)
-                if new_chapter_index != self._current_chapter_index:
-                    self._current_chapter_index = new_chapter_index
-                    self.chapter_index_changed.emit(chunk_id)
 
                 self.progress_updated.emit(chunk_id + 1, total_chunks)
 
