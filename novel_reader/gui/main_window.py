@@ -774,7 +774,6 @@ class MainWindow(QMainWindow):
     @Slot(int, int)
     def _on_playback_progress(self, current: int, total: int):
         """播放进度更新"""
-        self.player_widget.set_progress(current, total)
         # 只有当正在播放的书籍是当前选中的书籍时，才高亮章节
         if self.playback_worker and self.playback_worker.book_id == self.current_book_id:
             self.chapter_list_widget.highlight_current_chapter(current)
@@ -783,20 +782,35 @@ class MainWindow(QMainWindow):
         if self.playback_worker:
             playing_book_id = self.playback_worker.book_id
             from novel_reader.core import get_book, get_book_chapters
+            from novel_reader.utils import load_txt_file, parse_txt
+
             book = get_book(playing_book_id)
             if book:
                 chapters = get_book_chapters(playing_book_id)
                 if chapters:
                     # 找到包含current chunk的章节
                     chapter_title = ""
-                    for chapter in chapters:
-                        chapter_start = chapter['start_chunk']
-                        # 检查这个章节是否包含current chunk
-                        # 简化处理：使用第一个匹配的章节
-                        if chapter_start <= current:
+                    chapter_start = 0
+                    chapter_end = total  # 默认到全书末尾
+
+                    for i, chapter in enumerate(chapters):
+                        c_start = chapter['start_chunk']
+                        if c_start <= current:
                             chapter_title = chapter['title']
+                            chapter_start = c_start
+                            # 计算章节结束位置
+                            if i + 1 < len(chapters):
+                                chapter_end = chapters[i + 1]['start_chunk']
+                            else:
+                                # 最后一章，获取总chunk数
+                                text = load_txt_file(book['file_path'])
+                                chunks, _ = parse_txt(text)
+                                chapter_end = len(chunks)
                         else:
                             break
+
+                    # 更新双进度条
+                    self.player_widget.set_dual_progress(current, chapter_start, chapter_end, total)
 
                     # 更新播放显示
                     if chapter_title:
@@ -804,6 +818,9 @@ class MainWindow(QMainWindow):
                         # 重新设置播放状态以更新显示文本
                         if self.player_widget.is_playing:
                             self.player_widget.set_playing_state(True)
+                else:
+                    # 没有章节信息，只更新全书进度
+                    self.player_widget.set_progress(current, total)
 
     @Slot(int, int)
     def _on_chapter_playback_finished(self, current_chunk: int, next_chapter_start: int):

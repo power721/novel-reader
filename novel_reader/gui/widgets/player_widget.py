@@ -142,22 +142,39 @@ class PlayerWidget(QWidget):
 
         player_layout.addLayout(chunk_nav_layout)
 
-        # 播放进度行
-        progress_layout = QHBoxLayout()
+        # 播放进度行 - 本章进度
+        chapter_progress_layout = QHBoxLayout()
 
-        progress_label = QLabel("播放进度:")
-        progress_layout.addWidget(progress_label)
+        chapter_progress_label = QLabel("本章进度:")
+        chapter_progress_layout.addWidget(chapter_progress_label)
 
-        self.playback_progress = QProgressBar()
-        self.playback_progress.setRange(0, 100)
-        self.playback_progress.setValue(0)
-        progress_layout.addWidget(self.playback_progress)
+        self.chapter_progress = QProgressBar()
+        self.chapter_progress.setRange(0, 100)
+        self.chapter_progress.setValue(0)
+        chapter_progress_layout.addWidget(self.chapter_progress)
 
-        self.playback_status_label = QLabel("未播放")
-        self.playback_status_label.setMinimumWidth(100)
-        progress_layout.addWidget(self.playback_status_label)
+        self.chapter_progress_status_label = QLabel("未播放")
+        self.chapter_progress_status_label.setMinimumWidth(100)
+        chapter_progress_layout.addWidget(self.chapter_progress_status_label)
 
-        player_layout.addLayout(progress_layout)
+        player_layout.addLayout(chapter_progress_layout)
+
+        # 播放进度行 - 全书进度
+        book_progress_layout = QHBoxLayout()
+
+        book_progress_label = QLabel("全书进度:")
+        book_progress_layout.addWidget(book_progress_label)
+
+        self.book_progress = QProgressBar()
+        self.book_progress.setRange(0, 100)
+        self.book_progress.setValue(0)
+        book_progress_layout.addWidget(self.book_progress)
+
+        self.book_progress_status_label = QLabel("未播放")
+        self.book_progress_status_label.setMinimumWidth(100)
+        book_progress_layout.addWidget(self.book_progress_status_label)
+
+        player_layout.addLayout(book_progress_layout)
 
         player_group.setLayout(player_layout)
         layout.addWidget(player_group)
@@ -270,8 +287,10 @@ class PlayerWidget(QWidget):
             self.pause_btn.setText("⏸ 暂停")
             self.pause_btn.setEnabled(False)
             self.stop_btn.setEnabled(False)
-            self.playback_status_label.setText("未播放")
-            self.playback_progress.setValue(0)
+            self.chapter_progress_status_label.setText("未播放")
+            self.book_progress_status_label.setText("未播放")
+            self.chapter_progress.setValue(0)
+            self.book_progress.setValue(0)
 
     def set_paused_state(self, is_paused: bool):
         """设置暂停状态"""
@@ -287,11 +306,30 @@ class PlayerWidget(QWidget):
             self.pause_btn.setText("⏸ 暂停")
 
     def set_progress(self, current: int, total: int):
-        """设置播放进度"""
+        """设置播放进度（保留兼容性）"""
         if total > 0:
             progress = int(current / total * 100)
-            self.playback_progress.setValue(progress)
-            self.playback_status_label.setText(f"{current}/{total}")
+            self.book_progress.setValue(progress)
+            self.book_progress_status_label.setText(f"{current}/{total}")
+
+    def set_dual_progress(self, current_chunk: int, chapter_start: int, chapter_end: int, total_chunks: int):
+        """设置章节和全书进度"""
+        # 设置本章进度
+        if chapter_end > chapter_start:
+            chapter_current = current_chunk - chapter_start
+            chapter_total = chapter_end - chapter_start
+            chapter_progress = int(chapter_current / chapter_total * 100) if chapter_total > 0 else 0
+            self.chapter_progress.setValue(chapter_progress)
+            self.chapter_progress_status_label.setText(f"{chapter_current}/{chapter_total}")
+        else:
+            self.chapter_progress.setValue(100)
+            self.chapter_progress_status_label.setText("1/1")
+
+        # 设置全书进度
+        if total_chunks > 0:
+            book_progress = int(current_chunk / total_chunks * 100)
+            self.book_progress.setValue(book_progress)
+            self.book_progress_status_label.setText(f"{current_chunk}/{total_chunks}")
 
     def reset(self):
         """重置状态"""
@@ -303,7 +341,9 @@ class PlayerWidget(QWidget):
         self.pause_btn.setText("⏸ 暂停")
         self.pause_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
-        self.playback_progress.setValue(0)
-        self.playback_status_label.setText("未播放")
+        self.chapter_progress.setValue(0)
+        self.chapter_progress_status_label.setText("未播放")
+        self.book_progress.setValue(0)
+        self.book_progress_status_label.setText("未播放")
         # 重置播放信息显示
         self._update_current_display()
