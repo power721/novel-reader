@@ -708,8 +708,9 @@ class MainWindow(QMainWindow):
     def _on_playback_progress(self, current: int, total: int):
         """播放进度更新"""
         self.player_widget.set_progress(current, total)
-        # 高亮当前播放的章节
-        self.chapter_list_widget.highlight_current_chapter(current)
+        # 只有当正在播放的书籍是当前选中的书籍时，才高亮章节
+        if self.playback_worker and self.playback_worker.book_id == self.current_book_id:
+            self.chapter_list_widget.highlight_current_chapter(current)
 
         # 更新播放状态显示（获取当前章节标题）
         if self.current_book_id:
