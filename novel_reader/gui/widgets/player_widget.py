@@ -245,32 +245,13 @@ class PlayerWidget(QWidget):
         if book_title or chapter_title:
             self.current_book_label.setText(book_title)
             self.current_chapter_label.setText(chapter_title)
-            self.current_book_label.setStyleSheet(
-                "color: #0066cc; padding: 5px; font-weight: bold;"
-            )
-            self.current_chapter_label.setStyleSheet(
-                "color: #0066cc; padding: 5px; font-weight: bold;"
-            )
-        elif self.current_book_id:
-            # 只有book_id，尝试获取标题
-            self.current_book_label.setText(f"书籍 ID: {self.current_book_id}")
-            self.current_book_label.setStyleSheet(
-                "color: #555; padding: 5px;"
-            )
-            self.current_chapter_label.setText("未选择章节")
-            self.current_chapter_label.setStyleSheet(
-                "color: #555; padding: 5px;"
-            )
+            self.current_book_label.setStyleSheet("color: #222;font-weight: 600;")
+            self.current_chapter_label.setStyleSheet("color: rgba(0, 0, 0, 0.55);")
         else:
-            # 未选择
             self.current_book_label.setText("未选择书籍")
-            self.current_book_label.setStyleSheet(
-                "color: #999; padding: 5px; font-style: italic;"
-            )
+            self.current_book_label.setStyleSheet("color: #222; font-style: italic;")
             self.current_chapter_label.setText("未选择章节")
-            self.current_chapter_label.setStyleSheet(
-                "color: #999; padding: 5px; font-style: italic;"
-            )
+            self.current_chapter_label.setStyleSheet("color: #222; font-style: italic;")
 
     def set_playing_state(self, is_playing: bool):
         """设置播放状态"""
