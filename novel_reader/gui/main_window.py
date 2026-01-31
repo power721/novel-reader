@@ -302,6 +302,17 @@ class MainWindow(QMainWindow):
             return book.get('current_chunk')
         return None
 
+    def _get_target_book_id(self) -> Optional[int]:
+        """
+        获取目标书籍ID（优先使用正在播放的书籍）
+
+        Returns:
+            正在播放的书籍ID，如果没有则返回当前选中的书籍ID
+        """
+        if self.playback_worker and self.playback_worker.isRunning():
+            return self.playback_worker.book_id
+        return self.current_book_id
+
     # ==================== 书籍相关槽函数 ====================
 
     @Slot(int)
@@ -1090,19 +1101,20 @@ class MainWindow(QMainWindow):
 
     def _play_previous_chapter(self):
         """播放上一章"""
-        if self.current_book_id is None:
+        target_book_id = self._get_target_book_id()
+        if target_book_id is None:
             QMessageBox.warning(self, "警告", "请先选择一本书")
             return
 
         from novel_reader.core import get_book, get_book_chapters
         from novel_reader.utils import load_txt_file, parse_txt
 
-        book = get_book(self.current_book_id)
+        book = get_book(target_book_id)
         if not book:
             return
 
         current_chunk = book['current_chunk']
-        chapters = get_book_chapters(self.current_book_id)
+        chapters = get_book_chapters(target_book_id)
 
         if not chapters:
             QMessageBox.information(self, "提示", "该书没有章节信息")
@@ -1157,33 +1169,34 @@ class MainWindow(QMainWindow):
 
         chapter_has_audio = True
         for i in range(prev_chapter_start, chapter_end):
-            audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_{i:05d}.wav"
+            audio_path = AUDIO_DIR / str(target_book_id) / f"chunk_{i:05d}.wav"
             if not Path(audio_path).exists():
                 chapter_has_audio = False
                 break
 
         if chapter_has_audio:
             self.statusBar().showMessage(f"开始播放: {prev_chapter_title}")
-            self._play_from_chunk(prev_chapter_start)
+            self._play_from_chunk(prev_chapter_start, target_book_id)
         else:
             self.statusBar().showMessage(f"转换章节: {prev_chapter_title}")
-            self._convert_chapter_and_play(self.current_book_id, prev_chapter_start)
+            self._convert_chapter_and_play(target_book_id, prev_chapter_start)
 
     def _play_next_chapter(self):
         """播放下一章"""
-        if self.current_book_id is None:
+        target_book_id = self._get_target_book_id()
+        if target_book_id is None:
             QMessageBox.warning(self, "警告", "请先选择一本书")
             return
 
         from novel_reader.core import get_book, get_book_chapters
         from novel_reader.utils import load_txt_file, parse_txt
 
-        book = get_book(self.current_book_id)
+        book = get_book(target_book_id)
         if not book:
             return
 
         current_chunk = book['current_chunk']
-        chapters = get_book_chapters(self.current_book_id)
+        chapters = get_book_chapters(target_book_id)
 
         if not chapters:
             QMessageBox.information(self, "提示", "该书没有章节信息")
@@ -1238,21 +1251,22 @@ class MainWindow(QMainWindow):
 
         chapter_has_audio = True
         for i in range(next_chapter_start, chapter_end):
-            audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_{i:05d}.wav"
+            audio_path = AUDIO_DIR / str(target_book_id) / f"chunk_{i:05d}.wav"
             if not Path(audio_path).exists():
                 chapter_has_audio = False
                 break
 
         if chapter_has_audio:
             self.statusBar().showMessage(f"开始播放: {next_chapter_title}")
-            self._play_from_chunk(next_chapter_start)
+            self._play_from_chunk(next_chapter_start, target_book_id)
         else:
             self.statusBar().showMessage(f"转换章节: {next_chapter_title}")
-            self._convert_chapter_and_play(self.current_book_id, next_chapter_start)
+            self._convert_chapter_and_play(target_book_id, next_chapter_start)
 
     def _play_next_chunk(self):
         """播放下一个分段"""
-        if self.current_book_id is None:
+        target_book_id = self._get_target_book_id()
+        if target_book_id is None:
             QMessageBox.warning(self, "警告", "请先选择一本书")
             return
 
@@ -1261,7 +1275,7 @@ class MainWindow(QMainWindow):
         from novel_reader.core.tts import AUDIO_DIR
         from pathlib import Path
 
-        book = get_book(self.current_book_id)
+        book = get_book(target_book_id)
         if not book:
             return
 
@@ -1289,19 +1303,20 @@ class MainWindow(QMainWindow):
             self.tts_worker.wait()
 
         # 检查下一个chunk是否有音频
-        audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_{next_chunk:05d}.wav"
+        audio_path = AUDIO_DIR / str(target_book_id) / f"chunk_{next_chunk:05d}.wav"
 
         if Path(audio_path).exists():
             self.statusBar().showMessage(f"跳转到分段 {next_chunk}")
-            self._play_from_chunk(next_chunk)
+            self._play_from_chunk(next_chunk, target_book_id)
         else:
             # 下一个chunk没有音频，转换后播放
             self.statusBar().showMessage(f"转换分段 {next_chunk}")
-            self._convert_chapter_and_play(self.current_book_id, next_chunk)
+            self._convert_chapter_and_play(target_book_id, next_chunk)
 
     def _play_previous_chunk(self):
         """播放上一个分段"""
-        if self.current_book_id is None:
+        target_book_id = self._get_target_book_id()
+        if target_book_id is None:
             QMessageBox.warning(self, "警告", "请先选择一本书")
             return
 
@@ -1309,7 +1324,7 @@ class MainWindow(QMainWindow):
         from novel_reader.core.tts import AUDIO_DIR
         from pathlib import Path
 
-        book = get_book(self.current_book_id)
+        book = get_book(target_book_id)
         if not book:
             return
 
@@ -1332,34 +1347,43 @@ class MainWindow(QMainWindow):
             self.tts_worker.wait()
 
         # 检查上一个chunk是否有音频
-        audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_{prev_chunk:05d}.wav"
+        audio_path = AUDIO_DIR / str(target_book_id) / f"chunk_{prev_chunk:05d}.wav"
 
         if Path(audio_path).exists():
             self.statusBar().showMessage(f"跳转到分段 {prev_chunk}")
-            self._play_from_chunk(prev_chunk)
+            self._play_from_chunk(prev_chunk, target_book_id)
         else:
             # 上一个chunk没有音频，转换后播放
             self.statusBar().showMessage(f"转换分段 {prev_chunk}")
-            self._convert_chapter_and_play(self.current_book_id, prev_chunk)
+            self._convert_chapter_and_play(target_book_id, prev_chunk)
 
-    def _play_from_chunk(self, start_chunk: int):
-        """从指定位置播放"""
-        print(f"[DEBUG] _play_from_chunk called: start_chunk={start_chunk}, current_book_id={self.current_book_id}")
+    def _play_from_chunk(self, start_chunk: int, book_id: Optional[int] = None):
+        """从指定位置播放
+
+        Args:
+            start_chunk: 起始chunk位置
+            book_id: 书籍ID（如果为None，使用正在播放的书籍或当前选中的书籍）
+        """
+        # 确定目标书籍ID
+        if book_id is None:
+            book_id = self._get_target_book_id()
+
+        if book_id is None:
+            print("[DEBUG] No book specified, returning")
+            return
+
+        print(f"[DEBUG] _play_from_chunk called: start_chunk={start_chunk}, book_id={book_id}")
 
         if self.playback_worker and self.playback_worker.isRunning():
             print("[DEBUG] PlaybackWorker already running, returning")
             return
 
-        if self.current_book_id is None:
-            print("[DEBUG] No current book selected, returning")
-            return
-
         # 保存最后播放的书籍ID
         from novel_reader.core import set_setting
-        set_setting("last_book_id", self.current_book_id)
+        set_setting("last_book_id", book_id)
 
         # 创建播放工作线程
-        self.playback_worker = PlaybackWorker(self.current_book_id, start_chunk)
+        self.playback_worker = PlaybackWorker(book_id, start_chunk)
         self.playback_worker.finished.connect(self._on_playback_finished)
         self.playback_worker.error.connect(self._on_playback_error)
         self.playback_worker.progress_updated.connect(self._on_playback_progress)
@@ -1369,10 +1393,10 @@ class MainWindow(QMainWindow):
 
         # 获取书籍信息和当前章节，更新播放显示
         from novel_reader.core import get_book, get_book_chapters
-        book = get_book(self.current_book_id)
+        book = get_book(book_id)
         if book:
             # 根据start_chunk找到对应的章节
-            chapters = get_book_chapters(self.current_book_id)
+            chapters = get_book_chapters(book_id)
             chapter_title = ""
 
             if chapters:
@@ -1463,8 +1487,9 @@ class MainWindow(QMainWindow):
         self.tts_widget.clear_log()
         self.tts_widget.set_converting_state(True)
 
-        # 保存起始位置用于播放
+        # 保存起始位置和书籍ID用于播放
         self._pending_play_chunk = start_chunk
+        self._converting_book_id = book_id  # 保存正在转换的书籍ID
         self._conversion_in_progress = True  # 标记转换正在进行
 
         # 创建 TTS 工作线程（章节模式）
@@ -1534,8 +1559,10 @@ class MainWindow(QMainWindow):
         # 如果有待播放的chunk位置，使用它
         if hasattr(self, '_pending_play_chunk'):
             play_chunk = self._pending_play_chunk
-            print(f"[DEBUG] Starting playback from pending chunk: {play_chunk}")
-            self._play_from_chunk(play_chunk)
+            # 使用正在转换的书籍ID
+            book_id = getattr(self, '_converting_book_id', None)
+            print(f"[DEBUG] Starting playback from pending chunk: {play_chunk}, book_id: {book_id}")
+            self._play_from_chunk(play_chunk, book_id)
         else:
             print(f"[DEBUG] Starting playback from start_chunk: {start_chunk}")
             self._play_from_chunk(start_chunk)
