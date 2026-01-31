@@ -197,7 +197,7 @@ class PlayerWidget(QWidget):
     def set_book(self, book_id: int, book_title: str = ""):
         """设置当前书籍"""
         self.current_book_id = book_id
-        self._update_current_display()
+        # 不立即更新显示，只在播放时更新
 
     def update_current_playback(self, book_title: str, chapter_title: str):
         """更新当前播放信息"""
