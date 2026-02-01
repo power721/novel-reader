@@ -72,8 +72,9 @@ class PlaybackWorker(QThread):
             # 检查音频目录
             book_audio_dir = AUDIO_DIR / str(self.book_id)
             if not book_audio_dir.exists():
-                self.error.emit("音频目录不存在，请先进行TTS转换")
-                return
+                book_audio_dir.mkdir()
+                # self.error.emit("音频目录不存在，请先进行TTS转换")
+                # return
 
             # 播放循环
             played_count = 0
