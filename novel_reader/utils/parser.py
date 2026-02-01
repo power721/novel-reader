@@ -59,7 +59,7 @@ def smart_split_chunks(text: str, chunk_size: int) -> List[str]:
 
 def parse_txt(
         text: str,
-        chunk_size: int = 80
+        chunk_size: int = 60
 ) -> Tuple[List[str], List[Tuple[str, int]]]:
     text = normalize_text(text)
     matches = list(CHAPTER_PATTERN.finditer(text))
