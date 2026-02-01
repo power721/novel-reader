@@ -25,19 +25,20 @@ echo ""
 echo -e "${BLUE}=== 英文模型 ===${NC}"
 echo "1) 英文 lessac - medium (推荐，~80MB)"
 echo "2) 英文 lessac - small (轻量，~30MB)"
+echo "3) 英文 amy - medium (女声，~80MB)"
 echo ""
 echo -e "${BLUE}=== 中文模型 ===${NC}"
-echo "3) 中文 花檐 - medium (推荐，~80MB)"
-echo "4) 中文 花檐 - small (轻量，~30MB)"
-echo "5) 中文 小雅 - medium (女声，~80MB)"
-echo "6) 中文 朝文 - medium (~80MB)"
+echo "4) 中文 花檐 - medium (推荐，~80MB)"
+echo "5) 中文 花檐 - small (轻量，~30MB)"
+echo "6) 中文 小雅 - medium (女声，~80MB)"
+echo "7) 中文 朝文 - medium (~80MB)"
 echo ""
 echo -e "${BLUE}=== 批量下载 ===${NC}"
-echo "7) 下载全部英文模型"
-echo "8) 下载全部中文模型"
-echo "9) 下载全部模型"
+echo "8) 下载全部英文模型"
+echo "9) 下载全部中文模型"
+echo "10) 下载全部模型"
 echo ""
-read -p "请输入选项 (1-9): " choice
+read -p "请输入选项 (1-10): " choice
 
 case $choice in
     1)
@@ -51,33 +52,40 @@ case $choice in
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/small/en_US-lessac-small.onnx.json
         ;;
     3)
+        echo -e "${YELLOW}下载英文 amy medium 模型（女声）...${NC}"
+        wget -c https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx
+        wget -c https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx.json
+        ;;
+    4)
         echo -e "${YELLOW}下载中文 花檐 medium 模型...${NC}"
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx.json
         ;;
-    4)
+    5)
         echo -e "${YELLOW}下载中文 花檐 small 模型...${NC}"
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/zh/zh_CN/huayan/small/zh_CN-huayan-small.onnx
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/zh/zh_CN/huayan/small/zh_CN-huayan-small.onnx.json
         ;;
-    5)
+    6)
         echo -e "${YELLOW}下载中文 小雅 medium 模型（女声）...${NC}"
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/main/zh/zh_CN/xiao_ya/medium/zh_CN-xiao_ya-medium.onnx
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/main/zh/zh_CN/xiao_ya/medium/zh_CN-xiao_ya-medium.onnx.json
         ;;
-    6)
+    7)
         echo -e "${YELLOW}下载中文 朝文 medium 模型...${NC}"
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/main/zh/zh_CN/chaowen/medium/zh_CN-chaowen-medium.onnx
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/main/zh/zh_CN/chaowen/medium/zh_CN-chaowen-medium.onnx.json
         ;;
-    7)
+    8)
         echo -e "${YELLOW}下载全部英文模型...${NC}"
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/small/en_US-lessac-small.onnx
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/small/en_US-lessac-small.onnx.json
+        wget -c https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx
+        wget -c https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx.json
         ;;
-    8)
+    9)
         echo -e "${YELLOW}下载全部中文模型...${NC}"
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx.json
@@ -88,13 +96,15 @@ case $choice in
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/main/zh/zh_CN/chaowen/medium/zh_CN-chaowen-medium.onnx
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/main/zh/zh_CN/chaowen/medium/zh_CN-chaowen-medium.onnx.json
         ;;
-    9)
+    10)
         echo -e "${YELLOW}下载全部模型...${NC}"
         # 英文模型
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/small/en_US-lessac-small.onnx
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/small/en_US-lessac-small.onnx.json
+        wget -c https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx
+        wget -c https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx.json
         # 中文模型
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx
         wget -c https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/zh/zh_CN/huayan/medium/zh_CN-huayan-medium.onnx.json

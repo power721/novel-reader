@@ -39,11 +39,11 @@ MODEL_SEARCH_PATHS = [
     "~/piper_models",
 ]
 
-DEFAULT_MODEL = "zh_CN-xiao_ya-medium.onnx"
-DEFAULT_CONFIG = "zh_CN-xiao_ya-medium.onnx.json"
+ZH_MODEL = "zh_CN-xiao_ya-medium.onnx"
+ZH_CONFIG = "zh_CN-xiao_ya-medium.onnx.json"
 
-EN_MODEL = "en_US-lessac-medium.onnx"
-EN_CONFIG = "en_US-lessac-medium.onnx.json"
+EN_MODEL = "en_US-amy-medium.onnx"
+EN_CONFIG = "en_US-amy-medium.onnx.json"
 
 AUDIO_DIR = Path("data/audio")
 
@@ -178,8 +178,8 @@ def warmup_piper():
         return
     try:
         # Warmup 中文模型
-        zh_model = find_model_file(DEFAULT_MODEL)
-        zh_config = find_model_file(DEFAULT_CONFIG)
+        zh_model = find_model_file(ZH_MODEL)
+        zh_config = find_model_file(ZH_CONFIG)
         zh_voice = _get_piper_voice_zh(zh_model, zh_config)
         zh_voice.synthesize("今天天气不错。", None)
 
@@ -242,10 +242,10 @@ def text_to_speech(
         raise ValueError("文本为空")
 
     # 查找模型文件
-    zh_model = find_model_file(DEFAULT_MODEL)
+    zh_model = find_model_file(ZH_MODEL)
     if not zh_model:
-        raise FileNotFoundError(f"未找到中文模型: {DEFAULT_MODEL}")
-    zh_config = find_model_file(DEFAULT_CONFIG)
+        raise FileNotFoundError(f"未找到中文模型: {ZH_MODEL}")
+    zh_config = find_model_file(ZH_CONFIG)
     if not zh_config:
         zh_config = find_model_file(Path(zh_model).stem + ".json")
         if not zh_config:
