@@ -111,7 +111,7 @@ run_gui(create_test=False)
 |------|------|------|
 | BookListWidget | `book_list_widget.py` | 书籍列表，支持拖拽 |
 | ChapterListWidget | `chapter_list_widget.py` | 章节列表 |
-| BookmarkListWidget | `bookmark_list_widget.py` | 书签列表 |
+| PlayTextWidget | `play_text_widget.py` | 当前播放文本显示 |
 | PlayerWidget | `player_widget.py` | 播放控制 |
 | TTSWidget | `tts_widget.py` | TTS 转换 |
 

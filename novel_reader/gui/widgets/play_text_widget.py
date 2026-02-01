@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, Signal
 from typing import Optional
 
 
-class BookmarkListWidget(QWidget):
+class PlayTextWidget(QWidget):
     """当前播放文本组件"""
 
     # 信号定义
