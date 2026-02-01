@@ -126,12 +126,7 @@ class PlaybackWorker(QThread):
                 if not audio_path.exists():
                     print(f"⏳ [Chunk {chunk_id}] 音频文件不存在，请求转换...")
 
-                    # 如果当前chunk还没请求过，立即请求
-                    if chunk_id not in self._requested_chunks:
-                        self._requested_chunks.add(chunk_id)
-                        self.chunks_conversion_requested.emit([chunk_id])
-                    else:
-                        print(f"[DEBUG] requested_chunks: {self._requested_chunks}")
+                    self.chunks_conversion_requested.emit([chunk_id])
 
                     # 等待TTS转换完成
                     import time
@@ -168,9 +163,7 @@ class PlaybackWorker(QThread):
                     target_chunk = chunk_id + offset
                     if target_chunk >= total_chunks:
                         break
-                    if target_chunk not in self._requested_chunks:
-                        chunks_to_convert.append(target_chunk)
-                        self._requested_chunks.add(target_chunk)
+                    chunks_to_convert.append(target_chunk)
 
                 # 发出预转换请求信号
                 if chunks_to_convert:

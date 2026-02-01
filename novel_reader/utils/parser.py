@@ -10,7 +10,7 @@ CHAPTER_PATTERN = re.compile(
 )
 
 SENTENCE_SEP = re.compile(
-    r'([。！？]+(?:[”’」』"]+)?)'
+    r'([。！？]+(?:[”’」』】"]+)?)'
 )
 CLAUSE_SEP = re.compile(r'([，、；])')
 

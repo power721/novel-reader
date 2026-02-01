@@ -1,9 +1,13 @@
 """
 TTS 工作线程 - 后台执行 TTS 转换
 """
+from pathlib import Path
+
 from PySide6.QtCore import QThread, Signal
 import os
 from typing import Optional, List
+
+MIN_SIZE = 20000
 
 
 class TTSWorker(QThread):
@@ -135,8 +139,8 @@ class TTSWorker(QThread):
                 audio_path = chunk_to_audio_path(self.book_id, i)
 
                 # 检查是否已存在
-                if os.path.exists(audio_path):
-                    self.log.emit(f"[{i+1}/{total}] 跳过（已存在）")
+                if os.path.exists(audio_path) and os.path.getsize(audio_path) > MIN_SIZE:
+                    self.log.emit(f"[{i+1}/{total}] 跳过 分段 {i}（已存在）")
                     skipped += 1
                 else:
                     chunk_text = chunks[i].strip()
@@ -157,7 +161,7 @@ class TTSWorker(QThread):
                             while waited < max_wait:
                                 if os.path.exists(audio_path):
                                     file_size = os.path.getsize(audio_path)
-                                    if file_size > 20000:  # 文件大于20KB认为就绪
+                                    if file_size > MIN_SIZE:  # 文件大于20KB认为就绪
                                         file_ready = True
                                         break
                                 time.sleep(0.1)
