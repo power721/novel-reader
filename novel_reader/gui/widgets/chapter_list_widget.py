@@ -2,9 +2,9 @@
 章节列表组件 - 显示书籍的章节列表
 """
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QLabel
+    QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QLabel, QMenu
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QPoint
 from typing import Optional
 
 
@@ -14,6 +14,7 @@ class ChapterListWidget(QWidget):
     # 信号定义
     chapter_selected = Signal(int)  # 章节被选中，参数：start_chunk
     chapter_double_clicked = Signal(int)  # 章节被双击，参数：start_chunk
+    convert_chapter_requested = Signal(int, int)  # 请求转换章节，参数：start_chunk, end_chunk
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -40,6 +41,7 @@ class ChapterListWidget(QWidget):
         self.chapters_tree.setColumnWidth(1, 30)
         self.chapters_tree.setAlternatingRowColors(True)
         self.chapters_tree.setRootIsDecorated(False)
+        self.chapters_tree.setContextMenuPolicy(Qt.CustomContextMenu)
 
         # 启用高亮样式
         self.chapters_tree.setStyleSheet("""
@@ -63,6 +65,7 @@ class ChapterListWidget(QWidget):
         # 连接信号
         self.chapters_tree.itemClicked.connect(self._on_item_clicked)
         self.chapters_tree.itemDoubleClicked.connect(self._on_item_double_clicked)
+        self.chapters_tree.customContextMenuRequested.connect(self._show_context_menu)
 
         layout.addWidget(self.chapters_tree)
 
@@ -85,6 +88,39 @@ class ChapterListWidget(QWidget):
             return
 
         self.chapter_double_clicked.emit(start_chunk)
+
+    def _show_context_menu(self, pos: QPoint):
+        """显示右键菜单"""
+        item = self.chapters_tree.itemAt(pos)
+        if not item:
+            return
+
+        start_chunk = item.data(0, Qt.UserRole)
+        if start_chunk is None:
+            return
+
+        # 找到对应的章节数据
+        chapter_data = None
+        for chapter in self.chapters:
+            if chapter['start_chunk'] == start_chunk:
+                chapter_data = chapter
+                break
+
+        if not chapter_data:
+            return
+
+        # 创建右键菜单
+        menu = QMenu(self)
+
+        convert_action = menu.addAction("🔄 转换本章节 TTS")
+        convert_action.setToolTip(f"转换《{chapter_data['title']}》的所有 {chapter_data['chunk_count']} 个分段")
+
+        # 显示菜单并获取用户选择
+        action = menu.exec_(self.chapters_tree.mapToGlobal(pos))
+
+        if action == convert_action:
+            # 发射转换章节信号
+            self.convert_chapter_requested.emit(chapter_data['start_chunk'], chapter_data['end_chunk'])
 
     def load_chapters(self, book_id: int, current_chunk: Optional[int] = None):
         """

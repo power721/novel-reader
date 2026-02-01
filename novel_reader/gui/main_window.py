@@ -200,6 +200,7 @@ class MainWindow(QMainWindow):
         # 章节列表信号
         self.chapter_list_widget.chapter_selected.connect(self._on_chapter_selected)
         self.chapter_list_widget.chapter_double_clicked.connect(self._on_chapter_double_clicked)
+        self.chapter_list_widget.convert_chapter_requested.connect(self._convert_chapter)
 
         # 当前播放文本信号
         self.play_text_widget.bookmark_double_clicked.connect(self._on_bookmark_double_clicked)
@@ -1431,11 +1432,58 @@ class MainWindow(QMainWindow):
         self.tts_worker = TTSWorker(book_id)
         self.tts_worker.progress.connect(self._on_tts_progress)
         self.tts_worker.log.connect(self._on_tts_log)
+        self.tts_worker.phase1_finished.connect(self._on_tts_phase1_finished)
         self.tts_worker.finished.connect(self._on_tts_finished)
         self.tts_worker.error.connect(self._on_tts_error)
         self.tts_worker.start()
 
         self.statusBar().showMessage(f"正在转换书籍 ID: {book_id}")
+
+    @Slot(int, int)
+    def _convert_chapter(self, start_chunk: int, end_chunk: int):
+        """转换指定章节
+
+        Args:
+            start_chunk: 章节起始chunk
+            end_chunk: 章节结束chunk（不包含）
+        """
+        target_book_id = self._get_target_book_id()
+        if target_book_id is None:
+            QMessageBox.warning(self, "警告", "请先选择一本书")
+            return
+
+        if self.tts_worker and self.tts_worker.isRunning():
+            reply = QMessageBox.question(
+                self,
+                "确认",
+                "正在转换中，是否停止当前任务并开始转换本章节？",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                self._stop_tts_worker_safely()
+            else:
+                return
+
+        # 清空日志
+        self.tts_widget.clear_log()
+        self.tts_widget.set_converting_state(True)
+
+        # 创建 TTS 工作线程（转换指定范围）
+        self.tts_worker = TTSWorker(
+            target_book_id,
+            start_chunk=start_chunk,
+            end_chunk=end_chunk,
+            chapter_mode=False
+        )
+        self.tts_worker.progress.connect(self._on_tts_progress)
+        self.tts_worker.log.connect(self._on_tts_log)
+        self.tts_worker.finished.connect(self._on_tts_finished)
+        self.tts_worker.error.connect(self._on_tts_error)
+        self.tts_worker.start()
+
+        chapter_count = end_chunk - start_chunk
+        self.statusBar().showMessage(f"🔄 正在转换章节（{chapter_count} 个分段）...")
 
     @Slot(int, int)
     def _on_tts_progress(self, current: int, total: int):
