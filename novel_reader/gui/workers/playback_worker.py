@@ -121,28 +121,7 @@ class PlaybackWorker(QThread):
 
                 audio_path = book_audio_dir / f"chunk_{chunk_id:05d}.wav"
 
-                # 每次播放chunk时都预转换后续chunk（从下一个开始）
-                from novel_reader.core import get_setting
-                prefetch_count = get_setting("prefetch_chunk_count", 3)
-                chunks_to_convert = []
-
-                # 收集后续需要预转换的chunk
-                for offset in range(1, prefetch_count + 1):
-                    target_chunk = chunk_id + offset
-                    if target_chunk >= total_chunks:
-                        break
-                    if target_chunk not in self._requested_chunks:
-                        target_audio_path = book_audio_dir / f"chunk_{target_chunk:05d}.wav"
-                        if not target_audio_path.exists():
-                            chunks_to_convert.append(target_chunk)
-                            self._requested_chunks.add(target_chunk)
-
-                # 发出预转换请求信号
-                if chunks_to_convert:
-                    print(f"🔄 [Chunk {chunk_id}] 预转换后续chunks: {chunks_to_convert}")
-                    self.chunks_conversion_requested.emit(chunks_to_convert)
-
-                # 检查当前chunk音频文件是否存在
+                # 检查当前chunk音频文件是否存在（优先处理当前chunk）
                 if not audio_path.exists():
                     print(f"⏳ [Chunk {chunk_id}] 音频文件不存在，请求转换...")
 
@@ -175,6 +154,27 @@ class PlaybackWorker(QThread):
                         update_progress(self.book_id, chunk_id)
                         self.progress_updated.emit(chunk_id + 1, total_chunks)
                         continue
+
+                # 当前chunk准备好后，再预转换后续chunk（从下一个开始）
+                from novel_reader.core import get_setting
+                prefetch_count = get_setting("prefetch_chunk_count", 3)
+                chunks_to_convert = []
+
+                # 收集后续需要预转换的chunk
+                for offset in range(1, prefetch_count + 1):
+                    target_chunk = chunk_id + offset
+                    if target_chunk >= total_chunks:
+                        break
+                    if target_chunk not in self._requested_chunks:
+                        target_audio_path = book_audio_dir / f"chunk_{target_chunk:05d}.wav"
+                        if not target_audio_path.exists():
+                            chunks_to_convert.append(target_chunk)
+                            self._requested_chunks.add(target_chunk)
+
+                # 发出预转换请求信号
+                if chunks_to_convert:
+                    print(f"🔄 [Chunk {chunk_id}] 预转换后续chunks: {chunks_to_convert}")
+                    self.chunks_conversion_requested.emit(chunks_to_convert)
 
                 # 在播放前更新进度和章节索引，这样点击"下一章"时能获取到实时位置
                 from novel_reader.core.player import update_progress

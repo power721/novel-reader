@@ -30,6 +30,7 @@ class MainWindow(QMainWindow):
         self.current_book_id: Optional[int] = None
         self.playback_worker: Optional[PlaybackWorker] = None
         self.tts_worker: Optional[TTSWorker] = None
+        self._pending_chunks: set = set()  # 待转换的chunks
 
         # 初始化界面
         self._init_ui()
@@ -980,35 +981,72 @@ class MainWindow(QMainWindow):
 
         print(f"[DEBUG] 收到批量chunk转换请求: {chunk_ids}")
 
-        # 如果 TTS worker 正在运行，停止它（_stop_tts_worker_safely 已包含等待逻辑）
+        # 添加到待处理队列
+        new_chunks = set(chunk_ids) - self._pending_chunks
+        self._pending_chunks.update(chunk_ids)
+
+        # 如果 TTS worker 正在运行，检查是否需要中断
         if self.tts_worker and self.tts_worker.isRunning():
-            print(f"[DEBUG] TTS正在运行，停止当前任务并开始新的转换")
-            self._stop_tts_worker_safely()
+            # 检查新请求是否包含当前正在播放的chunk
+            current_chunk = None
+            if self.playback_worker and hasattr(self, 'current_book_id'):
+                # 获取当前正在播放的chunk
+                from novel_reader.core import get_book
+                book = get_book(self.current_book_id)
+                if book:
+                    current_chunk = book.get('current_chunk')
 
-        # 启动TTS转换这些chunks
-        if self.playback_worker:
-            book_id = self.playback_worker.book_id
-            start_chunk = min(chunk_ids)
-            end_chunk = max(chunk_ids) + 1
-            print(f"[DEBUG] 启动TTS转换: book_id={book_id}, range={start_chunk}-{end_chunk}")
+            # 如果新请求包含当前播放的chunk，需要优先处理
+            if current_chunk is not None and current_chunk in chunk_ids:
+                print(f"[DEBUG] 新请求包含当前播放chunk {current_chunk}，停止当前任务并优先处理")
+                self._stop_tts_worker_safely()
+                # 立即处理待处理队列
+                self._process_pending_chunks()
+            else:
+                # 否则将请求加入队列，等待当前TTS完成
+                print(f"[DEBUG] TTS正在运行，将新请求加入待处理队列: {new_chunks}")
+                self.statusBar().showMessage(f"⏳ TTS正在运行，{len(new_chunks)}个新请求已加入队列", 2000)
+            return
 
-            # 清空日志
-            self.tts_widget.clear_log()
-            self.tts_widget.set_converting_state(True)
+        # TTS空闲，立即处理
+        self._process_pending_chunks()
 
-            # 创建TTS工作线程（转换指定范围）
-            print(f"[DEBUG] Creating TTSWorker for range {start_chunk}-{end_chunk}...")
-            self.tts_worker = TTSWorker(book_id, start_chunk=start_chunk, end_chunk=end_chunk)
-            print(f"[DEBUG] Connecting signals...")
-            self.tts_worker.progress.connect(self._on_tts_progress)
-            self.tts_worker.log.connect(self._on_tts_log)
-            self.tts_worker.finished.connect(self._on_tts_finished)
-            self.tts_worker.error.connect(self._on_tts_error)
-            print(f"[DEBUG] Starting TTS worker...")
-            self.tts_worker.start()
-            print(f"[DEBUG] TTS worker started")
+    def _process_pending_chunks(self):
+        """处理待转换的chunks"""
+        if not self._pending_chunks:
+            return
 
-            self.statusBar().showMessage(f"🔄 正在转换 chunks {chunk_ids[0]}-{chunk_ids[-1]}...")
+        if not self.playback_worker:
+            return
+
+        # 获取待转换的chunks
+        chunks_to_convert = sorted(list(self._pending_chunks))
+        book_id = self.playback_worker.book_id
+        start_chunk = chunks_to_convert[0]
+        end_chunk = chunks_to_convert[-1] + 1
+
+        # 清空待处理队列（因为要开始转换了）
+        self._pending_chunks.clear()
+
+        print(f"[DEBUG] 启动TTS转换: book_id={book_id}, range={start_chunk}-{end_chunk}, chunks={chunks_to_convert}")
+
+        # 清空日志
+        self.tts_widget.clear_log()
+        self.tts_widget.set_converting_state(True)
+
+        # 创建TTS工作线程（转换指定范围）
+        print(f"[DEBUG] Creating TTSWorker for range {start_chunk}-{end_chunk}...")
+        self.tts_worker = TTSWorker(book_id, start_chunk=start_chunk, end_chunk=end_chunk)
+        print(f"[DEBUG] Connecting signals...")
+        self.tts_worker.progress.connect(self._on_tts_progress)
+        self.tts_worker.log.connect(self._on_tts_log)
+        self.tts_worker.finished.connect(self._on_tts_finished)
+        self.tts_worker.error.connect(self._on_tts_error)
+        print(f"[DEBUG] Starting TTS worker...")
+        self.tts_worker.start()
+        print(f"[DEBUG] TTS worker started")
+
+        self.statusBar().showMessage(f"🔄 正在转换 {len(chunks_to_convert)} 个 chunks...")
 
     @Slot(int)
     def _on_chapter_selected(self, start_chunk: int):
@@ -1408,7 +1446,15 @@ class MainWindow(QMainWindow):
     def _on_tts_finished(self):
         """TTS 完成"""
         self.tts_widget.set_converting_state(False)
-        self.statusBar().showMessage("TTS 转换完成", 3000)
+
+        # 检查是否有待处理的chunks
+        if self._pending_chunks:
+            print(f"[DEBUG] TTS完成，发现待处理chunks: {self._pending_chunks}")
+            self.statusBar().showMessage(f"✅ 批次完成，继续处理 {len(self._pending_chunks)} 个待转换chunks...", 2000)
+            # 自动处理待处理队列
+            self._process_pending_chunks()
+        else:
+            self.statusBar().showMessage("✅ TTS 转换完成", 3000)
 
     @Slot(str)
     def _on_tts_error(self, error_msg: str):
