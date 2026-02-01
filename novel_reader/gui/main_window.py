@@ -193,7 +193,7 @@ class MainWindow(QMainWindow):
         self.book_list_widget.books_updated.connect(self._on_books_updated)
         self.book_list_widget.book_delete_requested.connect(self._on_delete_book)
         self.book_list_widget.book_rename_requested.connect(self._on_rename_book)
-        self.book_list_widget.book_imported.connect(self._on_book_imported)
+        # self.book_list_widget.book_imported.connect(self._on_book_imported)
 
         # 章节列表信号
         self.chapter_list_widget.chapter_selected.connect(self._on_chapter_selected)
@@ -482,7 +482,7 @@ class MainWindow(QMainWindow):
         """删除书籍"""
         # 检查是否正在播放或转换该书
         if (self.playback_worker and self.playback_worker.isRunning() and
-            self.current_book_id == book_id):
+            self.playback_worker.book_id == book_id):
             QMessageBox.warning(
                 self,
                 "无法删除",
@@ -491,7 +491,7 @@ class MainWindow(QMainWindow):
             return
 
         if (self.tts_worker and self.tts_worker.isRunning() and
-            self.current_book_id == book_id):
+            self.playback_worker.book_id == book_id):
             QMessageBox.warning(
                 self,
                 "无法删除",
