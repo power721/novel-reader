@@ -83,18 +83,27 @@ class BookmarkListWidget(QWidget):
                 self.text_display.setPlainText(f"Chunk {chunk_id} 超出范围")
                 return
 
-            # 获取前一个、当前和后一个chunk的文本
-            prev_text = chunks[chunk_id - 1] if chunk_id > 0 else ""
+            # 获取前两个、当前和后两个chunk的文本
+            prev_texts = []
+            for i in range(2):
+                offset = i + 1
+                if chunk_id - offset >= 0:
+                    prev_texts.insert(0, chunks[chunk_id - offset])
+
             current_text = chunks[chunk_id]
-            next_text = chunks[chunk_id + 1] if chunk_id < len(chunks) - 1 else ""
+
+            next_texts = []
+            for i in range(2):
+                if chunk_id + i + 1 < len(chunks):
+                    next_texts.append(chunks[chunk_id + i + 1])
 
             # 构建HTML显示，高亮当前chunk
             html_content = "<html><body style='background-color: #f5f5f5;'>"
 
-            # 前一个chunk（灰色小字）
-            if prev_text:
+            # 前两个chunk（灰色小字）
+            for prev_text in prev_texts:
                 escaped_prev = prev_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                html_content += f"<div style='color: #999; font-size: 13px; margin-bottom: 10px;'>{escaped_prev}</div>"
+                html_content += f"<div style='color: #999; font-size: 13px; margin-bottom: 8px;'>{escaped_prev}</div>"
 
             # 当前chunk（黑色大字，高亮背景）- 添加锚点用于滚动定位
             escaped_current = current_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -103,10 +112,10 @@ class BookmarkListWidget(QWidget):
             html_content += f"<div style='color: #000; font-size: 15px; font-weight: 500;'>{escaped_current}</div>"
             html_content += "</div>"
 
-            # 后一个chunk（灰色小字）
-            if next_text:
+            # 后两个chunk（灰色小字）
+            for next_text in next_texts:
                 escaped_next = next_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                html_content += f"<div style='color: #999; font-size: 13px; margin-top: 10px;'>{escaped_next}</div>"
+                html_content += f"<div style='color: #999; font-size: 13px; margin-top: 8px;'>{escaped_next}</div>"
 
             html_content += "</body></html>"
 
