@@ -158,10 +158,45 @@ class TTSScheduler:
         except:
             print(f"[TTSScheduler] ⚠ Queue full, dropping chunk {chunk.chunk_id}")
 
+    def schedule_chunk_range(self, book_id: int, start_chunk_id: int,
+                             num_chunks: int, chunks: List['TextChunk']):
+        """
+        调度指定范围的chunks（从start_chunk_id开始的num_chunks个）
+
+        注意：此方法会立即返回，不阻塞调用者。
+        批量文件检查在后台异步执行。
+
+        Args:
+            book_id: 书籍ID
+            start_chunk_id: 起始chunk ID
+            num_chunks: 要调度的chunk数量
+            chunks: 所有可用的chunks列表
+        """
+        # 筛选指定范围的chunks
+        target_chunks = []
+        for chunk in chunks:
+            if start_chunk_id <= chunk.chunk_id < start_chunk_id + num_chunks:
+                # 跳过已完成或正在播放的chunks
+                if chunk.status not in [ChunkStatus.DONE, ChunkStatus.PLAYING]:
+                    target_chunks.append(chunk)
+
+            if chunk.chunk_id >= start_chunk_id + num_chunks:
+                break
+
+        if not target_chunks:
+            print(f"[TTSScheduler] No chunks to schedule in range [{start_chunk_id}, {start_chunk_id + num_chunks})")
+            return
+
+        # 异步批量检查音频文件（不阻塞）
+        self._schedule_chunks_async(target_chunks, book_id, start_chunk_id)
+
     def schedule_chapter(self, chapter: 'Chapter', book_id: int,
                           start_chunk_id: int = None):
         """
         调度整章chunks
+
+        注意：此方法会立即返回，不阻塞调用者。
+        批量文件检查在后台异步执行。
 
         Args:
             chapter: 章节
@@ -188,20 +223,104 @@ class TTSScheduler:
             if len(chunks_to_schedule) >= batch_size:
                 break
 
-        # 按优先级添加到队列
-        for i, chunk in enumerate(chunks_to_schedule):
-            if chunk.status == ChunkStatus.TTS:
-                continue  # 已在合成中
+        # 异步批量检查音频文件（不阻塞）
+        self._schedule_chunks_async(chunks_to_schedule, book_id, start_chunk_id)
 
-            if i == 0:
-                priority = TaskPriority.URGENT
-            elif i < self.config.prefetch_chunks:
-                priority = TaskPriority.HIGH
-            else:
-                priority = TaskPriority.NORMAL
+    def _schedule_chunks_async(self, chunks: List['TextChunk'], book_id: int,
+                               base_chunk_id: int = None):
+        """
+        异步调度chunks（不阻塞）
 
-            chunk.mark_tts_started()
-            self.schedule_chunk(chunk, book_id, priority)
+        在后台线程中批量检查文件，然后添加需要转换的chunks到队列
+
+        Args:
+            chunks: chunk列表
+            book_id: 书籍ID
+            base_chunk_id: 基础chunk ID（用于计算优先级）
+        """
+        def _check_and_schedule():
+            """后台线程：检查文件并调度"""
+            # 批量检查音频文件，只调度需要转换的chunks
+            chunks_to_convert = self._filter_chunks_need_conversion(
+                chunks, book_id
+            )
+
+            # 按优先级添加到队列
+            for i, chunk in enumerate(chunks_to_convert):
+                if chunk.status == ChunkStatus.TTS:
+                    continue  # 已在合成中
+
+                # 根据距离计算优先级
+                if base_chunk_id is not None:
+                    distance = chunk.chunk_id - base_chunk_id
+                else:
+                    distance = 0
+
+                if distance == 0:
+                    priority = TaskPriority.URGENT
+                elif distance < self.config.prefetch_chunks:
+                    priority = TaskPriority.HIGH
+                elif distance < self.config.prefetch_chunks * 2:
+                    priority = TaskPriority.NORMAL
+                else:
+                    priority = TaskPriority.LOW
+
+                chunk.mark_tts_started()
+                self.schedule_chunk(chunk, book_id, priority)
+
+        # 在后台线程中执行（不阻塞调用者）
+        thread = threading.Thread(
+            target=_check_and_schedule,
+            daemon=True,
+            name="TTSScheduler-CheckAndSchedule"
+        )
+        thread.start()
+
+    def _filter_chunks_need_conversion(self, chunks: List['TextChunk'],
+                                        book_id: int) -> List['TextChunk']:
+        """
+        批量检查chunks，过滤出需要转换的chunks
+
+        检查每个chunk的音频文件是否已存在且有效，如果存在则跳过
+
+        Args:
+            chunks: chunk列表
+            book_id: 书籍ID
+
+        Returns:
+            需要转换的chunk列表
+        """
+        chunks_need_conversion = []
+        skipped_count = 0
+
+        for chunk in chunks:
+            audio_path = self._get_audio_path(book_id, chunk.chunk_id)
+            audio_file = Path(audio_path)
+
+            # 检查文件是否存在且有效
+            if audio_file.exists():
+                file_size = audio_file.stat().st_size
+                if file_size > 20000:  # 大于20KB认为有效
+                    # 音频文件已存在且有效，跳过
+                    skipped_count += 1
+                    # 更新chunk状态为READY
+                    chunk.status = ChunkStatus.READY
+                    continue
+                else:
+                    # 文件存在但太小（损坏），删除
+                    try:
+                        audio_file.unlink()
+                        print(f"[TTSScheduler] 🗑 Deleted invalid audio file: chunk {chunk.chunk_id}")
+                    except:
+                        pass
+
+            # 需要转换
+            chunks_need_conversion.append(chunk)
+
+        if skipped_count > 0:
+            print(f"[TTSScheduler] ⏩ Skipped {skipped_count} chunks with existing audio")
+
+        return chunks_need_conversion
 
     def _worker_loop(self):
         """工作线程主循环"""
