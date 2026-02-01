@@ -706,26 +706,11 @@ class MainWindow(QMainWindow):
             # 立即显示第一个要播放的chunk的文本
             start_chunk = book.get('current_chunk', 0)
             self.play_text_widget.update_current_text(book_id, start_chunk)
+            self._play_from_chunk(start_chunk)
 
-        # 创建播放工作线程
-        from novel_reader.core import get_book, get_book_chapters
-        book = get_book(book_id)
-        if book:
-            # 获取当前章节
-            chapters = get_book_chapters(book_id)
-            current_chapter = book.get('current_chapter', 0)
-
-            # 找到当前章节的标题
-            chapter_title = ""
-            if chapters and 0 <= current_chapter - 1 < len(chapters):
-                chapter_title = chapters[current_chapter - 1]['title']
-
-            # 更新播放显示
-            self.player_widget.update_current_playback(book['title'], chapter_title)
-
-        # 更新 UI 状态
-        self.player_widget.set_playing_state(True)
-        self.statusBar().showMessage(f"正在播放书籍 ID: {book_id}")
+            # 更新 UI 状态
+            self.player_widget.set_playing_state(True)
+            self.statusBar().showMessage(f"正在播放书籍: {book['title']}")
 
     @Slot()
     def _stop_playback(self):
@@ -1147,7 +1132,6 @@ class MainWindow(QMainWindow):
             return
 
         from novel_reader.core import get_book, get_book_chapters
-        from novel_reader.utils import load_txt_file, parse_txt
 
         # 在停止播放前，先获取实时章节位置（如果正在播放）
         real_chapter_idx = None
