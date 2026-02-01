@@ -291,6 +291,9 @@ class PlayerWidget(QWidget):
             self.book_progress_status_label.setText("未播放")
             self.chapter_progress.setValue(0)
             self.book_progress.setValue(0)
+            # 停止时禁用分段导航按钮
+            self.prev_chunk_btn.setEnabled(False)
+            self.next_chunk_btn.setEnabled(False)
 
     def set_paused_state(self, is_paused: bool):
         """设置暂停状态"""
@@ -331,6 +334,10 @@ class PlayerWidget(QWidget):
             self.book_progress.setValue(book_progress)
             self.book_progress_status_label.setText(f"{current_chunk}/{total_chunks}")
 
+        # 更新后退/前进按钮状态
+        self.prev_chunk_btn.setEnabled(current_chunk > 0)
+        self.next_chunk_btn.setEnabled(current_chunk < total_chunks - 1)
+
     def reset(self):
         """重置状态"""
         self.current_book_id = None
@@ -347,3 +354,6 @@ class PlayerWidget(QWidget):
         self.book_progress_status_label.setText("未播放")
         # 重置播放信息显示
         self._update_current_display()
+        # 重置分段导航按钮
+        self.prev_chunk_btn.setEnabled(False)
+        self.next_chunk_btn.setEnabled(False)
