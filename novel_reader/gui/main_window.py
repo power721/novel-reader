@@ -686,18 +686,27 @@ class MainWindow(QMainWindow):
         # 显示音频数量信息
         self.statusBar().showMessage(f"找到 {audio_count} 个音频文件，开始播放...")
 
-        # 创建播放工作线程
-        self.playback_worker = PlaybackWorker(book_id)
-        self.playback_worker.finished.connect(self._on_playback_finished)
-        self.playback_worker.error.connect(self._on_playback_error)
-        self.playback_worker.progress_updated.connect(self._on_playback_progress)
-        self.playback_worker.chapter_finished.connect(self._on_chapter_playback_finished)
-        self.playback_worker.last_chunk_of_chapter_started.connect(self._on_last_chunk_of_chapter_started)
-        self.playback_worker.chapter_index_changed.connect(self._on_chapter_index_changed)
-        self.playback_worker.chunks_conversion_requested.connect(self._on_chunks_conversion_requested)
-        self.playback_worker.start()
-
         # 获取书籍信息和当前章节，更新播放显示
+        from novel_reader.core import get_book, get_book_chapters
+        book = get_book(book_id)
+        if book:
+            # 获取当前章节
+            chapters = get_book_chapters(book_id)
+            current_chapter = book.get('current_chapter', 0)
+
+            # 找到当前章节的标题
+            chapter_title = ""
+            if chapters and 0 <= current_chapter - 1 < len(chapters):
+                chapter_title = chapters[current_chapter - 1]['title']
+
+            # 更新播放显示
+            self.player_widget.update_current_playback(book['title'], chapter_title)
+
+            # 立即显示第一个要播放的chunk的文本
+            start_chunk = book.get('current_chunk', 0)
+            self.bookmark_list_widget.update_current_text(book_id, start_chunk)
+
+        # 创建播放工作线程
         from novel_reader.core import get_book, get_book_chapters
         book = get_book(book_id)
         if book:
@@ -716,13 +725,6 @@ class MainWindow(QMainWindow):
         # 更新 UI 状态
         self.player_widget.set_playing_state(True)
         self.statusBar().showMessage(f"正在播放书籍 ID: {book_id}")
-
-        # 更新当前播放文本显示
-        from novel_reader.core import get_book
-        book = get_book(book_id)
-        if book:
-            start_chunk = self.playback_worker.start_chunk if self.playback_worker.start_chunk is not None else book['current_chunk']
-            self.bookmark_list_widget.update_current_text(book_id, start_chunk)
 
     @Slot()
     def _stop_playback(self):
@@ -807,12 +809,10 @@ class MainWindow(QMainWindow):
     @Slot(int, int)
     def _on_playback_progress(self, current: int, total: int):
         """播放进度更新"""
-        # 更新当前播放文本显示
+        # 更新当前播放文本显示（current 是当前正在播放的chunk）
         if self.playback_worker:
             playing_book_id = self.playback_worker.book_id
-            # 显示当前播放的文本（current 是下一个要播放的chunk，所以显示 current-1）
-            if current > 0:
-                self.bookmark_list_widget.update_current_text(playing_book_id, current - 1)
+            self.bookmark_list_widget.update_current_text(playing_book_id, current)
 
         # 只有当正在播放的书籍是当前选中的书籍时，才高亮章节
         if self.playback_worker and self.playback_worker.book_id == self.current_book_id:

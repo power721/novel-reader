@@ -186,6 +186,9 @@ class PlaybackWorker(QThread):
                     self._current_chapter_index = new_chapter_index
                     self.chapter_index_changed.emit(chunk_id)
 
+                # 播放前发送进度更新信号（让文本显示同步）
+                self.progress_updated.emit(chunk_id, total_chunks)
+
                 # 播放 chunk
                 print(f"▶ [Chunk {chunk_id}/{total_chunks-1}] 正在播放...")
                 try:
