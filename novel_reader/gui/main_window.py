@@ -1097,31 +1097,8 @@ class MainWindow(QMainWindow):
     def _stop_tts_worker_safely(self):
         """安全地停止 TTSWorker 并断开信号连接"""
         if self.tts_worker:
-            # 先断开所有信号连接
-            try:
-                self.tts_worker.finished.disconnect()
-            except TypeError:
-                pass
-            try:
-                self.tts_worker.error.disconnect()
-            except TypeError:
-                pass
-            try:
-                self.tts_worker.progress.disconnect()
-            except TypeError:
-                pass
-            try:
-                self.tts_worker.log.disconnect()
-            except TypeError:
-                pass
-            try:
-                self.tts_worker.chapter_finished.disconnect()
-            except TypeError:
-                pass
-            try:
-                self.tts_worker.first_chunk_ready.disconnect()
-            except TypeError:
-                pass
+            # 使用 blockSignals 阻止所有信号，避免断开时的警告
+            self.tts_worker.blockSignals(True)
 
             # 如果正在运行，停止并等待
             if self.tts_worker.isRunning():

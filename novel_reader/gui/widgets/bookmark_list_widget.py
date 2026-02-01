@@ -42,8 +42,8 @@ class BookmarkListWidget(QWidget):
                 border-radius: 4px;
                 padding: 8px;
                 font-family: 'Microsoft YaHei UI', 'SimHei', sans-serif;
-                font-size: 13px;
-                line-height: 1.6;
+                font-size: 14px;
+                line-height: 1.8;
             }
         """)
         layout.addWidget(self.text_display)
@@ -83,39 +83,37 @@ class BookmarkListWidget(QWidget):
                 self.text_display.setPlainText(f"Chunk {chunk_id} 超出范围")
                 return
 
-            # 获取当前chunk的文本
-            current_chunk_text = chunks[chunk_id]
+            # 获取前一个、当前和后一个chunk的文本
+            prev_text = chunks[chunk_id - 1] if chunk_id > 0 else ""
+            current_text = chunks[chunk_id]
+            next_text = chunks[chunk_id + 1] if chunk_id < len(chunks) - 1 else ""
 
-            # 获取当前章节信息 (parse_txt 返回的是 List[Tuple[str, int]]，即 [(title, start_chunk), ...])
-            chapter_title = "未知章节"
-            chapter_start = 0
-            for i, chapter in enumerate(chapters):
-                # chapter 是 tuple: (title, start_chunk)
-                c_title = chapter[0]
-                c_start = chapter[1]
-                if i + 1 < len(chapters):
-                    next_chapter_start = chapters[i + 1][1]
-                    if c_start <= chunk_id < next_chapter_start:
-                        chapter_title = c_title
-                        chapter_start = c_start
-                        break
-                else:
-                    if c_start <= chunk_id:
-                        chapter_title = c_title
-                        chapter_start = c_start
-                        break
+            # 构建HTML显示，高亮当前chunk
+            html_content = "<html><body style='background-color: #f5f5f5;'>"
 
-            # 计算在章节中的位置
-            position_in_chapter = chunk_id - chapter_start
+            # 前一个chunk（灰色小字）
+            if prev_text:
+                escaped_prev = prev_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                html_content += f"<div style='color: #999; font-size: 13px; margin-bottom: 10px;'>{escaped_prev}</div>"
 
-            # 构建显示文本
-            display_text = f"《{book['title']}》\n\n"
-            display_text += f"【{chapter_title}】\n"
-            display_text += f"Chunk {chunk_id} (章节内第 {position_in_chapter + 1} 段)\n"
-            display_text += f"{'─' * 40}\n\n"
-            display_text += current_chunk_text
+            # 当前chunk（黑色大字，高亮背景）- 添加锚点用于滚动定位
+            escaped_current = current_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            html_content += "<a name='current'></a>"
+            html_content += f"<div style='background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 10px 0; border-radius: 4px;'>"
+            html_content += f"<div style='color: #000; font-size: 15px; font-weight: 500;'>{escaped_current}</div>"
+            html_content += "</div>"
 
-            self.text_display.setPlainText(display_text)
+            # 后一个chunk（灰色小字）
+            if next_text:
+                escaped_next = next_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                html_content += f"<div style='color: #999; font-size: 13px; margin-top: 10px;'>{escaped_next}</div>"
+
+            html_content += "</body></html>"
+
+            self.text_display.setHtml(html_content)
+
+            # 滚动到顶部，让当前chunk可见
+            self.text_display.verticalScrollBar().setValue(self.text_display.verticalScrollBar().minimum())
 
             # 滚动到顶部
             cursor = self.text_display.textCursor()
