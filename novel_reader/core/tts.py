@@ -47,76 +47,94 @@ EN_CONFIG = "en_US-amy-medium.onnx.json"
 
 AUDIO_DIR = Path("data/audio")
 
-# ==================== 中英文混合 TTS 常量 ====================
+# ==================== 正则定义 ====================
 
-SENTENCE_SPLIT_RE = re.compile(r'(?<=[。！？!?])')
-
-# ==================== 中英文混合 TTS 工具函数 ====================
-
-
+# 中英文引号
 QUOTE_RE = re.compile(r'[“"](.+?)[”"]')
 
-EN_RE = re.compile(r'[A-Za-z]{2,}')
+# 任意 ASCII 英文字母（最终判定标准）
+ASCII_LETTER_RE = re.compile(r'[A-Za-z]')
+
+# 连续英文 / 数字 / 常见符号（整体交给英文模型）
+EN_BLOCK_RE = re.compile(r'[A-Za-z][A-Za-z\s.,:;!?\'"()+\-_/]*')
 
 
-def detect_lang(text: str) -> str:
-    if EN_RE.search(text):
-        return "en"
-    return "zh"
+# ==================== 工具函数 ====================
 
 
-def split_mixed_sentence(text: str) -> List[Tuple[str, str]]:
+def has_ascii_letter(text: str) -> bool:
+    return bool(ASCII_LETTER_RE.search(text))
+
+
+def split_by_ascii(text: str) -> List[Tuple[str, str]]:
     """
-    返回 [(文本, 语言)]
-    如果所有拆分是同一个语言，只输出原句子
+    把一段【不含引号】的文本切成 zh / en 块
+    保证 zh 块中不出现 ASCII 字母
     """
-    results = []
+    result = []
+    last = 0
+
+    for m in EN_BLOCK_RE.finditer(text):
+        start, end = m.span()
+
+        # 前面的中文
+        if start > last:
+            zh = text[last:start]
+            if zh:
+                result.append((zh, "zh"))
+
+        en = text[start:end]
+        if en:
+            result.append((en, "en"))
+
+        last = end
+
+    # 尾部中文
+    if last < len(text):
+        tail = text[last:]
+        if tail:
+            result.append((tail, "zh"))
+
+    return result
+
+
+# ==================== 最终入口函数 ====================
+
+def split_text_for_tts(text: str) -> List[Tuple[str, str]]:
+    """
+    最终 TTS 切分器（生产级）
+    返回 [(text, lang)], lang in {"zh", "en"}
+    """
+    results: List[Tuple[str, str]] = []
     last = 0
 
     for m in QUOTE_RE.finditer(text):
         start, end = m.span()
 
-        # 引号外（前）
+        # 引号外
         if start > last:
-            outside = text[last:start].strip()
-            if outside:
-                results.append((outside, "zh"))
+            outside = text[last:start]
+            if outside.strip():
+                results.extend(split_by_ascii(outside))
 
-        # 引号内
-        quoted = m.group(1).strip()
-        if quoted:
-            results.append((quoted, detect_lang(quoted)))
+        # 引号内（整体当作一个语义单元）
+        quoted = m.group(1)
+        if quoted.strip():
+            if has_ascii_letter(quoted):
+                results.append((quoted, "en"))
+            else:
+                results.append((quoted, "zh"))
 
         last = end
 
     # 尾部
     if last < len(text):
-        tail = text[last:].strip()
-        if tail:
-            results.append((tail, "zh"))
+        tail = text[last:]
+        if tail.strip():
+            results.extend(split_by_ascii(tail))
 
-    # 如果所有拆分是同一个语言，返回原句子
-    if results:
-        first_lang = results[0][1]
-        if all(lang == first_lang for _, lang in results):
-            return [(text, first_lang)]
-
-    return results
-
-
-def split_sentences(text: str) -> List[str]:
-    """按中文标点符号分割句子"""
-    text = text.strip()
-    parts = SENTENCE_SPLIT_RE.split(text)
-    return [p.strip() for p in parts if p.strip()]
-
-
-def is_english_sentence(text: str) -> bool:
-    """
-    判断是否需要用英文模型
-    规则：包含连续 3+ 英文字母（即英文单词）
-    """
-    return bool(re.search(r'[A-Za-z]{3,}', text))
+    # 清理空白段
+    return [(t, lang) for t, lang in results if t.strip()]
 
 
 def concat_wavs(wav_files: List[str], output_path: str):
@@ -268,7 +286,7 @@ def text_to_speech(
             raise FileNotFoundError("英文模型配置文件缺失")
 
     # 分割句子
-    sentences = split_mixed_sentence(text)
+    sentences = split_text_for_tts(text)
     if not sentences:
         raise ValueError("未能分割出有效句子")
 
@@ -455,3 +473,6 @@ def debug_chunk_content(book_id: int, chunk_id: int) -> dict:
     }
 
     return result
+
+if __name__ == '__main__':
+    print(split_text_for_tts("你好，我是Harold，我来自A1星球。"))
