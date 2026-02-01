@@ -515,18 +515,13 @@ class MainWindow(QMainWindow):
             if self.current_book_id == book_id:
                 self.current_book_id = None
                 self.chapter_list_widget.clear()
-                self.play_text_widget.clear()
-                self.player_widget.reset()
-                self.tts_widget.clear_log()
+                # self.play_text_widget.clear()
+                # self.player_widget.reset()
+                # self.tts_widget.clear_log()
 
             # 刷新书籍列表
             self.book_list_widget.load_books()
 
-            QMessageBox.information(
-                self,
-                "删除成功",
-                f"已删除书籍：《{book['title']}》"
-            )
             self.statusBar().showMessage("书籍已删除", 3000)
         else:
             QMessageBox.critical(self, "错误", "删除失败")
