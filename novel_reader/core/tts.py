@@ -17,6 +17,15 @@ import os
 from pathlib import Path
 from typing import Optional, List
 
+# 配置环境变量以加速模型下载和缓存
+# 设置 HuggingFace 镜像（可选，用于国内用户）
+os.environ.setdefault('HF_ENDPOINT', 'https://hf-mirror.com')
+
+# 设置缓存目录
+cache_dir = Path.home() / '.cache' / 'huggingface'
+os.environ.setdefault('HUGGINGFACE_HUB_CACHE', str(cache_dir))
+os.environ.setdefault('TRANSFORMERS_CACHE', str(cache_dir / 'transformers'))
+
 # ==================== 配置区 ====================
 
 # Piper 可执行文件路径（subprocess 模式）
@@ -218,9 +227,25 @@ def _text_to_speech_python(text: str, output_file: Path,
     try:
         import wave
         from piper import PiperVoice
+        import time
 
-        # 加载模型
-        voice = PiperVoice.load(model, config_path=config)
+        # 加载模型（带重试机制处理网络超时）
+        max_retries = 3
+        voice = None
+
+        for attempt in range(max_retries):
+            try:
+                voice = PiperVoice.load(model, config_path=config)
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    # 检查是否是网络超时错误
+                    if 'timeout' in str(e).lower() or 'readtimeout' in str(e).lower():
+                        wait_time = (attempt + 1) * 5
+                        print(f"  ⏳ 首次初始化中文模型需要下载 G2PW 组件，网络超时，{wait_time}秒后重试 ({attempt + 1}/{max_retries})...")
+                        time.sleep(wait_time)
+                        continue
+                raise
 
         # 使用 wave 模块打开文件进行转换
         with wave.open(str(output_file), 'wb') as wav_file:

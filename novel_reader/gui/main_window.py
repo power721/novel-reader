@@ -980,16 +980,10 @@ class MainWindow(QMainWindow):
 
         print(f"[DEBUG] 收到批量chunk转换请求: {chunk_ids}")
 
-        # 如果 TTS worker 正在运行，停止它并等待完成
+        # 如果 TTS worker 正在运行，停止它（_stop_tts_worker_safely 已包含等待逻辑）
         if self.tts_worker and self.tts_worker.isRunning():
             print(f"[DEBUG] TTS正在运行，停止当前任务并开始新的转换")
             self._stop_tts_worker_safely()
-            # 等待 worker 完全停止
-            import time
-            for _ in range(50):  # 最多等待5秒
-                if not self.tts_worker or not self.tts_worker.isRunning():
-                    break
-                time.sleep(0.1)
 
         # 启动TTS转换这些chunks
         if self.playback_worker:
@@ -1075,21 +1069,16 @@ class MainWindow(QMainWindow):
     def _stop_playback_worker_safely(self):
         """安全地停止 PlaybackWorker 并断开信号连接"""
         if self.playback_worker:
-            if self.playback_worker.isRunning():
-                # 先断开所有信号连接，避免旧的信号影响新的播放
-                try:
-                    self.playback_worker.finished.disconnect()
-                    self.playback_worker.error.disconnect()
-                    self.playback_worker.progress_updated.disconnect()
-                    self.playback_worker.chapter_finished.disconnect()
-                    self.playback_worker.last_chunk_of_chapter_started.disconnect()
-                    self.playback_worker.chapter_index_changed.disconnect()
-                except TypeError:
-                    # 信号未连接，忽略错误
-                    pass
+            # 使用 blockSignals 阻止所有信号
+            self.playback_worker.blockSignals(True)
 
+            if self.playback_worker.isRunning():
                 self.playback_worker.stop()
-                self.playback_worker.wait()
+                # 使用 wait 并设置超时，避免阻塞界面
+                if not self.playback_worker.wait(1000):  # 1秒超时
+                    # 如果超时，强制终止
+                    self.playback_worker.terminate()
+                    self.playback_worker.wait(500)  # 再等0.5秒
 
             # 清理引用
             self.playback_worker = None
@@ -1100,10 +1089,14 @@ class MainWindow(QMainWindow):
             # 使用 blockSignals 阻止所有信号，避免断开时的警告
             self.tts_worker.blockSignals(True)
 
-            # 如果正在运行，停止并等待
+            # 如果正在运行，停止并等待（最多等待2秒）
             if self.tts_worker.isRunning():
                 self.tts_worker.stop()
-                self.tts_worker.wait()
+                # 使用 wait 并设置超时，避免阻塞界面
+                if not self.tts_worker.wait(2000):  # 2秒超时
+                    # 如果超时，强制终止
+                    self.tts_worker.terminate()
+                    self.tts_worker.wait(500)  # 再等0.5秒
 
             # 清理引用
             self.tts_worker = None
