@@ -717,12 +717,24 @@ class MainWindow(QMainWindow):
         self.player_widget.set_playing_state(True)
         self.statusBar().showMessage(f"正在播放书籍 ID: {book_id}")
 
+        # 更新当前播放文本显示
+        from novel_reader.core import get_book
+        book = get_book(book_id)
+        if book:
+            start_chunk = self.playback_worker.start_chunk if self.playback_worker.start_chunk is not None else book['current_chunk']
+            self.bookmark_list_widget.update_current_text(book_id, start_chunk)
+
     @Slot()
     def _stop_playback(self):
         """停止播放"""
         self._stop_playback_worker_safely()
         self.player_widget.set_playing_state(False)
         self.statusBar().showMessage("播放已停止", 3000)
+        # 清空当前播放文本显示
+        if self.current_book_id:
+            self.bookmark_list_widget.load_bookmarks(self.current_book_id)
+        else:
+            self.bookmark_list_widget.clear()
 
     @Slot()
     def _pause_playback(self):
@@ -795,6 +807,13 @@ class MainWindow(QMainWindow):
     @Slot(int, int)
     def _on_playback_progress(self, current: int, total: int):
         """播放进度更新"""
+        # 更新当前播放文本显示
+        if self.playback_worker:
+            playing_book_id = self.playback_worker.book_id
+            # 显示当前播放的文本（current 是下一个要播放的chunk，所以显示 current-1）
+            if current > 0:
+                self.bookmark_list_widget.update_current_text(playing_book_id, current - 1)
+
         # 只有当正在播放的书籍是当前选中的书籍时，才高亮章节
         if self.playback_worker and self.playback_worker.book_id == self.current_book_id:
             self.chapter_list_widget.highlight_current_chapter(current)
@@ -1378,6 +1397,9 @@ class MainWindow(QMainWindow):
         # 更新 UI 状态
         self.player_widget.set_playing_state(True)
         self.statusBar().showMessage(f"正在播放: {book['title']}")
+
+        # 更新当前播放文本显示
+        self.bookmark_list_widget.update_current_text(book_id, start_chunk)
 
     # ==================== TTS 相关槽函数 ====================
 
