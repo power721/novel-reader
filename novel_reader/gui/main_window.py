@@ -26,6 +26,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        from novel_reader.core import warmup_piper
+        warmup_piper()
         # 状态变量
         self.current_book_id: Optional[int] = None
         self.playback_worker: Optional[PlaybackWorker] = None

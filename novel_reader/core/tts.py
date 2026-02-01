@@ -72,13 +72,15 @@ def _get_piper_voice(model: str, config: str):
     return _PIPER_VOICE
 
 
-def warmup_piper(model: str, config: str):
+def warmup_piper():
     """预热模型，避免首段卡死"""
     if not _check_piper_python():
         return
     try:
+        model = find_model_file(DEFAULT_MODEL)
+        config = find_model_file(DEFAULT_CONFIG)
         voice = _get_piper_voice(model, config)
-        voice.synthesize("测试", None)
+        voice.synthesize("今天天气不错。", None)
         print("🔥 Piper 模型预热完成")
     except Exception as e:
         print(f"⚠️ Piper 预热失败: {e}")
