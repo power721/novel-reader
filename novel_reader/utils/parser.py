@@ -9,7 +9,9 @@ CHAPTER_PATTERN = re.compile(
     re.MULTILINE
 )
 
-SENTENCE_SEP = re.compile(r'([。！？])')
+SENTENCE_SEP = re.compile(
+    r'([。！？]+(?:[”’」』"]+)?)'
+)
 CLAUSE_SEP = re.compile(r'([，、；])')
 
 
@@ -19,7 +21,6 @@ def normalize_text(text: str) -> str:
 
 
 def split_by_sentence(text: str) -> List[str]:
-    """按句号切分但保留标点"""
     parts = SENTENCE_SEP.split(text)
     sentences = []
     buf = ""
@@ -33,7 +34,33 @@ def split_by_sentence(text: str) -> List[str]:
     if buf.strip():
         sentences.append(buf.strip())
 
+    # ✅ 修复中文引号跨句
+    sentences = fix_quote_boundary(sentences)
+
     return sentences
+
+
+def fix_quote_boundary(sentences: List[str]) -> List[str]:
+    """
+    修复中文引号跨句问题：
+    - 如果一句以左引号开头，而上一句没有以右引号结尾
+    - 则把左引号并回上一句
+    """
+    if not sentences:
+        return sentences
+
+    fixed = [sentences[0]]
+
+    for s in sentences[1:]:
+        s = s.strip()
+        if s.startswith("“") and not fixed[-1].endswith("”"):
+            # 把左引号并回上一句
+            fixed[-1] += "”"
+            fixed.append(s[1:].lstrip())
+        else:
+            fixed.append(s)
+
+    return fixed
 
 
 def smart_split_chunks(text: str, chunk_size: int) -> List[str]:
@@ -102,7 +129,7 @@ if __name__ == "__main__":
     sample_text = """
 第1章 雾起之日
 
-清晨的雾气像一层薄纱笼罩着城市，街道的轮廓在灰白中若隐若现。林舟站在阳台上，手里捧着一杯已经凉掉的咖啡。他隐约觉得，这一天和以往不同。远处的钟声响起，低沉而缓慢，仿佛在提醒什么即将到来。
+清晨的雾气像一层薄纱笼罩着城市，街道的轮廓在灰白中若隐若现。”林舟站在阳台上，手里捧着一杯已经凉掉的咖啡。“他隐约觉得，这一天和以往不同。远处的钟声响起，低沉而缓慢，仿佛在提醒什么即将到来。
 好，这里给你一份可以直接复制给 Claude Code 使用的「高质量工程型 Prompt」。
 这是按 “让 Claude 产出 production 级代码，而不是示例” 来写的。
 
@@ -148,7 +175,9 @@ if __name__ == "__main__":
     print("文本解析测试")
     print("=" * 60)
 
-    chunks, chapters = parse_txt(sample_text, chunk_size=100)
+    print(split_by_sentence("清晨的雾气像一层薄纱笼罩着城市，街道的轮廓在灰白中若隐若现。”林舟站在阳台上，手里捧着一杯已经凉掉的咖啡。“他隐约觉得，这一天和以往不同。远处的钟声响起，低沉而缓慢，仿佛在提醒什么即将到来。"))
+
+    chunks, chapters = parse_txt(sample_text, chunk_size=60)
 
     print(f"\n总字符数: {len(sample_text)}")
     print(f"分段数量: {len(chunks)}")
