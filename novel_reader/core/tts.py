@@ -46,30 +46,22 @@ EN_MODEL = "en_US-amy-medium.onnx"
 EN_CONFIG = "en_US-amy-medium.onnx.json"
 
 AUDIO_DIR = Path("data/audio")
+# ==================== 正则 ====================
 
-# ==================== 正则定义 ====================
-
-# 中英文引号
 QUOTE_RE = re.compile(r'[“"](.+?)[”"]')
 
-# 任意 ASCII 英文字母（最终判定标准）
+# 任意 ASCII 字母（最低判定）
 ASCII_LETTER_RE = re.compile(r'[A-Za-z]')
 
-# 连续英文 / 数字 / 常见符号（整体交给英文模型）
-EN_BLOCK_RE = re.compile(r'[A-Za-z][A-Za-z\s.,:;!?\'"()+\-_/]*')
+# 英文块（哪怕一个字母）
+EN_BLOCK_RE = re.compile(r'[A-Za-z][A-Za-z0-9\s.,:;!?\'"()+\-_/]*')
 
 
-# ==================== 工具函数 ====================
-
-
-def has_ascii_letter(text: str) -> bool:
-    return bool(ASCII_LETTER_RE.search(text))
-
+# ==================== 核心函数 ====================
 
 def split_by_ascii(text: str) -> List[Tuple[str, str]]:
     """
-    把一段【不含引号】的文本切成 zh / en 块
-    保证 zh 块中不出现 ASCII 字母
+    保证：zh 段中 0 个 ASCII 字母
     """
     result = []
     last = 0
@@ -77,22 +69,20 @@ def split_by_ascii(text: str) -> List[Tuple[str, str]]:
     for m in EN_BLOCK_RE.finditer(text):
         start, end = m.span()
 
-        # 前面的中文
         if start > last:
             zh = text[last:start]
-            if zh:
+            if zh.strip():
                 result.append((zh, "zh"))
 
         en = text[start:end]
-        if en:
+        if en.strip():
             result.append((en, "en"))
 
         last = end
 
-    # 尾部中文
     if last < len(text):
         tail = text[last:]
-        if tail:
+        if tail.strip():
             result.append((tail, "zh"))
 
     return result
@@ -102,8 +92,7 @@ def split_by_ascii(text: str) -> List[Tuple[str, str]]:
 
 def split_text_for_tts(text: str) -> List[Tuple[str, str]]:
     """
-    最终 TTS 切分器（生产级）
-    返回 [(text, lang)], lang in {"zh", "en"}
+    Piper 专用：最终文本切分器
     """
     results: List[Tuple[str, str]] = []
     last = 0
@@ -117,24 +106,25 @@ def split_text_for_tts(text: str) -> List[Tuple[str, str]]:
             if outside.strip():
                 results.extend(split_by_ascii(outside))
 
-        # 引号内（整体当作一个语义单元）
+        # 引号内：仍然执行 ASCII 强制拆分
         quoted = m.group(1)
         if quoted.strip():
-            if has_ascii_letter(quoted):
-                results.append((quoted, "en"))
-            else:
-                results.append((quoted, "zh"))
+            results.extend(split_by_ascii(quoted))
 
         last = end
 
-    # 尾部
     if last < len(text):
         tail = text[last:]
         if tail.strip():
             results.extend(split_by_ascii(tail))
 
-    # 清理空白段
-    return [(t, lang) for t, lang in results if t.strip()]
+    # 如果所有拆分是同一个语言，返回原句子
+    if results:
+        first_lang = results[0][1]
+        if all(lang == first_lang for _, lang in results):
+            return [(text, first_lang)]
+
+    return results
 
 
 def concat_wavs(wav_files: List[str], output_path: str):
@@ -327,7 +317,6 @@ def _tts_mixed_python(sentences: List[Tuple[str, str]], output: Path,
     # 多个句子，需要合并
     with tempfile.TemporaryDirectory() as tmp:
         temp_wavs = []
-        print(f"[DEBUG] {len(sentences)} sentences")
         for idx, sent in enumerate(sentences):
             voice = en_voice if sent[1] == 'en' else zh_voice
             wav_path = Path(tmp) / f"{idx:04d}.wav"
@@ -474,5 +463,7 @@ def debug_chunk_content(book_id: int, chunk_id: int) -> dict:
 
     return result
 
+
 if __name__ == '__main__':
     print(split_text_for_tts("你好，我是Harold，我来自A1星球。"))
+    print(split_text_for_tts("路奚宁继续说道：“除了车票，我们还分别获得了一件E级道具……” 她将自己和妹妹的副本奖励，简单说了下。"))

@@ -1030,6 +1030,11 @@ class MainWindow(QMainWindow):
 
         print(f"[DEBUG] 启动TTS转换: book_id={book_id}, range={start_chunk}-{end_chunk}, chunks={chunks_to_convert}")
 
+        # 清理旧的 TTS worker（如果存在且不在运行）
+        if self.tts_worker and not self.tts_worker.isRunning():
+            print(f"[DEBUG] Cleaning up finished TTS worker before creating new one")
+            self._stop_tts_worker_safely()
+
         # 清空日志
         self.tts_widget.clear_log()
         self.tts_widget.set_converting_state(True)
@@ -1040,6 +1045,7 @@ class MainWindow(QMainWindow):
         print(f"[DEBUG] Connecting signals...")
         self.tts_worker.progress.connect(self._on_tts_progress)
         self.tts_worker.log.connect(self._on_tts_log)
+        self.tts_worker.phase1_finished.connect(self._on_tts_phase1_finished)
         self.tts_worker.finished.connect(self._on_tts_finished)
         self.tts_worker.error.connect(self._on_tts_error)
         print(f"[DEBUG] Starting TTS worker...")
@@ -1442,8 +1448,25 @@ class MainWindow(QMainWindow):
         self.tts_widget.add_log(message)
 
     @Slot()
+    def _on_tts_phase1_finished(self):
+        """TTS 第一阶段完成（当前章节）"""
+        print(f"[DEBUG] _on_tts_phase1_finished called")
+        # 检查是否有待处理的chunks
+        if self._pending_chunks:
+            print(f"[DEBUG] Phase1完成，发现待处理chunks: {self._pending_chunks}")
+            self.statusBar().showMessage(f"✅ 当前章节完成，等待后台转换完成后处理 {len(self._pending_chunks)} 个待转换chunks...", 2000)
+            # 不立即处理，等待当前 worker 完成后，通过 _on_tts_finished 处理
+        else:
+            print(f"[DEBUG] Phase1完成，无待处理chunks")
+
+    @Slot()
     def _on_tts_finished(self):
-        """TTS 完成"""
+        """TTS 完成（最终完成）"""
+        print(f"[DEBUG] _on_tts_finished called")
+        print(f"[DEBUG] tts_worker exists: {self.tts_worker is not None}")
+        if self.tts_worker:
+            print(f"[DEBUG] tts_worker.isRunning: {self.tts_worker.isRunning()}")
+
         self.tts_widget.set_converting_state(False)
 
         # 检查是否有待处理的chunks

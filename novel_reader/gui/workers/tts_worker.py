@@ -17,6 +17,7 @@ class TTSWorker(QThread):
     progress = Signal(int, int)  # 进度更新，参数：current, total
     log = Signal(str)  # 日志消息
     finished = Signal()  # 转换完成
+    phase1_finished = Signal()  # 第一阶段（当前章节）完成
     chapter_finished = Signal(int, int)  # 章节转换完成，参数：chapter_end_chunk, next_start_chunk
     first_chunk_ready = Signal(int)  # 第一个chunk转换完成，参数：start_chunk
     error = Signal(str)  # 转换错误
@@ -209,11 +210,11 @@ class TTSWorker(QThread):
                     # 最后一章
                     self.chapter_finished.emit(first_phase_end, None)
 
-            # 第一阶段完成后，发出 finished 信号以触发处理待处理队列
+            # 第一阶段完成后，发出 phase1_finished 信号以触发处理待处理队列
             # 这样可以让新的转换请求及时开始，而无需等待预转换完成
             if self._is_running:
-                self.log.emit(f"✅ 第一阶段转换完成，发出 finished 信号")
-                self.finished.emit()
+                self.log.emit(f"✅ 第一阶段转换完成，发出 phase1_finished 信号")
+                self.phase1_finished.emit()
 
             # 第二阶段：继续转换指定数量的后续章节（后台）
             if self.chapter_mode and self._is_running and next_chapter_start is not None:
