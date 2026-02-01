@@ -209,6 +209,12 @@ class TTSWorker(QThread):
                     # 最后一章
                     self.chapter_finished.emit(first_phase_end, None)
 
+            # 第一阶段完成后，发出 finished 信号以触发处理待处理队列
+            # 这样可以让新的转换请求及时开始，而无需等待预转换完成
+            if self._is_running:
+                self.log.emit(f"✅ 第一阶段转换完成，发出 finished 信号")
+                self.finished.emit()
+
             # 第二阶段：继续转换指定数量的后续章节（后台）
             if self.chapter_mode and self._is_running and next_chapter_start is not None:
                 # 计算预转换的结束位置

@@ -1001,14 +1001,32 @@ class MainWindow(QMainWindow):
         if not self.playback_worker:
             return
 
-        # 获取待转换的chunks
-        chunks_to_convert = sorted(list(self._pending_chunks))
+        # 检查是否已有TTS worker在运行
+        if self.tts_worker and self.tts_worker.isRunning():
+            print(f"[DEBUG] TTS worker正在运行，跳过处理待处理队列: {self._pending_chunks}")
+            return
+
+        # 过滤掉已经存在的chunks
         book_id = self.playback_worker.book_id
-        start_chunk = chunks_to_convert[0]
-        end_chunk = chunks_to_convert[-1] + 1
+        from pathlib import Path
+        audio_dir = Path("data/audio") / str(book_id)
+        chunks_to_convert = []
+        for chunk_id in sorted(self._pending_chunks):
+            audio_path = audio_dir / f"chunk_{chunk_id:05d}.wav"
+            if not audio_path.exists() or audio_path.stat().st_size < 20000:
+                chunks_to_convert.append(chunk_id)
+            else:
+                print(f"[DEBUG] Chunk {chunk_id} 已存在，跳过")
 
         # 清空待处理队列（因为要开始转换了）
         self._pending_chunks.clear()
+
+        if not chunks_to_convert:
+            print(f"[DEBUG] 所有chunks已存在，无需转换")
+            return
+
+        start_chunk = chunks_to_convert[0]
+        end_chunk = chunks_to_convert[-1] + 1
 
         print(f"[DEBUG] 启动TTS转换: book_id={book_id}, range={start_chunk}-{end_chunk}, chunks={chunks_to_convert}")
 
