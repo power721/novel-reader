@@ -132,7 +132,7 @@ class PlayTextWidget(QWidget):
         except Exception as e:
             self.text_display.setPlainText(f"加载失败: {str(e)}")
 
-    def load_bookmarks(self, book_id: int):
+    def load_content(self, book_id: int):
         """兼容原有接口，现在只更新显示"""
         self.current_book_id = book_id
         if book_id is None:

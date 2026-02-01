@@ -140,7 +140,7 @@ class TTSWorker(QThread):
                     skipped += 1
                 else:
                     chunk_text = chunks[i].strip()
-                    self.log.emit(f"[{i+1}/{total}] 正在转换 {i}... (文本长度: {len(chunk_text)} 字符)")
+                    self.log.emit(f"[{i+1}/{total}] 正在转换 分段 {i}... (文本长度: {len(chunk_text)} 字符)")
 
                     try:
                         convert_chunk(chunks[i], self.book_id, i)

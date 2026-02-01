@@ -241,7 +241,7 @@ class MainWindow(QMainWindow):
                 self.current_book_id = selected_book_id
                 current_chunk = self._get_current_playing_chunk(selected_book_id)
                 self.chapter_list_widget.load_chapters(selected_book_id, current_chunk)
-                self.play_text_widget.load_bookmarks(selected_book_id)
+                self.play_text_widget.load_content(selected_book_id)
                 self.player_widget.set_book(selected_book_id)
                 self.tts_widget.set_book(selected_book_id)
 
@@ -283,7 +283,7 @@ class MainWindow(QMainWindow):
         if self.current_book_id:
             current_chunk = self._get_current_playing_chunk(self.current_book_id)
             self.chapter_list_widget.load_chapters(self.current_book_id, current_chunk)
-            self.play_text_widget.load_bookmarks(self.current_book_id)
+            self.play_text_widget.load_content(self.current_book_id)
         self.statusBar().showMessage("已刷新", 3000)
 
     def _get_current_playing_chunk(self, book_id: int) -> Optional[int]:
@@ -338,7 +338,7 @@ class MainWindow(QMainWindow):
         # 更新子组件状态
         current_chunk = self._get_current_playing_chunk(book_id)
         self.chapter_list_widget.load_chapters(book_id, current_chunk)
-        self.play_text_widget.load_bookmarks(book_id)
+        self.play_text_widget.load_content(book_id)
         self.player_widget.set_book(book_id)
         self.tts_widget.set_book(book_id)
 
@@ -720,7 +720,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("播放已停止", 3000)
         # 清空当前播放文本显示
         if self.current_book_id:
-            self.play_text_widget.load_bookmarks(self.current_book_id)
+            self.play_text_widget.load_content(self.current_book_id)
         else:
             self.play_text_widget.clear()
 
@@ -777,7 +777,7 @@ class MainWindow(QMainWindow):
                 self.current_book_id = next_book['id']
                 # 刚开始播放，没有当前chunk，传入None
                 self.chapter_list_widget.load_chapters(next_book['id'], None)
-                self.play_text_widget.load_bookmarks(next_book['id'])
+                self.play_text_widget.load_content(next_book['id'])
                 self.player_widget.set_book(next_book['id'])
                 self.tts_widget.set_book(next_book['id'])
 
@@ -1031,7 +1031,7 @@ class MainWindow(QMainWindow):
         self.tts_worker.start()
         print(f"[DEBUG] TTS worker started")
 
-        self.statusBar().showMessage(f"🔄 正在转换 {len(chunks_to_convert)} 个 chunks...")
+        self.statusBar().showMessage(f"🔄 正在转换 {len(chunks_to_convert)} 个分段...")
 
     @Slot(int)
     def _on_chapter_selected(self, start_chunk: int):
@@ -1485,7 +1485,7 @@ class MainWindow(QMainWindow):
         self.tts_worker.start()
         print(f"[DEBUG] TTS worker started")
 
-        self.statusBar().showMessage(f"正在转换章节 (从 chunk {start_chunk} 开始)...")
+        self.statusBar().showMessage(f"正在转换章节 (从分段 {start_chunk} 开始)...")
 
     @Slot(int)
     def _on_first_chunk_ready(self, start_chunk: int):

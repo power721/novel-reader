@@ -51,7 +51,7 @@ class PlayerWidget(QWidget):
         player_layout = QVBoxLayout()
 
         info_widget = QWidget()
-        info_widget.setFixedHeight(60)
+        info_widget.setFixedHeight(100)
 
         info_layout = QHBoxLayout(info_widget)
         info_layout.setContentsMargins(8, 6, 8, 6)

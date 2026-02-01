@@ -130,10 +130,12 @@ class PlaybackWorker(QThread):
                     if chunk_id not in self._requested_chunks:
                         self._requested_chunks.add(chunk_id)
                         self.chunks_conversion_requested.emit([chunk_id])
+                    else:
+                        print(f"[DEBUG] requested_chunks: {self._requested_chunks}")
 
                     # 等待TTS转换完成
                     import time
-                    max_wait = 120  # 最多等待120秒（2分钟）
+                    max_wait = 60  # 最多等待60秒
                     waited = 0
                     file_ready = False
 
@@ -142,7 +144,7 @@ class PlaybackWorker(QThread):
                             file_size = audio_path.stat().st_size
                             if file_size > 20000:  # 大于20KB认为有效
                                 file_ready = True
-                                print(f"✅ [Chunk {chunk_id}] 音频文件就绪 ({file_size/1024:.1f} KB)")
+                                print(f"✅ [Chunk {chunk_id}] 音频文件就绪 ({file_size / 1024:.1f} KB)")
                                 break
                         time.sleep(0.5)  # 每0.5秒检查一次
                         waited += 0.5
@@ -167,10 +169,8 @@ class PlaybackWorker(QThread):
                     if target_chunk >= total_chunks:
                         break
                     if target_chunk not in self._requested_chunks:
-                        target_audio_path = book_audio_dir / f"chunk_{target_chunk:05d}.wav"
-                        if not target_audio_path.exists():
-                            chunks_to_convert.append(target_chunk)
-                            self._requested_chunks.add(target_chunk)
+                        chunks_to_convert.append(target_chunk)
+                        self._requested_chunks.add(target_chunk)
 
                 # 发出预转换请求信号
                 if chunks_to_convert:
@@ -191,7 +191,7 @@ class PlaybackWorker(QThread):
                 self.progress_updated.emit(chunk_id, total_chunks)
 
                 # 播放 chunk
-                print(f"▶ [Chunk {chunk_id}/{total_chunks-1}] 正在播放...")
+                print(f"▶ [Chunk {chunk_id}/{total_chunks - 1}] 正在播放...")
                 try:
                     play_audio(str(audio_path))
                     played_count += 1
@@ -218,7 +218,7 @@ class PlaybackWorker(QThread):
                             file_size = audio_path.stat().st_size
                             if file_size > 20000:  # 大于20KB认为有效
                                 file_ready = True
-                                print(f"✅ [Chunk {chunk_id}] 重新转换完成 ({file_size/1024:.1f} KB)，重试播放")
+                                print(f"✅ [Chunk {chunk_id}] 重新转换完成 ({file_size / 1024:.1f} KB)，重试播放")
                                 break
                         time.sleep(1.0)  # 每1秒检查一次
                         waited += 1
