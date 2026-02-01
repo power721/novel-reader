@@ -68,6 +68,7 @@ def detect_lang(text: str) -> str:
 def split_mixed_sentence(text: str) -> List[Tuple[str, str]]:
     """
     返回 [(文本, 语言)]
+    如果所有拆分是同一个语言，只输出原句子
     """
     results = []
     last = 0
@@ -93,6 +94,12 @@ def split_mixed_sentence(text: str) -> List[Tuple[str, str]]:
         tail = text[last:].strip()
         if tail:
             results.append((tail, "zh"))
+
+    # 如果所有拆分是同一个语言，返回原句子
+    if results:
+        first_lang = results[0][1]
+        if all(lang == first_lang for _, lang in results):
+            return [(text, first_lang)]
 
     return results
 
@@ -288,8 +295,21 @@ def _tts_mixed_python(sentences: List[Tuple[str, str]], output: Path,
 
     sample_rate = zh_voice.config.sample_rate
 
+    # 只有一个句子时，直接输出到最终文件
+    if len(sentences) == 1:
+        sent_text, sent_lang = sentences[0]
+        voice = en_voice if sent_lang == 'en' else zh_voice
+        with wave.open(str(output), "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sample_rate)
+            voice.synthesize_wav(sent_text, wf)
+        return str(output)
+
+    # 多个句子，需要合并
     with tempfile.TemporaryDirectory() as tmp:
         temp_wavs = []
+        print(f"[DEBUG] {len(sentences)} sentences")
         for idx, sent in enumerate(sentences):
             voice = en_voice if sent[1] == 'en' else zh_voice
             wav_path = Path(tmp) / f"{idx:04d}.wav"
@@ -311,6 +331,32 @@ def _tts_mixed_subprocess(sentences: List[Tuple[str, str]], output: Path,
                           zh_model: str, zh_config: str,
                           en_model: str, en_config: str) -> str:
     """使用 subprocess 进行中英文混合 TTS"""
+    # 只有一个句子时，直接输出到最终文件
+    if len(sentences) == 1:
+        sent_text, sent_lang = sentences[0]
+        model = en_model if sent_lang == 'en' else zh_model
+        config = en_config if sent_lang == 'en' else zh_config
+
+        cmd = [
+            PIPER_BIN,
+            "--model", model,
+            "--config", config,
+            "-f", str(output),
+        ]
+
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        _, stderr = proc.communicate(sent_text, timeout=300)
+        if proc.returncode != 0:
+            raise RuntimeError(f"Piper 失败: {stderr}")
+        return str(output)
+
+    # 多个句子，需要合并
     with tempfile.TemporaryDirectory() as tmp:
         temp_wavs = []
         for idx, sent in enumerate(sentences):
