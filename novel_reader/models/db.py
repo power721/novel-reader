@@ -46,6 +46,8 @@ def init_db() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             file_path TEXT NOT NULL UNIQUE,
+            original_filename TEXT,
+            file_format TEXT,
             current_chunk INTEGER DEFAULT 0,
             current_chapter INTEGER DEFAULT 0,
             last_played_at TIMESTAMP,
@@ -66,6 +68,18 @@ def init_db() -> None:
     except sqlite3.OperationalError:
         cursor.execute("ALTER TABLE book ADD COLUMN last_played_at TIMESTAMP")
         print("Added column: book.last_played_at")
+
+    try:
+        cursor.execute("SELECT original_filename FROM book LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE book ADD COLUMN original_filename TEXT")
+        print("Added column: book.original_filename")
+
+    try:
+        cursor.execute("SELECT file_format FROM book LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE book ADD COLUMN file_format TEXT")
+        print("Added column: book.file_format")
 
     # 创建 chapter 表
     cursor.execute("""

@@ -527,7 +527,7 @@ class MainWindow(QMainWindow):
             return
 
         if (self.tts_worker and self.tts_worker.isRunning() and
-            self.playback_worker.book_id == book_id):
+            self.tts_worker.book_id == book_id):
             QMessageBox.warning(
                 self,
                 "无法删除",

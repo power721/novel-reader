@@ -2,6 +2,7 @@
 书籍管理模块 - 导入和查询书籍
 """
 import os
+import shutil
 from pathlib import Path
 from typing import Optional, List, Dict
 from datetime import datetime
@@ -12,18 +13,48 @@ from novel_reader.models import get_conn
 
 def import_book(file_path: str) -> int:
     """
-    导入书籍（支持重复导入，覆盖章节信息）
+    导入书籍（支持 TXT, EPUB, MOBI, AZW3, AZW 格式）
+
+    对于非 TXT 格式，会自动转换为 TXT 并保存
 
     Args:
-        file_path: TXT 文件路径
+        file_path: 书籍文件路径
 
     Returns:
         book_id: 书籍 ID
     """
+    from novel_reader.utils.ebook_converter import (
+        convert_ebook_to_txt,
+        is_ebook_file,
+        get_file_format
+    )
+    
     # 验证文件存在
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"文件不存在: {file_path}")
 
+    file_path_obj = Path(file_path)
+    original_filename = file_path_obj.name
+    file_format = get_file_format(file_path_obj)
+    
+    # 如果是电子书格式，转换为 TXT
+    if is_ebook_file(file_path) and file_path_obj.suffix.lower() != '.txt':
+        print(f"检测到电子书格式: {file_format}")
+        print(f"正在转换为 TXT...")
+        
+        # 转换为 TXT 文件
+        txt_path, book_title = convert_ebook_to_txt(file_path)
+        
+        # 移动到数据目录
+        final_txt_path = Path("data/converted") / file_path_obj.with_suffix('.txt').name
+        final_txt_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(txt_path, final_txt_path)
+        file_path = str(final_txt_path)
+        
+        print(f"✓ 转换完成: {final_txt_path.name}")
+    else:
+        book_title = None
+    
     # 读取文件（自动 UTF-8）
     text = load_txt_file(file_path)
 
@@ -31,7 +62,10 @@ def import_book(file_path: str) -> int:
     chunks, chapters = parse_txt(text)
 
     # 获取文件名作为书名
-    title = Path(file_path).stem
+    if book_title:
+        title = book_title
+    else:
+        title = file_path_obj.stem
 
     conn = get_conn()
     cursor = conn.cursor()
@@ -45,14 +79,17 @@ def import_book(file_path: str) -> int:
             # 书籍已存在，删除旧章节信息
             book_id = existing[0]
             cursor.execute("DELETE FROM chapter WHERE book_id = ?", (book_id,))
-            cursor.execute("UPDATE book SET updated_at = ? WHERE id = ?",
-                         (datetime.now().isoformat(), book_id))
+            cursor.execute("""
+                UPDATE book 
+                SET title = ?, updated_at = ?, original_filename = ?, file_format = ?
+                WHERE id = ?
+            """, (title, datetime.now().isoformat(), original_filename, file_format, book_id))
         else:
             # 创建新书记录
             cursor.execute("""
-                INSERT INTO book (title, file_path, current_chunk)
-                VALUES (?, ?, 0)
-            """, (title, file_path))
+                INSERT INTO book (title, file_path, original_filename, file_format, current_chunk)
+                VALUES (?, ?, ?, ?, 0)
+            """, (title, file_path, original_filename, file_format))
             book_id = cursor.lastrowid
 
         # 插入章节信息
@@ -91,7 +128,7 @@ def get_book(book_id: int) -> Optional[Dict]:
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT id, title, file_path, current_chunk, current_chapter, last_played_at, created_at, updated_at
+        SELECT id, title, file_path, original_filename, file_format, current_chunk, current_chapter, last_played_at, created_at, updated_at
         FROM book WHERE id = ?
     """, (book_id,))
 
@@ -103,11 +140,13 @@ def get_book(book_id: int) -> Optional[Dict]:
             "id": row[0],
             "title": row[1],
             "file_path": row[2],
-            "current_chunk": row[3],
-            "current_chapter": row[4],
-            "last_played_at": row[5],
-            "created_at": row[6],
-            "updated_at": row[7]
+            "original_filename": row[3],
+            "file_format": row[4],
+            "current_chunk": row[5],
+            "current_chapter": row[6],
+            "last_played_at": row[7],
+            "created_at": row[8],
+            "updated_at": row[9]
         }
     return None
 
@@ -156,7 +195,7 @@ def list_books() -> List[Dict]:
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT id, title, file_path, current_chunk, current_chapter, last_played_at, created_at, updated_at
+        SELECT id, title, file_path, original_filename, file_format, current_chunk, current_chapter, last_played_at, created_at, updated_at
         FROM book
         ORDER BY created_at DESC
     """)
@@ -169,11 +208,13 @@ def list_books() -> List[Dict]:
             "id": row[0],
             "title": row[1],
             "file_path": row[2],
-            "current_chunk": row[3],
-            "current_chapter": row[4],
-            "last_played_at": row[5],
-            "created_at": row[6],
-            "updated_at": row[7]
+            "original_filename": row[3],
+            "file_format": row[4],
+            "current_chunk": row[5],
+            "current_chapter": row[6],
+            "last_played_at": row[7],
+            "created_at": row[8],
+            "updated_at": row[9]
         }
         for row in rows
     ]
@@ -198,7 +239,7 @@ def delete_book(book_id: int, delete_audio: bool = True) -> bool:
 
     try:
         # 获取书籍信息
-        cursor.execute("SELECT title FROM book WHERE id = ?", (book_id,))
+        cursor.execute("SELECT title, file_path FROM book WHERE id = ?", (book_id,))
         row = cursor.fetchone()
 
         if not row:
@@ -206,6 +247,7 @@ def delete_book(book_id: int, delete_audio: bool = True) -> bool:
             return False
 
         book_title = row[0]
+        file_path = row[1] if len(row) > 1 else None
 
         # 删除书签
         cursor.execute("DELETE FROM bookmark WHERE book_id = ?", (book_id,))
@@ -225,6 +267,14 @@ def delete_book(book_id: int, delete_audio: bool = True) -> bool:
             if book_audio_dir.exists():
                 shutil.rmtree(book_audio_dir)
                 print(f"✓ 已删除音频文件: {book_audio_dir}")
+
+        # 删除转换后的 TXT 文件（如果是电子书导入的）
+        if file_path:
+            file_path_obj = Path(file_path)
+            if file_path_obj.exists():
+                # 删除原始 TXT 文件或转换后的 TXT 文件
+                file_path_obj.unlink()
+                print(f"✓ 已删除文本文件: {file_path_obj}")
 
         print(f"✓ 已删除书籍: {book_title} (ID: {book_id})")
         return True

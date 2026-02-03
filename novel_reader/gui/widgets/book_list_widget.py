@@ -84,9 +84,12 @@ class BookListWidget(QWidget):
             if url.isLocalFile():
                 file_path = url.toLocalFile()
 
-                # 只处理 .txt 文件
-                if Path(file_path).suffix.lower() != '.txt':
-                    failed_files.append((file_path, "不是 TXT 文件"))
+                # 支持电子书格式
+                from novel_reader.utils.ebook_converter import is_ebook_file
+                
+                file_suffix = Path(file_path).suffix.lower()
+                if file_suffix != '.txt' and not is_ebook_file(file_path):
+                    failed_files.append((file_path, "不支持的文件格式"))
                     continue
 
                 try:
@@ -331,9 +334,9 @@ class BookListWidget(QWidget):
         """打开导入书籍对话框"""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "选择要导入的 TXT 文件",
+            "选择要导入的书籍",
             "",
-            "文本文件 (*.txt);;所有文件 (*)"
+            "支持的格式 (*.txt *.epub *.mobi *.azw3 *.azw);;文本文件 (*.txt);;电子书 (*.epub *.mobi *.azw3 *.azw);;所有文件 (*)"
         )
 
         if file_path:
