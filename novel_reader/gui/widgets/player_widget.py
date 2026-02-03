@@ -3,7 +3,7 @@
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QProgressBar, QGroupBox, QMessageBox, QFrame, QSlider
+    QProgressBar, QGroupBox, QMessageBox, QFrame, QSlider, QComboBox
 )
 from PySide6.QtCore import Qt, Signal
 from typing import Optional
@@ -23,6 +23,7 @@ class PlayerWidget(QWidget):
     play_previous_chunk_requested = Signal()  # 请求播放上一分段
     play_next_chunk_requested = Signal()  # 请求播放下一分段
     volume_changed = Signal(float)  # 音量变化，参数：volume (0.0 - 1.0)
+    playback_speed_changed = Signal(float)  # 播放速度变化，参数：speed (0.5 - 2.0)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -52,7 +53,7 @@ class PlayerWidget(QWidget):
         player_layout = QVBoxLayout()
 
         info_widget = QWidget()
-        info_widget.setFixedHeight(100)
+        info_widget.setFixedHeight(60)
 
         info_layout = QHBoxLayout(info_widget)
         info_layout.setContentsMargins(8, 6, 8, 6)
@@ -163,6 +164,59 @@ class PlayerWidget(QWidget):
 
         volume_layout.addStretch()
         player_layout.addLayout(volume_layout)
+
+        # 播放速度控制行
+        speed_layout = QHBoxLayout()
+
+        speed_label = QLabel("⏩ 速度:")
+        speed_layout.addWidget(speed_label)
+
+        # 播放速度滑块
+        self.speed_slider = QSlider(Qt.Horizontal)
+        self.speed_slider.setMinimum(50)  # 0.5x
+        self.speed_slider.setMaximum(200)  # 2.0x
+        self.speed_slider.setValue(100)  # 1.0x
+        self.speed_slider.setTickPosition(QSlider.TicksBelow)
+        self.speed_slider.setTickInterval(25)  # 每 0.25x 一个刻度
+        self.speed_slider.setSingleStep(5)  # 步长 0.05x
+        self.speed_slider.setFixedWidth(150)
+        self.speed_slider.valueChanged.connect(self._on_speed_slider_changed)
+        speed_layout.addWidget(self.speed_slider)
+
+        # 速度显示标签
+        self.speed_value_label = QLabel("1.00x")
+        self.speed_value_label.setMinimumWidth(45)
+        self.speed_value_label.setAlignment(Qt.AlignCenter)
+        speed_layout.addWidget(self.speed_value_label)
+
+        # 预设速度按钮
+        self.speed_preset_0_5_btn = QPushButton("0.5x")
+        self.speed_preset_0_5_btn.setStyleSheet("padding: 4px 8px; font-size: 10px;")
+        self.speed_preset_0_5_btn.clicked.connect(lambda: self._set_speed(0.5))
+        speed_layout.addWidget(self.speed_preset_0_5_btn)
+
+        self.speed_preset_1_0_btn = QPushButton("1.0x")
+        self.speed_preset_1_0_btn.setStyleSheet("padding: 4px 8px; font-size: 10px;")
+        self.speed_preset_1_0_btn.clicked.connect(lambda: self._set_speed(1.0))
+        speed_layout.addWidget(self.speed_preset_1_0_btn)
+
+        self.speed_preset_1_25_btn = QPushButton("1.25x")
+        self.speed_preset_1_25_btn.setStyleSheet("padding: 4px 8px; font-size: 10px;")
+        self.speed_preset_1_25_btn.clicked.connect(lambda: self._set_speed(1.25))
+        speed_layout.addWidget(self.speed_preset_1_25_btn)
+
+        self.speed_preset_1_5_btn = QPushButton("1.5x")
+        self.speed_preset_1_5_btn.setStyleSheet("padding: 4px 8px; font-size: 10px;")
+        self.speed_preset_1_5_btn.clicked.connect(lambda: self._set_speed(1.5))
+        speed_layout.addWidget(self.speed_preset_1_5_btn)
+
+        self.speed_preset_2_0_btn = QPushButton("2.0x")
+        self.speed_preset_2_0_btn.setStyleSheet("padding: 4px 8px; font-size: 10px;")
+        self.speed_preset_2_0_btn.clicked.connect(lambda: self._set_speed(2.0))
+        speed_layout.addWidget(self.speed_preset_2_0_btn)
+
+        speed_layout.addStretch()
+        player_layout.addLayout(speed_layout)
 
         # 播放进度行 - 本章进度
         chapter_progress_layout = QHBoxLayout()
@@ -291,6 +345,38 @@ class PlayerWidget(QWidget):
             音量值 (0.0 - 1.0)
         """
         return self.volume_slider.value() / 100.0
+
+    def _on_speed_slider_changed(self, value: int):
+        """播放速度滑块变化事件"""
+        speed = value / 100.0
+        self.speed_value_label.setText(f"{speed:.2f}x")
+        self.playback_speed_changed.emit(speed)
+
+    def _set_speed(self, speed: float):
+        """设置播放速度（预设按钮使用）"""
+        self.set_playback_speed(speed)
+        self.playback_speed_changed.emit(speed)
+
+    def set_playback_speed(self, speed: float):
+        """
+        设置播放速度
+
+        Args:
+            speed: 播放速度 (0.5 - 2.0)
+        """
+        speed = max(0.5, min(2.0, speed))
+        value = int(speed * 100)
+        self.speed_slider.setValue(value)
+        self.speed_value_label.setText(f"{speed:.2f}x")
+
+    def get_playback_speed(self) -> float:
+        """
+        获取当前播放速度
+
+        Returns:
+            播放速度 (0.5 - 2.0)
+        """
+        return self.speed_slider.value() / 100.0
 
     def set_book(self, book_id: int, book_title: str = ""):
         """设置当前书籍（不更新显示）"""

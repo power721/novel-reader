@@ -216,6 +216,7 @@ class MainWindow(QMainWindow):
         self.player_widget.play_previous_chunk_requested.connect(self._play_previous_chunk)
         self.player_widget.play_next_chunk_requested.connect(self._play_next_chunk)
         self.player_widget.volume_changed.connect(self._on_volume_changed)
+        self.player_widget.playback_speed_changed.connect(self._on_playback_speed_changed)
 
         # TTS 转换信号
         self.tts_widget.convert_book_requested.connect(self._convert_book)
@@ -229,6 +230,12 @@ class MainWindow(QMainWindow):
         from novel_reader.core.player import set_volume
         set_volume(saved_volume)
         self.player_widget.set_volume(saved_volume)
+
+        # 加载保存的播放速度
+        saved_speed = get_setting("playback_speed", 1.0)
+        from novel_reader.core.player import set_playback_speed
+        set_playback_speed(saved_speed)
+        self.player_widget.set_playback_speed(saved_speed)
 
         # 获取最后播放的书籍ID
         last_book_id = get_setting("last_book_id", None)
@@ -800,6 +807,16 @@ class MainWindow(QMainWindow):
         set_volume_realtime(volume)
         set_setting("volume", volume)
         self.statusBar().showMessage(f"音量: {int(volume * 100)}%", 2000)
+
+    @Slot(float)
+    def _on_playback_speed_changed(self, speed: float):
+        """播放速度变化"""
+        from novel_reader.core.player import set_playback_speed_realtime
+        from novel_reader.core import set_setting
+        
+        set_playback_speed_realtime(speed)
+        set_setting("playback_speed", speed)
+        self.statusBar().showMessage(f"播放速度: {speed:.2f}x", 2000)
 
     @Slot(int, int)
     def _on_playback_progress(self, current: int, total: int):
