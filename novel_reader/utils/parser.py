@@ -4,8 +4,15 @@
 import re
 from typing import List, Tuple
 
+# EPUB 章节标记
+EPUB_CHAPTER_PATTERN = re.compile(
+    r'^### CHAPTER ###\s*(.+?)\s*$',
+    re.MULTILINE
+)
+
+# 传统章节模式
 CHAPTER_PATTERN = re.compile(
-    r'^第\s*[一二三四五六七八九十百千0-9]{1,9}\s*[章节回].*$',
+    r'^第\s*[一二三四五六七八九十百千0-9]{1,9}\s*[章节回][^\。\,\。\，\！\？\!\?]*$',
     re.MULTILINE
 )
 
@@ -89,7 +96,15 @@ def parse_txt(
         chunk_size: int = 60
 ) -> Tuple[List[str], List[Tuple[str, int]]]:
     text = normalize_text(text)
-    matches = list(CHAPTER_PATTERN.finditer(text))
+    
+    # === 优先检查 EPUB 章节标记 ===
+    epub_matches = list(EPUB_CHAPTER_PATTERN.finditer(text))
+    
+    # === 如果没有 EPUB 标记，检查传统章节 ===
+    chapter_matches = list(CHAPTER_PATTERN.finditer(text))
+    
+    # 确定使用哪种章节识别
+    matches = epub_matches if epub_matches else chapter_matches
 
     # === 没有章节 ===
     if not matches:
@@ -100,17 +115,29 @@ def parse_txt(
     chapters: List[Tuple[str, int]] = []
 
     for idx, match in enumerate(matches):
-        title = match.group().strip()
+        if epub_matches:
+            # EPUB 标记格式：### CHAPTER ### 章节标题
+            title = match.group(1).strip()
+        else:
+            # 传统格式：第一章 xxx
+            title = match.group().strip()
+        
         start = match.start()
         end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
 
         chapter_start_chunk = len(chunks)
 
-        # ① 章节标题单独成 chunk
-        chunks.append(title)
+        # ① 章节标题单独成 chunk（如果是 EPUB 标记，去掉标记）
+        if epub_matches:
+            # EPUB 章节标记不作为 chunk，只记录章节位置
+            # 正文从标记之后开始
+            body = text[match.end():end].strip()
+        else:
+            # 传统格式，章节标题作为 chunk
+            chunks.append(title)
+            body = text[match.end():end].strip()
 
         # ② 正文再切
-        body = text[match.end():end].strip()
         body_chunks = smart_split_chunks(body, chunk_size)
 
         chunks.extend(body_chunks)
