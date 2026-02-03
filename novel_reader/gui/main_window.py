@@ -33,6 +33,7 @@ class MainWindow(QMainWindow):
         self.playback_worker: Optional[PlaybackWorker] = None
         self.tts_worker: Optional[TTSWorker] = None
         self._pending_chunks: set = set()  # 待转换的chunks
+        self._book_cache: dict = {}  # 书籍信息缓存
 
         # 初始化界面
         self._init_ui()
@@ -305,8 +306,7 @@ class MainWindow(QMainWindow):
                 return self.playback_worker.start_chunk if self.playback_worker.start_chunk is not None else None
 
         # 如果未播放，返回数据库中保存的播放位置
-        from novel_reader.core import get_book
-        book = get_book(book_id)
+        book = self._get_cached_book(book_id)
         if book:
             current_chunk = book.get('current_chunk', 0)
             return current_chunk if current_chunk > 0 else None
@@ -331,6 +331,37 @@ class MainWindow(QMainWindow):
             return self.playback_worker.book_id
         return self.current_book_id
 
+    def _get_cached_book(self, book_id: int) -> Optional[dict]:
+        """
+        获取缓存的书籍信息（优先从缓存读取）
+
+        Args:
+            book_id: 书籍ID
+
+        Returns:
+            书籍信息字典，如果不存在返回 None
+        """
+        if book_id in self._book_cache:
+            return self._book_cache[book_id]
+
+        from novel_reader.core import get_book
+        book = get_book(book_id)
+        if book:
+            self._book_cache[book_id] = book
+        return book
+
+    def _clear_book_cache(self, book_id: Optional[int] = None):
+        """
+        清除书籍缓存
+
+        Args:
+            book_id: 书籍ID，如果为None则清除所有缓存
+        """
+        if book_id is None:
+            self._book_cache.clear()
+        elif book_id in self._book_cache:
+            del self._book_cache[book_id]
+
     # ==================== 书籍相关槽函数 ====================
 
     @Slot(int)
@@ -346,8 +377,8 @@ class MainWindow(QMainWindow):
         self.tts_widget.set_book(book_id)
 
         # 显示播放历史记录
-        from novel_reader.core import get_book, get_book_chapters
-        book = get_book(book_id)
+        from novel_reader.core import get_book_chapters
+        book = self._get_cached_book(book_id)
         if book:
             current_chapter = book.get('current_chapter', 0)
             current_chunk = book.get('current_chunk', 0)
@@ -398,9 +429,11 @@ class MainWindow(QMainWindow):
             return
 
         # 有音频文件，检查当前进度
-        from novel_reader.core import get_book
-        book = get_book(book_id)
-        current_chunk = book['current_chunk']
+        book = self._get_cached_book(book_id)
+        if book:
+            current_chunk = book['current_chunk']
+        else:
+            return
 
         self.statusBar().showMessage(f"准备播放从 chunk {current_chunk} 开始...")
         # 从当前进度开始播放
@@ -503,8 +536,7 @@ class MainWindow(QMainWindow):
             return
 
         # 获取书籍信息
-        from novel_reader.core import get_book
-        book = get_book(book_id)
+        book = self._get_cached_book(book_id)
         if not book:
             QMessageBox.warning(self, "错误", "书籍不存在")
             return
@@ -566,10 +598,9 @@ class MainWindow(QMainWindow):
         print(f"[INFO] Book imported: {book_id}, starting auto-conversion of first 2 chunks")
 
         # 获取书籍信息
-        from novel_reader.core import get_book
         from novel_reader.utils import load_txt_file, parse_txt
 
-        book = get_book(book_id)
+        book = self._get_cached_book(book_id)
         if not book:
             return
 
@@ -974,10 +1005,11 @@ class MainWindow(QMainWindow):
             current_chunk = None
             if self.playback_worker and hasattr(self, 'current_book_id'):
                 # 获取当前正在播放的chunk
-                from novel_reader.core import get_book
-                book = get_book(self.current_book_id)
+                book = self._get_cached_book(self.current_book_id)
                 if book:
                     current_chunk = book.get('current_chunk')
+                else:
+                    current_chunk = None
 
             # 如果新请求包含当前播放的chunk，需要优先处理
             if current_chunk is not None and current_chunk in chunk_ids:
@@ -1218,7 +1250,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "警告", "请先选择一本书")
             return
 
-        from novel_reader.core import get_book, get_book_chapters
+        from novel_reader.core import get_book_chapters
         from novel_reader.utils import load_txt_file, parse_txt
 
         # 在停止播放前，先获取实时章节位置（如果正在播放）
@@ -1230,7 +1262,7 @@ class MainWindow(QMainWindow):
         self._stop_playback_worker_safely()
         self._stop_tts_worker_safely()
 
-        book = get_book(target_book_id)
+        book = self._get_cached_book(target_book_id)
         if not book:
             return
 
