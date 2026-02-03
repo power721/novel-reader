@@ -35,6 +35,12 @@ _playback_state = {
     "current_process": None
 }
 
+# 音量控制 (0.0 - 1.0)
+_volume = 1.0
+
+# IPC socket 文件（用于实时控制 mpv）
+_ipc_socket = "/tmp/novel-reader-mpv.sock"
+
 
 def play_book(book_id: int, start_chunk: Optional[int] = None) -> None:
     """
@@ -211,7 +217,17 @@ def play_audio(file_path: str) -> None:
     # 构建 mpv 命令
     # --no-video: 只播放音频
     # --really-quiet: 静默模式（减少输出）
-    cmd = [MPV_BIN, "--no-video", "--really-quiet", file_path]
+    # --volume: 音量 (0-100)
+    # --input-ipc-server: 启用 IPC 用于实时控制
+    volume_percent = int(_volume * 100)
+    cmd = [
+        MPV_BIN,
+        "--no-video",
+        "--really-quiet",
+        f"--volume={volume_percent}",
+        f"--input-ipc-server={_ipc_socket}",
+        file_path
+    ]
 
     try:
         process = subprocess.Popen(cmd,
@@ -263,6 +279,13 @@ def stop_playback() -> None:
         print("播放已停止")
 
     _playback_state["should_stop"] = True
+    
+    # 清理 IPC socket 文件
+    try:
+        if os.path.exists(_ipc_socket):
+            os.remove(_ipc_socket)
+    except:
+        pass
 
 
 def update_progress(book_id: int, chunk_id: int) -> None:
@@ -352,6 +375,69 @@ def reset_progress(book_id: int) -> None:
     """
     update_progress(book_id, 0)
     print(f"已重置播放进度: book_id={book_id}")
+
+
+def set_volume(volume: float) -> None:
+    """
+    设置音量
+
+    Args:
+        volume: 音量值 (0.0 - 1.0)
+    """
+    global _volume
+    _volume = max(0.0, min(1.0, volume))
+    print(f"音量设置为: {_volume * 100:.0f}%")
+
+
+def get_volume() -> float:
+    """
+    获取当前音量
+
+    Returns:
+        音量值 (0.0 - 1.0)
+    """
+    return _volume
+
+
+def adjust_volume(delta: float) -> None:
+    """
+    调整音量
+
+    Args:
+        delta: 音量变化量 (正数增大，负数减小)
+    """
+    set_volume(_volume + delta)
+
+
+def set_volume_realtime(volume: float) -> None:
+    """
+    实时设置音量（控制正在运行的 mpv 进程）
+
+    Args:
+        volume: 音量值 (0.0 - 1.0)
+    """
+    global _volume
+    _volume = max(0.0, min(1.0, volume))
+    
+    # 如果 mpv 正在运行，通过 IPC 实时调整音量
+    if _playback_state["current_process"] and os.path.exists(_ipc_socket):
+        import socket
+        try:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.settimeout(0.5)
+            sock.connect(_ipc_socket)
+            
+            # 发送设置音量命令
+            volume_percent = int(_volume * 100)
+            command = f'{{"command": ["set_property", "volume", {volume_percent}]}}\n'
+            sock.sendall(command.encode())
+            
+            sock.close()
+            print(f"实时音量调整: {volume_percent}%")
+        except Exception as e:
+            print(f"实时音量调整失败: {e}")
+    else:
+        print(f"音量设置为: {_volume * 100:.0f}%")
 
 
 def check_mpv_installed() -> bool:

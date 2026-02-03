@@ -63,6 +63,7 @@ class AudioPlayer:
         """
         self.sample_rate = sample_rate
         self.state = PlayerState.STOPPED
+        self._volume = 1.0  # 音量 (0.0 - 1.0)
 
         # 播放控制
         self._stop_flag = threading.Event()
@@ -174,8 +175,13 @@ class AudioPlayer:
                 remaining = total_samples - played_samples
                 samples_to_play = min(chunk_size, remaining)
 
+                # 应用音量控制
+                chunk_data = audio_data[played_samples:played_samples + samples_to_play].astype(np.float32)
+                chunk_data = chunk_data * self._volume
+                chunk_data = np.clip(chunk_data, -32768, 32767).astype(np.int16)
+                
                 # 播放
-                self._stream.write(audio_data[played_samples:played_samples + samples_to_play])
+                self._stream.write(chunk_data)
                 played_samples += samples_to_play
 
                 # 进度回调
@@ -316,6 +322,44 @@ class AudioPlayer:
                 return int((frames / rate) * 1000)
         except:
             return 0
+
+    def set_volume(self, volume: float):
+        """
+        设置音量
+
+        Args:
+            volume: 音量值 (0.0 - 1.0)
+        """
+        self._volume = max(0.0, min(1.0, volume))
+        print(f"[AudioPlayer] Volume set to {self._volume * 100:.0f}%")
+
+    def get_volume(self) -> float:
+        """
+        获取当前音量
+
+        Returns:
+            音量值 (0.0 - 1.0)
+        """
+        return self._volume
+
+    def adjust_volume(self, delta: float):
+        """
+        调整音量
+
+        Args:
+            delta: 音量变化量 (正数增大，负数减小)
+        """
+        self.set_volume(self._volume + delta)
+
+    @property
+    def volume(self) -> float:
+        """当前音量 (只读属性)"""
+        return self._volume
+
+    @volume.setter
+    def volume(self, value: float):
+        """设置音量"""
+        self.set_volume(value)
 
 
 # 简化版播放器（使用mpv作为fallback）

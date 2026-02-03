@@ -16,6 +16,7 @@ DEFAULT_SETTINGS = {
     "auto_play_next_book": False,  # 自动播放下一本书
     "auto_play_next_chapter": True,  # 自动播放下一章节
     "prefetch_chunk_count": 3,  # 预转换后续chunk数量
+    "volume": 1.0,  # 音量 (0.0 - 1.0)
 }
 
 

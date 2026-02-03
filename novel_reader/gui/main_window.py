@@ -215,6 +215,7 @@ class MainWindow(QMainWindow):
         self.player_widget.play_next_chapter_requested.connect(self._play_next_chapter)
         self.player_widget.play_previous_chunk_requested.connect(self._play_previous_chunk)
         self.player_widget.play_next_chunk_requested.connect(self._play_next_chunk)
+        self.player_widget.volume_changed.connect(self._on_volume_changed)
 
         # TTS 转换信号
         self.tts_widget.convert_book_requested.connect(self._convert_book)
@@ -222,6 +223,12 @@ class MainWindow(QMainWindow):
     def _load_data(self):
         """加载数据"""
         from novel_reader.core import list_books, get_setting, get_book
+
+        # 加载保存的音量
+        saved_volume = get_setting("volume", 1.0)
+        from novel_reader.core.player import set_volume
+        set_volume(saved_volume)
+        self.player_widget.set_volume(saved_volume)
 
         # 获取最后播放的书籍ID
         last_book_id = get_setting("last_book_id", None)
@@ -783,6 +790,16 @@ class MainWindow(QMainWindow):
         self.player_widget.set_playing_state(False)
         QMessageBox.critical(self, "播放错误", f"播放失败: {error_msg}")
         self.statusBar().showMessage("播放失败", 3000)
+
+    @Slot(float)
+    def _on_volume_changed(self, volume: float):
+        """音量变化"""
+        from novel_reader.core.player import set_volume_realtime
+        from novel_reader.core import set_setting
+        
+        set_volume_realtime(volume)
+        set_setting("volume", volume)
+        self.statusBar().showMessage(f"音量: {int(volume * 100)}%", 2000)
 
     @Slot(int, int)
     def _on_playback_progress(self, current: int, total: int):

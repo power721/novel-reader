@@ -3,7 +3,7 @@
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QProgressBar, QGroupBox, QMessageBox, QFrame
+    QProgressBar, QGroupBox, QMessageBox, QFrame, QSlider
 )
 from PySide6.QtCore import Qt, Signal
 from typing import Optional
@@ -22,6 +22,7 @@ class PlayerWidget(QWidget):
     play_next_chapter_requested = Signal()  # 请求播放下一章
     play_previous_chunk_requested = Signal()  # 请求播放上一分段
     play_next_chunk_requested = Signal()  # 请求播放下一分段
+    volume_changed = Signal(float)  # 音量变化，参数：volume (0.0 - 1.0)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -142,6 +143,27 @@ class PlayerWidget(QWidget):
 
         player_layout.addLayout(chunk_nav_layout)
 
+        # 音量控制行
+        volume_layout = QHBoxLayout()
+
+        volume_label = QLabel("🔊 音量:")
+        volume_layout.addWidget(volume_label)
+
+        self.volume_slider = QSlider(Qt.Horizontal)
+        self.volume_slider.setMinimum(0)
+        self.volume_slider.setMaximum(100)
+        self.volume_slider.setValue(100)
+        self.volume_slider.setFixedWidth(200)
+        self.volume_slider.valueChanged.connect(self._on_volume_changed)
+        volume_layout.addWidget(self.volume_slider)
+
+        self.volume_value_label = QLabel("100%")
+        self.volume_value_label.setMinimumWidth(40)
+        volume_layout.addWidget(self.volume_value_label)
+
+        volume_layout.addStretch()
+        player_layout.addLayout(volume_layout)
+
         # 播放进度行 - 本章进度
         chapter_progress_layout = QHBoxLayout()
 
@@ -243,6 +265,32 @@ class PlayerWidget(QWidget):
             QMessageBox.warning(self, "警告", "请先选择一本书")
             return
         self.play_next_chunk_requested.emit()
+
+    def _on_volume_changed(self, value: int):
+        """音量滑块变化事件"""
+        volume = value / 100.0
+        self.volume_value_label.setText(f"{value}%")
+        self.volume_changed.emit(volume)
+
+    def set_volume(self, volume: float):
+        """
+        设置音量
+
+        Args:
+            volume: 音量值 (0.0 - 1.0)
+        """
+        value = int(max(0, min(100, volume * 100)))
+        self.volume_slider.setValue(value)
+        self.volume_value_label.setText(f"{value}%")
+
+    def get_volume(self) -> float:
+        """
+        获取当前音量
+
+        Returns:
+            音量值 (0.0 - 1.0)
+        """
+        return self.volume_slider.value() / 100.0
 
     def set_book(self, book_id: int, book_title: str = ""):
         """设置当前书籍（不更新显示）"""
