@@ -196,7 +196,7 @@ class MainWindow(QMainWindow):
         self.book_list_widget.books_updated.connect(self._on_books_updated)
         self.book_list_widget.book_delete_requested.connect(self._on_delete_book)
         self.book_list_widget.book_rename_requested.connect(self._on_rename_book)
-        # self.book_list_widget.book_imported.connect(self._on_book_imported)
+        self.book_list_widget.book_imported.connect(self._on_book_imported)
 
         # 章节列表信号
         self.chapter_list_widget.chapter_selected.connect(self._on_chapter_selected)
@@ -413,30 +413,12 @@ class MainWindow(QMainWindow):
 
     @Slot(int)
     def _on_book_double_clicked(self, book_id: int):
-        """书籍被双击 - 检查后播放或转换"""
-        # 检查是否有音频文件
-        has_audio, audio_count = self._check_audio_files(book_id)
+        """书籍被双击 - 直接开始播放"""
+        # 先停止当前正在播放的内容
+        self._stop_playback_worker_safely()
+        self._stop_tts_worker_safely()
 
-        if not has_audio:
-            # 没有音频文件，提示用户
-            QMessageBox.information(
-                self,
-                "提示",
-                "该书籍尚未进行 TTS 转换。\n\n"
-                "请在章节列表中点击章节开始转换和播放。\n\n"
-                "或点击「转换整本书」按钮进行批量转换。"
-            )
-            return
-
-        # 有音频文件，检查当前进度
-        book = self._get_cached_book(book_id)
-        if book:
-            current_chunk = book['current_chunk']
-        else:
-            return
-
-        self.statusBar().showMessage(f"准备播放从 chunk {current_chunk} 开始...")
-        # 从当前进度开始播放
+        # 直接开始播放
         self._play_book(book_id)
 
     @Slot()
@@ -696,25 +678,6 @@ class MainWindow(QMainWindow):
         # 保存最后播放的书籍ID
         from novel_reader.core import set_setting
         set_setting("last_book_id", book_id)
-
-        # 检查是否有音频文件
-        has_audio, audio_count = self._check_audio_files(book_id)
-
-        if not has_audio:
-            reply = QMessageBox.question(
-                self,
-                "未找到音频文件",
-                "该书籍尚未进行 TTS 转换。\n\n是否立即开始转换？",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes
-            )
-
-            if reply == QMessageBox.Yes:
-                self._convert_book(book_id)
-            return
-
-        # 显示音频数量信息
-        self.statusBar().showMessage(f"找到 {audio_count} 个音频文件，开始播放...")
 
         # 获取书籍信息和当前章节，更新播放显示
         from novel_reader.core import get_book, get_book_chapters
