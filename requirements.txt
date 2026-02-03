@@ -12,3 +12,4 @@ sentence_stream
 
 requests
 
+torch
