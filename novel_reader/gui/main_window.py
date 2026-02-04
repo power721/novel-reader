@@ -239,7 +239,7 @@ class MainWindow(QMainWindow):
         self.player_widget.set_volume(saved_volume)
 
         # 加载保存的播放速度
-        saved_speed = get_setting("playback_speed", 1.0)
+        saved_speed = get_setting("playback_speed", 100) / 100
         from novel_reader.core.player import set_playback_speed
         set_playback_speed(saved_speed)
         self.player_widget.set_playback_speed(saved_speed)
@@ -884,7 +884,7 @@ class MainWindow(QMainWindow):
         from novel_reader.core import set_setting
         
         set_playback_speed_realtime(speed)
-        set_setting("playback_speed", speed)
+        set_setting("playback_speed", round(speed * 100))
         self.statusBar().showMessage(f"播放速度: {speed:.2f}x", 2000)
 
     @Slot(int, int)

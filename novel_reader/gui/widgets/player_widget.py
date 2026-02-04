@@ -365,8 +365,10 @@ class PlayerWidget(QWidget):
             speed: 播放速度 (0.5 - 2.0)
         """
         speed = max(0.5, min(2.0, speed))
-        value = int(speed * 100)
+        value = int(round(speed * 100))
+        self.speed_slider.blockSignals(True)
         self.speed_slider.setValue(value)
+        self.speed_slider.blockSignals(False)
         self.speed_value_label.setText(f"{speed:.2f}x")
 
     def get_playback_speed(self) -> float:
