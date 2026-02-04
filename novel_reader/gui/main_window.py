@@ -793,11 +793,6 @@ class MainWindow(QMainWindow):
         self._stop_playback_worker_safely()
         self.player_widget.set_playing_state(False)
         self.statusBar().showMessage("播放已停止", 3000)
-        # 清空当前播放文本显示
-        if self.current_book_id:
-            self.play_text_widget.load_content(self.current_book_id)
-        else:
-            self.play_text_widget.clear()
 
     @Slot()
     def _pause_playback(self):

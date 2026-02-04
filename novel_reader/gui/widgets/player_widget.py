@@ -423,10 +423,11 @@ class PlayerWidget(QWidget):
             self.pause_btn.setText("⏸ 暂停")
             self.pause_btn.setEnabled(False)
             self.stop_btn.setEnabled(False)
-            self.chapter_progress_status_label.setText("未播放")
-            self.book_progress_status_label.setText("未播放")
-            self.chapter_progress.setValue(0)
-            self.book_progress.setValue(0)
+            # 停止时保留进度显示，不重置
+            # self.chapter_progress_status_label.setText("未播放")
+            # self.book_progress_status_label.setText("未播放")
+            # self.chapter_progress.setValue(0)
+            # self.book_progress.setValue(0)
             # 停止时禁用分段导航按钮
             self.prev_chunk_btn.setEnabled(False)
             self.next_chunk_btn.setEnabled(False)
