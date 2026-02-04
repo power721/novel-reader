@@ -2,7 +2,7 @@
 电子书格式转换模块 - 支持 EPUB 和 MOBI 转 TXT
 """
 from pathlib import Path
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Dict
 import shutil
 
 # EPUB 章节标记
@@ -183,6 +183,91 @@ def _extract_title_from_html(html_content: bytes) -> str:
     return ''
 
 
+def _extract_mobi_toc_from_ncx(ncx_path: Path, html_bytes: bytes) -> List[Tuple[int, int, str]]:
+    """
+    从 NCX 文件提取目录信息，并根据HTML文件调整位置
+    
+    Args:
+        ncx_path: NCX 文件路径
+        html_bytes: HTML文件字节内容
+        
+    Returns:
+        [(锚点位置, 实际内容位置, 章节标题)] 列表
+    """
+    if not ncx_path.exists():
+        return []
+    
+    try:
+        with open(ncx_path, 'r', encoding='utf-8') as f:
+            ncx_content = f.read()
+        
+        soup = BeautifulSoup(ncx_content, 'xml')
+        
+        nav_points = soup.find_all('navPoint')
+        toc_data = []
+        
+        for nav_point in nav_points:
+            nav_label = nav_point.find('text')
+            nav_content = nav_point.find('content')
+            
+            if nav_label and nav_content:
+                label = nav_label.get_text(strip=True)
+                src = nav_content.get('src', '')
+                
+                # 解析 filepos 位置信息
+                if 'filepos' in src:
+                    import re
+                    match = re.search(r'filepos(\d+)', src)
+                    if match:
+                        pos = int(match.group(1))
+                        
+                        # 在HTML中查找对应的锚点
+                        anchor = f'<a id="filepos{pos}" />'.encode('utf-8')
+                        anchor_pos = html_bytes.find(anchor)
+                        
+                        if anchor_pos != -1:
+                            # 从锚点之后查找实际的章节标题
+                            label_bytes = label.encode('utf-8')
+                            title_pos = html_bytes.find(label_bytes, anchor_pos)
+                            
+                            if title_pos != -1:
+                                # 找到章节标题标签的结束位置 </font></p>
+                                title_end = html_bytes.find(b'</font></p>', title_pos)
+                                if title_end != -1:
+                                    # 找到段落标签 <p height="4em"...>
+                                    paragraph_start = html_bytes.find(b'<p height="4em"', title_end)
+                                    if paragraph_start != -1:
+                                        # 找到段落标签结束位置 '>'
+                                        paragraph_tag_end = html_bytes.find(b'>', paragraph_start)
+                                        if paragraph_tag_end != -1:
+                                            actual_pos = paragraph_tag_end + 1
+                                        else:
+                                            actual_pos = paragraph_start
+                                    else:
+                                        # 如果找不到段落标签，使用标题结束位置
+                                        actual_pos = title_end + 10
+                                else:
+                                    # 找到章节标题后的段落标签结束位置
+                                    paragraph_start = html_bytes.find(b'<p height="4em"', title_pos)
+                                    if paragraph_start != -1:
+                                        # 找到段落标签结束位置 '>'
+                                        paragraph_tag_end = html_bytes.find(b'>', paragraph_start)
+                                        if paragraph_tag_end != -1:
+                                            actual_pos = paragraph_tag_end + 1
+                                        else:
+                                            actual_pos = paragraph_start
+                                    else:
+                                        # 如果找不到，使用标题位置
+                                        actual_pos = title_pos
+                                
+                                toc_data.append((anchor_pos, actual_pos, label))
+        
+        return toc_data
+    except Exception as e:
+        print(f"解析 NCX 文件失败: {e}")
+        return []
+
+
 def extract_mobi_text(mobi_path: Path) -> Tuple[str, str]:
     """
     从 MOBI 文件提取文本和书名
@@ -212,12 +297,95 @@ def extract_mobi_text(mobi_path: Path) -> Tuple[str, str]:
             return text, title
             
         elif extracted_path.suffix == '.html':
-            with open(extracted_file, 'r', encoding='utf-8') as f:
-                html_content = f.read()
+            # 以二进制模式读取文件以支持字节位置
+            with open(extracted_file, 'rb') as f:
+                html_bytes = f.read()
             
+            # 转换为字符串以用于BeautifulSoup处理
+            html_content = html_bytes.decode('utf-8', errors='ignore')
+            
+            # 检查是否有 toc.ncx 文件
+            toc_path = Path(tempdir) / "mobi7" / "toc.ncx"
+            toc_data = _extract_mobi_toc_from_ncx(toc_path, html_bytes)
+            
+            if toc_data:
+                # 使用 NCX 提供的位置信息来分割HTML文本
+                all_text_parts = []
+                
+                # 按位置排序
+                toc_data.sort(key=lambda x: x[0])
+                
+                # 从第一个章节开始处理
+                prev_content_pos = toc_data[0][1]  # 第一个章节的内容开始位置
+                prev_anchor_pos = toc_data[0][0]   # 第一个章节的锚点位置
+                
+                # 先插入第一个章节标题
+                all_text_parts.append(f"{CHAPTER_MARKER} {toc_data[0][2]}")
+                
+                # 从第二个章节开始处理
+                for i in range(1, len(toc_data)):
+                    anchor_pos, content_pos, chapter_title = toc_data[i]
+                    
+                    # 使用锚点位置作为分割点
+                    if anchor_pos > prev_content_pos and anchor_pos < len(html_bytes):
+                        # 提取位置前的HTML片段（字节）
+                        html_fragment_bytes = html_bytes[prev_content_pos:anchor_pos]
+                        # 解码为字符串
+                        html_fragment = html_fragment_bytes.decode('utf-8', errors='ignore')
+                        # 使用BeautifulSoup提取纯文本
+                        fragment_soup = BeautifulSoup(html_fragment, 'html.parser')
+                        fragment_text = fragment_soup.get_text(separator='\n', strip=True)
+                        
+                        if fragment_text and len(fragment_text) > 10:
+                            all_text_parts.append(fragment_text)
+                        
+                        # 插入章节标题
+                        all_text_parts.append(f"{CHAPTER_MARKER} {chapter_title}")
+                        
+                        prev_anchor_pos = anchor_pos
+                        prev_content_pos = content_pos
+                
+                # 添加最后一部分文本
+                if prev_content_pos < len(html_bytes):
+                    final_html_bytes = html_bytes[prev_content_pos:]
+                    final_html = final_html_bytes.decode('utf-8', errors='ignore')
+                    final_soup = BeautifulSoup(final_html, 'html.parser')
+                    final_text = final_soup.get_text(separator='\n', strip=True)
+                    
+                    if final_text and len(final_text) > 10:
+                        all_text_parts.append(final_text)
+                
+                text = '\n\n'.join(all_text_parts)
+            else:
+                # 没有 NCX，尝试从 HTML 文件中提取章节标题（h1, h2, h3）
+                soup = BeautifulSoup(html_content, 'html.parser')
+                chapter_elements = soup.find_all(['h1', 'h2', 'h3'])
+                
+                if chapter_elements:
+                    # 如果找到章节标题，使用它们来分割文本
+                    all_text_parts = []
+                    
+                    # 按顺序收集所有内容
+                    for element in soup.find_all(['h1', 'h2', 'h3', 'p', 'div']):
+                        tag = element.name
+                        text = element.get_text(strip=True)
+                        if not text or len(text) <= 2:
+                            continue
+                        
+                        if tag in ['h1', 'h2', 'h3']:
+                            # 章节标题
+                            all_text_parts.append(f"{CHAPTER_MARKER} {text}")
+                        else:
+                            # 普通段落
+                            all_text_parts.append(text)
+                    
+                    text = '\n\n'.join(all_text_parts)
+                else:
+                    # 没有找到章节标题，直接提取所有文本
+                    text = soup.get_text(separator=' ', strip=True)
+            
+            # 提取书名
             soup = BeautifulSoup(html_content, 'html.parser')
-            text = soup.get_text(separator=' ', strip=True)
-            
             title_elem = soup.find('title')
             if title_elem:
                 title = title_elem.get_text().strip()
