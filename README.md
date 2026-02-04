@@ -20,6 +20,7 @@
 - 🌐 **XTTS 支持** - 支持 Coqui XTTS 在线合成（可选）
 - 💾 **本地存储** - SQLite 数据库，所有数据本地保存
 - 📴 **完全离线** - Piper TTS 无需网络连接
+- 🗑️ **自动清理** - 自动清理旧音频文件，节省存储空间
 
 ## 系统要求
 
@@ -67,6 +68,8 @@ brew install mpv
 
 ### 4. 下载 TTS 模型
 
+#### 方式一：使用脚本下载（推荐）
+
 使用提供的脚本快速下载推荐模型：
 
 ```bash
@@ -76,6 +79,26 @@ brew install mpv
 脚本支持以下模型：
 - **英文**: lessac (medium/small), amy (medium)
 - **中文**: 花檐/小雅/朝文 (medium/small)
+
+#### 方式二：通过 GUI 管理
+
+首次运行程序时，可以通过 **设置 -> TTS 模型设置** 对话框：
+
+1. 选择需要的中英文模型
+2. 点击"下载"按钮下载模型
+3. 下载完成后保存设置
+
+#### 可用模型列表
+
+**中文模型**：
+- `xiao_ya` (小雅) - 默认中文模型，约 60MB
+- `huayan` (花檐) - 约 60MB
+- `chaowen` (潮文) - 约 60MB
+
+**英文模型**：
+- `amy` - 默认英文模型，约 60MB
+- `lessac` - 约 60MB
+- `alan` (英式英语) - 约 60MB
 
 模型会下载到 `models/` 目录，首次运行时自动复制到用户数据目录。
 
@@ -112,6 +135,7 @@ python -m novel_reader --test
 7. **书签** - 在任意位置添加书签
 8. **音量控制** - 实时调节播放音量（0% - 100%），设置自动保存
 9. **播放速度** - 调节播放速度（0.5x - 2.0x），支持预设档位（0.5x, 1.0x, 1.25x, 1.5x, 2.0x）
+10. **自动清理** - 自动清理旧音频文件，节省存储空间
 
 ### GUI 界面
 
@@ -124,6 +148,18 @@ python -m novel_reader --test
 
 - **Piper TTS** (默认) - 完全离线，支持中英文
 - **XTTS** (可选) - Coqui XTTS 在线合成，需要配置服务器
+
+#### 模型管理
+
+程序支持完整的模型管理功能：
+
+1. **模型选择** - 分别设置中文和英文 TTS 模型
+2. **下载管理** - 通过 GUI 下载和删除模型
+3. **进度显示** - 实时显示下载进度
+4. **状态检查** - 查看所有可用模型的下载状态
+5. **模型切换** - 切换模型后自动清理缓存
+
+所有模型文件存储在 `~/.local/share/novel-reader/models/` 或 `models/` 目录。
 
 ## 目录结构
 
@@ -146,6 +182,10 @@ novel-reader/
 │   │   ├── tts_scheduler_v2.py       # TTS 调度
 │   │   ├── audio_cache.py            # LRU 缓存
 │   │   ├── audio_player_v2.py        # 音频播放
+│   │   ├── model_config.py           # TTS 模型配置
+│   │   ├── model_downloader.py       # 模型下载管理
+│   │   ├── settings.py               # 配置管理
+│   │   ├── tts.py                    # TTS 核心引擎
 │   │   └── sentence_manager.py       # 句子处理
 │   ├── models/             # 数据库模型
 │   └── utils/              # 工具函数
@@ -178,8 +218,16 @@ novel-reader/
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `tts_engine` | TTS 引擎类型 | `piper` |
-| `tts_model` | TTS 模型名称 | `lessac-medium` |
+| `auto_play_on_startup` | 启动时自动播放 | `true` |
+| `auto_play_on_book_select` | 选择书籍时自动播放 | `false` |
+| `remember_last_book` | 记住最后选择的书籍 | `true` |
+| `auto_play_next_book` | 自动播放下一本书 | `false` |
+| `auto_play_next_chapter` | 自动播放下一章节 | `true` |
+| `chinese_model_id` | 中文 TTS 模型 ID | `xiao_ya` |
+| `english_model_id` | 英文 TTS 模型 ID | `amy` |
+| `model_dir` | 模型存储目录 | `models` |
+| `prefetch_chunk_count` | 预转换后续 chunk 数量 | `3` |
+| `cleanup_old_chunk_threshold` | 清理 N 之前的音频文件 | `50` |
 | `audio_cache_size` | 缓存 chunk 数量 | `80` |
 | `text_chunk_size` | 每个 chunk 字符数 | `100` |
 | `prefetch_chunks` | 预取 chunk 数量 | `2` |
@@ -199,8 +247,17 @@ novel-reader/
 
 - 确认 `piper-tts` 已安装: `python -c "import piper_tts"`
 - 使用 `./download_piper_model.sh` 下载 TTS 模型
-- 检查模型文件是否在 `~/.local/share/novel-reader/models/`
+- 或通过 GUI 界面下载模型（设置 -> TTS 模型设置）
+- 检查模型文件是否在 `~/.local/share/novel-reader/models/` 或 `models/`
+- 确认配置文件中的模型 ID 正确：`chinese_model_id` 和 `english_model_id`
 - 查看日志: `~/.cache/novel-reader/logs/`
+
+### 模型下载失败
+
+- 检查网络连接（或使用 HuggingFace 镜像）
+- 确认磁盘空间充足（每个模型约 60MB）
+- 尝试手动从 HuggingFace 下载模型文件
+- 检查模型目录的写入权限
 
 ### 音频播放失败
 
@@ -225,8 +282,98 @@ Novel Reader 采用模块化的 v2 架构：
 - **优先级调度** - 当前播放 chunk 获得最高 TTS 优先级（URGENT > HIGH > NORMAL > LOW）
 - **LRU 缓存** - 智能缓存策略，避免重复 TTS 转换
 - **状态机** - 清晰的播放状态管理（IDLE, LOADING, READY, PLAYING, PAUSED）
+- **模型管理** - 支持多个 Piper 模型，支持中英文自动切换
+- **音频清理** - 自动清理旧的音频文件，节省存储空间
 
 详细架构文档请参考 [ARCHITECTURE.md](ARCHITECTURE.md)。
+
+## 音频清理
+
+为了节省存储空间，Novel Reader 实现了自动清理机制：
+
+### 工作原理
+
+- **触发时机**：每次播放完一个 chunk 后自动触发清理
+- **清理规则**：删除 `当前chunk索引 - 阈值` 之前的所有音频文件
+- **默认阈值**：50（保留最近播放的 50 个 chunk 的音频）
+
+### 配置选项
+
+通过配置文件 `~/.config/novel-reader/config.json` 调整清理阈值：
+
+```json
+{
+  "cleanup_old_chunk_threshold": 50
+}
+```
+
+### 示例
+
+假设当前正在播放 chunk N，清理阈值为 50：
+
+- **保留**：chunk N-50 到 N 的音频文件
+- **删除**：chunk 0 到 N-51 的音频文件
+
+### 注意事项
+
+- 清理操作不会影响当前播放和预取的音频
+- 删除的音频文件可以随时重新生成（TTS 转换）
+- 设置较小的阈值可以节省更多空间，但可能需要重新生成音频
+
+### 手动清理
+
+如果需要手动清理所有音频文件：
+
+```bash
+# 删除指定书籍的所有音频
+rm -rf ~/.local/share/novel-reader/audio/<book_id>/
+```
+
+## 模型管理
+
+### Piper 模型
+
+Novel Reader 使用 Piper TTS 引擎进行离线文本转语音，支持以下特性：
+
+- **中英文混合** - 自动检测文本语言并使用相应模型
+- **多音色支持** - 提供多个中文和英文音色供选择
+- **模型缓存** - Python API 模式下自动缓存加载的模型
+- **热切换** - 切换模型时自动清理缓存并重新加载
+
+### 模型文件结构
+
+每个模型包含两个文件：
+- `{model_name}.onnx` - 模型权重文件
+- `{model_name}.onnx.json` - 模型配置文件
+
+示例：
+```
+models/
+├── zh_CN-xiao_ya-medium.onnx
+├── zh_CN-xiao_ya-medium.onnx.json
+├── en_US-amy-medium.onnx
+└── en_US-amy-medium.onnx.json
+```
+
+### 模型搜索路径
+
+程序按以下顺序搜索模型文件：
+1. `models/` - 当前项目目录
+2. `~/.local/share/piper_voices/` - 用户数据目录
+3. `~/piper_models/` - 用户主目录
+4. 当前目录
+
+### 模型配置
+
+模型配置定义在 `novel_reader/core/model_config.py` 中，包含：
+
+- 模型唯一标识符 (ID)
+- 显示名称（中英文）
+- 语言代码 (zh/en)
+- HuggingFace 下载地址
+- 文件大小信息
+
+可以通过修改此文件添加新的模型支持。
 
 ## 开发
 

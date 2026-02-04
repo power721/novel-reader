@@ -3,6 +3,7 @@
 """
 from PySide6.QtCore import QThread, Signal
 from typing import Optional
+from pathlib import Path
 
 
 class PlaybackWorker(QThread):
@@ -236,6 +237,9 @@ class PlaybackWorker(QThread):
 
                 self.progress_updated.emit(chunk_id + 1, total_chunks)
 
+                # 清理旧的音频文件
+                self._cleanup_old_chunks(chunk_id, book_audio_dir)
+
                 # 检查是否刚播放完一个章节的最后一个chunk
                 if chunk_id in chapter_boundaries:
                     next_chapter_start = chapter_boundaries[chunk_id]
@@ -279,3 +283,40 @@ class PlaybackWorker(QThread):
         if self._is_paused:
             self._is_paused = False
             print("▶️ 恢复播放")
+
+    def _cleanup_old_chunks(self, current_chunk: int, book_audio_dir: Path):
+        """清理旧的音频文件"""
+        from novel_reader.core import get_setting
+
+        threshold = get_setting("cleanup_old_chunk_threshold", 50)
+        keep_chunk_index = max(0, current_chunk - threshold)
+
+        print(f"[PlaybackWorker] 🔍 Cleanup: current={current_chunk}, threshold={threshold}, keep_after={keep_chunk_index}")
+
+        if keep_chunk_index <= 0:
+            return
+
+        if not book_audio_dir.exists():
+            return
+
+        deleted = 0
+        checked = 0
+        for audio_file in book_audio_dir.glob("chunk_*.wav"):
+            checked += 1
+            try:
+                chunk_id_str = audio_file.stem.split('_')
+                if len(chunk_id_str) < 3:
+                    continue
+
+                chunk_id = int(chunk_id_str[-1])
+                if chunk_id < keep_chunk_index:
+                    audio_file.unlink()
+                    deleted += 1
+                    print(f"[PlaybackWorker] 🗑 Deleted: {audio_file.name} (chunk {chunk_id})")
+            except (ValueError, IndexError) as e:
+                continue
+
+        if deleted > 0:
+            print(f"[PlaybackWorker] ✅ Cleaned up {deleted}/{checked} old audio files (before chunk {keep_chunk_index})")
+        else:
+            print(f"[PlaybackWorker] ℹ️ No files to delete (checked {checked} files)")

@@ -24,6 +24,7 @@ from .chunk_manager_v2 import ChunkManager
 from .audio_player_v2 import AudioPlayer, MpvAudioPlayer
 from .audio_cache import AudioCache
 from .tts_scheduler_v2 import TTSScheduler, TTSTask, TaskPriority
+from .settings import get_setting
 
 
 class PlayerEvent(Enum):
@@ -458,6 +459,9 @@ class PlaybackController:
         self.current_chunk.mark_done()
         print(f"[PlaybackController] ✓ Chunk {self.current_chunk.chunk_id} finished")
 
+        # 清理旧的音频文件
+        self._cleanup_old_chunks()
+
         # 移动到下一个chunk
         self.current_chunk_index += 1
 
@@ -561,6 +565,49 @@ class PlaybackController:
                         self.current_book.book_id,
                         priority
                     )
+
+    def _cleanup_old_chunks(self):
+        """清理旧的音频文件"""
+        if not self.current_book:
+            return
+
+        threshold = get_setting("cleanup_old_chunk_threshold", 50)
+        keep_chunk_index = max(0, self.current_chunk_index - threshold)
+
+        print(f"[PlaybackController] 🔍 Cleanup: current={self.current_chunk_index}, threshold={threshold}, keep_after={keep_chunk_index}")
+
+        if keep_chunk_index <= 0:
+            print(f"[PlaybackController] ⏭️ Cleanup skipped: keep_chunk_index <= 0")
+            return
+
+        book_dir = self.chunk_manager.audio_dir / str(self.current_book.book_id)
+        if not book_dir.exists():
+            print(f"[PlaybackController] ⏭️ Cleanup skipped: audio dir not found")
+            return
+
+        deleted = 0
+        checked = 0
+        for audio_file in book_dir.glob("chunk_*.wav"):
+            checked += 1
+            try:
+                chunk_id_str = audio_file.stem.split('_')
+                if len(chunk_id_str) < 3:
+                    continue
+
+                # chunk_id 是最后一部分
+                chunk_id = int(chunk_id_str[-1])
+                if chunk_id < keep_chunk_index:
+                    audio_file.unlink()
+                    deleted += 1
+                    print(f"[PlaybackController] 🗑 Deleted: {audio_file.name} (chunk {chunk_id})")
+            except (ValueError, IndexError) as e:
+                print(f"[PlaybackController] ⚠️ Parse error: {audio_file.name} - {e}")
+                continue
+
+        if deleted > 0:
+            print(f"[PlaybackController] ✅ Cleaned up {deleted}/{checked} old audio files (before chunk {keep_chunk_index})")
+        else:
+            print(f"[PlaybackController] ℹ️ No files to delete (checked {checked} files)")
 
     def _notify_state_changed(self):
         """通知状态变化"""
