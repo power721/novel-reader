@@ -29,7 +29,7 @@ def test_imports():
         from novel_reader.core.audio_cache import AudioCache
         print("✓ audio_cache imported")
 
-        from novel_reader.core.audio_player_v2 import AudioPlayer, MpvAudioPlayer
+        from novel_reader.core.audio_player_v2 import AudioPlayer, QtAudioPlayer
         print("✓ audio_player_v2 imported")
 
         from novel_reader.core.tts_scheduler_v2 import TTSScheduler

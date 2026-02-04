@@ -660,27 +660,28 @@ class MainWindow(QMainWindow):
     @Slot(int)
     def _on_book_imported(self, book_id: int):
         """书籍导入成功后自动转换前2个chunk"""
-        print(f"[INFO] Book imported: {book_id}, starting auto-conversion of first 2 chunks")
-
-        # 获取书籍信息
-        from novel_reader.utils import load_txt_file, parse_txt
-
-        book = self._get_cached_book(book_id)
-        if not book:
-            return
-
-        # 获取总chunk数
-        text = load_txt_file(book['file_path'])
-        chunks, _ = parse_txt(text)
-        total_chunks = len(chunks)
-
-        # 确定要转换的chunk数量（前2个或全部）
-        chunks_to_convert = min(2, total_chunks)
-
-        print(f"[INFO] Auto-converting {chunks_to_convert} chunks (total: {total_chunks})")
-
-        # 启动TTS转换（后台模式）
-        self._auto_convert_first_chunks(book_id, chunks_to_convert)
+        print(f"[INFO] Book imported: {book_id}")
+        # print(f"[INFO] Book imported: {book_id}, starting auto-conversion of first 2 chunks")
+        #
+        # # 获取书籍信息
+        # from novel_reader.utils import load_txt_file, parse_txt
+        #
+        # book = self._get_cached_book(book_id)
+        # if not book:
+        #     return
+        #
+        # # 获取总chunk数
+        # text = load_txt_file(book['file_path'])
+        # chunks, _ = parse_txt(text)
+        # total_chunks = len(chunks)
+        #
+        # # 确定要转换的chunk数量（前2个或全部）
+        # chunks_to_convert = min(2, total_chunks)
+        #
+        # print(f"[INFO] Auto-converting {chunks_to_convert} chunks (total: {total_chunks})")
+        #
+        # # 启动TTS转换（后台模式）
+        # self._auto_convert_first_chunks(book_id, chunks_to_convert)
 
     def _auto_convert_first_chunks(self, book_id: int, count: int):
         """
