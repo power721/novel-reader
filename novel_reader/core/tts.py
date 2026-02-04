@@ -148,7 +148,9 @@ def concat_wavs(wav_files: List[str], output_path: str):
 # ==================== Piper 单例 ====================
 
 _PIPER_VOICE_ZH = None
+_PIPER_VOICE_ZH_MODEL = None  # 缓存当前模型路径
 _PIPER_VOICE_EN = None
+_PIPER_VOICE_EN_MODEL = None  # 缓存当前模型路径
 _PIPER_LOCK = threading.Lock()
 _PIPER_AVAILABLE = None
 
@@ -166,27 +168,43 @@ def _check_piper_python() -> bool:
 
 
 def _get_piper_voice_zh(model: str, config: str):
-    global _PIPER_VOICE_ZH
-    if _PIPER_VOICE_ZH is None:
+    global _PIPER_VOICE_ZH, _PIPER_VOICE_ZH_MODEL
+    # 检查模型是否改变
+    if _PIPER_VOICE_ZH is None or _PIPER_VOICE_ZH_MODEL != model:
         with _PIPER_LOCK:
-            if _PIPER_VOICE_ZH is None:
+            # 双重检查
+            if _PIPER_VOICE_ZH is None or _PIPER_VOICE_ZH_MODEL != model:
                 from piper import PiperVoice
-                print(f"🔊 加载 Piper 模型: {Path(model).name}")
+                print(f"🔊 加载 Piper 中文模型: {Path(model).name}")
                 _PIPER_VOICE_ZH = PiperVoice.load(model, config_path=config)
-                print("✅ Piper 模型加载完成")
+                _PIPER_VOICE_ZH_MODEL = model
+                print("✅ Piper 中文模型加载完成")
     return _PIPER_VOICE_ZH
 
 
 def _get_piper_voice_en(model: str, config: str):
-    global _PIPER_VOICE_EN
-    if _PIPER_VOICE_EN is None:
+    global _PIPER_VOICE_EN, _PIPER_VOICE_EN_MODEL
+    # 检查模型是否改变
+    if _PIPER_VOICE_EN is None or _PIPER_VOICE_EN_MODEL != model:
         with _PIPER_LOCK:
-            if _PIPER_VOICE_EN is None:
+            # 双重检查
+            if _PIPER_VOICE_EN is None or _PIPER_VOICE_EN_MODEL != model:
                 from piper import PiperVoice
-                print(f"🔊 加载 Piper 模型: {Path(model).name}")
+                print(f"🔊 加载 Piper 英文模型: {Path(model).name}")
                 _PIPER_VOICE_EN = PiperVoice.load(model, config_path=config)
-                print("✅ Piper 模型加载完成")
+                _PIPER_VOICE_EN_MODEL = model
+                print("✅ Piper 英文模型加载完成")
     return _PIPER_VOICE_EN
+
+
+def clear_piper_cache():
+    """清除 Piper 模型缓存（切换模型时调用）"""
+    global _PIPER_VOICE_ZH, _PIPER_VOICE_ZH_MODEL, _PIPER_VOICE_EN, _PIPER_VOICE_EN_MODEL
+    _PIPER_VOICE_ZH = None
+    _PIPER_VOICE_ZH_MODEL = None
+    _PIPER_VOICE_EN = None
+    _PIPER_VOICE_EN_MODEL = None
+    print("🔄 Piper 模型缓存已清除")
 
 
 def warmup_piper():

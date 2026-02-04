@@ -361,13 +361,16 @@ class ModelSettingsDialog(QDialog):
 
     def _save_settings(self):
         """保存设置"""
-        from novel_reader.core import set_setting
+        from novel_reader.core import set_setting, clear_piper_cache
 
         zh_model_id = self.zh_combo.currentData()
         en_model_id = self.en_combo.currentData()
 
         set_setting("chinese_model_id", zh_model_id)
         set_setting("english_model_id", en_model_id)
+
+        # 清除 Piper 模型缓存，以便使用新模型
+        clear_piper_cache()
 
         # 检查模型是否已下载
         from novel_reader.core.model_downloader import get_model_status
