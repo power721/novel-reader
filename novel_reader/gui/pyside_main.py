@@ -8,6 +8,8 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 from pathlib import Path
 
+from novel_reader.core import warmup_piper
+
 
 def init_database():
     """初始化数据库"""
@@ -83,6 +85,8 @@ def run_gui(create_test: bool = False):
     # 创建测试数据（可选）
     if create_test:
         create_test_data()
+
+    warmup_piper()
 
     # 启用高 DPI 缩放
     QApplication.setHighDpiScaleFactorRoundingPolicy(
