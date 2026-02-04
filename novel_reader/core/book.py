@@ -272,9 +272,14 @@ def delete_book(book_id: int, delete_audio: bool = True) -> bool:
         if file_path:
             file_path_obj = Path(file_path)
             if file_path_obj.exists():
-                # 删除原始 TXT 文件或转换后的 TXT 文件
-                file_path_obj.unlink()
-                print(f"✓ 已删除文本文件: {file_path_obj}")
+                # 检查是否是转换后的文件（在 data/converted 目录中）
+                # 只有转换后的文件才删除，原始文件保留
+                if 'converted' in file_path_obj.parts or file_path_obj.parent.name == 'converted':
+                    file_path_obj.unlink()
+                    print(f"✓ 已删除转换后的文本文件: {file_path_obj}")
+                else:
+                    # 原始文件，保留不删除
+                    print(f"ℹ 保留原始文件: {file_path_obj}")
 
         print(f"✓ 已删除书籍: {book_title} (ID: {book_id})")
         return True
