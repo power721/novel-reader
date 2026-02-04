@@ -87,10 +87,12 @@ def play_book(book_id: int, start_chunk: Optional[int] = None) -> None:
         return
 
     # 统计可用的音频文件数量
+    from novel_reader.core import get_setting
+    chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
     available_chunks = 0
     missing_chunks = []
     for chunk_id in range(start_chunk, len(chunks)):
-        audio_path = book_audio_dir / f"chunk_{chunk_id:05d}.wav"
+        audio_path = book_audio_dir / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
         if os.path.exists(audio_path):
             available_chunks += 1
         else:
@@ -125,7 +127,7 @@ def play_book(book_id: int, start_chunk: Optional[int] = None) -> None:
                 break
 
             chunk_text = chunks[chunk_id]
-            audio_path = AUDIO_DIR / str(book_id) / f"chunk_{chunk_id:05d}.wav"
+            audio_path = AUDIO_DIR / str(book_id) / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
 
             # 检查音频文件是否存在
             if not os.path.exists(audio_path):
@@ -170,7 +172,9 @@ def play_chunk(book_id: int, chunk_id: int) -> None:
         book_id: 书籍 ID
         chunk_id: chunk ID
     """
-    audio_path = AUDIO_DIR / str(book_id) / f"chunk_{chunk_id:05d}.wav"
+    from novel_reader.core import get_setting
+    chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
+    audio_path = AUDIO_DIR / str(book_id) / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
 
     if not os.path.exists(audio_path):
         raise FileNotFoundError(f"音频文件不存在: {audio_path}")
@@ -550,8 +554,11 @@ def diagnose_audio_files(book_id: int) -> dict:
         "details": []
     }
 
+    from novel_reader.core import get_setting
+    chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
+
     for chunk_id in range(total_chunks):
-        audio_path = book_audio_dir / f"chunk_{chunk_id:05d}.wav"
+        audio_path = book_audio_dir / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
         chunk_info = {
             "chunk_id": chunk_id,
             "exists": False,
@@ -639,9 +646,12 @@ def delete_corrupted_audio(book_id: int, diagnosis: dict = None) -> int:
     deleted_count = 0
     book_audio_dir = AUDIO_DIR / str(book_id)
 
+    from novel_reader.core import get_setting
+    chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
+
     for detail in diagnosis['details']:
         if detail['status'] in ['empty', 'too_small']:
-            audio_path = book_audio_dir / f"chunk_{detail['chunk_id']:05d}.wav"
+            audio_path = book_audio_dir / f"chunk_{chinese_model_id}_{detail['chunk_id']:05d}.wav"
             try:
                 if audio_path.exists():
                     audio_path.unlink()

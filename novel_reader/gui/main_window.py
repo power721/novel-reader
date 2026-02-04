@@ -26,18 +26,20 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        from novel_reader.core import warmup_piper
-        warmup_piper()
         # 状态变量
         self.current_book_id: Optional[int] = None
         self.playback_worker: Optional[PlaybackWorker] = None
         self.tts_worker: Optional[TTSWorker] = None
         self._pending_chunks: set = set()  # 待转换的chunks
         self._book_cache: dict = {}  # 书籍信息缓存
+        self._models_checked = False  # 是否已检查过模型
 
         # 初始化界面
         self._init_ui()
         self._connect_signals()
+
+        # 检查模型可用性
+        self._check_models_on_startup()
 
         # 加载数据
         self._load_data()
@@ -171,6 +173,11 @@ class MainWindow(QMainWindow):
 
         prefetch_menu.setTitle(f"TTS 预转换数量 (当前: {prefetch_count})")
 
+        # TTS 模型设置
+        model_settings_action = QAction("TTS 模型管理...(&M)", self)
+        model_settings_action.triggered.connect(self._show_model_settings)
+        settings_menu.addAction(model_settings_action)
+
         # 帮助菜单
         help_menu = menubar.addMenu("帮助(&H)")
 
@@ -264,8 +271,11 @@ class MainWindow(QMainWindow):
                 self.tts_widget.set_book(selected_book_id)
 
                 # 检查是否启用自动播放
+                from novel_reader.core.tts import check_models_available
+                zh_available, en_available, missing = check_models_available()
+
                 auto_play = get_setting("auto_play_on_startup", True)
-                if auto_play:
+                if auto_play and zh_available:  # 只有在模型可用时才自动播放
                     # 延迟一点再自动播放，避免界面未完全加载
                     from PySide6.QtCore import QTimer
                     QTimer.singleShot(500, self._auto_play_last_position)
@@ -275,6 +285,14 @@ class MainWindow(QMainWindow):
     def _auto_play_last_position(self):
         """自动播放上次的位置"""
         if not self.current_book_id:
+            return
+
+        # 检查模型是否可用
+        from novel_reader.core.tts import check_models_available
+        zh_available, en_available, missing = check_models_available()
+        if not zh_available:
+            print("[INFO] Chinese model not available, skipping auto-play")
+            self.statusBar().showMessage("TTS 模型未安装，无法自动播放", 5000)
             return
 
         # 检查是否已在播放
@@ -508,6 +526,57 @@ class MainWindow(QMainWindow):
 
         # 更新菜单标题
         # 重新创建菜单会复杂，所以这里只更新状态栏提示
+
+    def _check_models_on_startup(self):
+        """启动时检查模型是否可用"""
+        # 避免重复检查
+        if self._models_checked:
+            return
+        self._models_checked = True
+
+        from novel_reader.core.tts import check_models_available
+        from PySide6.QtCore import QTimer
+
+        zh_available, en_available, missing = check_models_available()
+
+        if not zh_available or not en_available:
+            # 延迟显示对话框，等待主窗口完全加载
+            missing_models = []
+            for lang, model_name in missing:
+                lang_name = "中文" if lang == "zh" else "英文"
+                missing_models.append(f"{lang_name}: {model_name}")
+
+            QTimer.singleShot(500, lambda: self._show_missing_models_dialog(missing_models))
+
+    def _show_missing_models_dialog(self, missing_models: list):
+        """显示缺失模型对话框"""
+        from PySide6.QtWidgets import QMessageBox
+        from .dialogs import ModelSettingsDialog
+
+        msg = "以下 TTS 模型文件未找到：\n\n"
+        msg += "\n".join(f"• {m}" for m in missing_models)
+        msg += "\n\n请下载所需的模型后才能使用 TTS 功能。"
+        msg += "\n\n点击「确定」打开模型设置对话框。"
+
+        reply = QMessageBox.warning(
+            self,
+            "模型文件缺失",
+            msg,
+            QMessageBox.Ok
+        )
+
+        # 打开模型设置对话框
+        self._show_model_settings()
+
+    def _show_model_settings(self):
+        """显示TTS模型设置对话框"""
+        from .dialogs import ModelSettingsDialog
+
+        dialog = ModelSettingsDialog(self)
+        dialog.exec()
+
+        # 模型设置更改后，可能需要更新TTS配置
+        # 这里可以选择重新初始化TTS或提示用户重启应用
 
     @Slot(int)
     def _on_delete_book(self, book_id: int):
@@ -916,8 +985,9 @@ class MainWindow(QMainWindow):
             print(f"[DEBUG] TTS already running, skipping pre-conversion")
             return
 
-        # 检查下一章节的音频是否存在
-        next_chapter_audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_{next_chapter_start:05d}.wav"
+        # 检查下一章节的音频是否存在（新格式）
+        chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
+        next_chapter_audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_{chinese_model_id}_{next_chapter_start:05d}.wav"
 
         if Path(next_chapter_audio_path).exists():
             # 文件存在，检查大小
@@ -1039,10 +1109,13 @@ class MainWindow(QMainWindow):
         # 过滤掉已经存在的chunks
         book_id = self.playback_worker.book_id
         from pathlib import Path
+        from novel_reader.core import get_setting
         audio_dir = Path("data/audio") / str(book_id)
+        chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
         chunks_to_convert = []
         for chunk_id in sorted(self._pending_chunks):
-            audio_path = audio_dir / f"chunk_{chunk_id:05d}.wav"
+            # 检查新格式
+            audio_path = audio_dir / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
             if not audio_path.exists() or audio_path.stat().st_size < 20000:
                 chunks_to_convert.append(chunk_id)
             else:
@@ -1619,10 +1692,13 @@ class MainWindow(QMainWindow):
 
         # 验证第一个chunk文件是否存在且有效
         from novel_reader.core.tts import AUDIO_DIR
+        from novel_reader.core import get_setting
         from pathlib import Path
         import time
 
-        audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_{start_chunk:05d}.wav"
+        # 使用新格式
+        chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
+        audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_{chinese_model_id}_{start_chunk:05d}.wav"
 
         # 等待文件就绪（最多等待120秒，给TTS转换足够的时间）
         max_wait = 120

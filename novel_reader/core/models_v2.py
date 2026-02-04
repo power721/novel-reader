@@ -267,7 +267,11 @@ class TTSConfig:
     # Piper路径
     piper_bin: str = "piper"
 
-    # 模型配置
+    # 模型配置（新方式）
+    chinese_model_id: str = "xiao_ya"  # 中文模型 ID
+    english_model_id: str = "amy"  # 英文模型 ID
+
+    # 旧版配置（保留用于向后兼容）
     model_path: str = ""
     config_path: str = ""
 
@@ -284,13 +288,21 @@ class TTSConfig:
 
     def __post_init__(self):
         if not self.model_path:
-            # 自动查找模型
+            # 自动查找模型（旧版兼容）
             try:
-                from novel_reader.core.tts import auto_detect_model
-                model, config = auto_detect_model()
+                from novel_reader.core.tts import find_model_file
+                from novel_reader.core.model_config import get_model
+
+                # 尝试使用新方式加载中文模型
+                model = get_model(self.chinese_model_id)
                 if model:
-                    self.model_path = model
-                    self.config_path = config or ""
+                    from novel_reader.core.model_downloader import find_model_file
+                    model_path = find_model_file(model.model_filename)
+                    if model_path:
+                        self.model_path = str(model_path)
+                        # 查找配置文件
+                        config_path = find_model_file(model.config_name)
+                        self.config_path = str(config_path) if config_path else ""
             except ImportError:
                 pass
 
@@ -298,6 +310,35 @@ class TTSConfig:
     def is_valid(self) -> bool:
         """配置是否有效"""
         return bool(self.model_path) and Path(self.model_path).exists()
+
+    def get_model_for_language(self, language: str) -> tuple:
+        """
+        根据语言获取模型路径和配置路径
+
+        Args:
+            language: "zh" 或 "en"
+
+        Returns:
+            (model_path, config_path) 元组
+        """
+        from novel_reader.core.model_config import get_model
+        from novel_reader.core.model_downloader import find_model_file
+
+        model_id = self.chinese_model_id if language == "zh" else self.english_model_id
+        model = get_model(model_id)
+
+        if not model:
+            # 回退到旧配置
+            return self.model_path, self.config_path
+
+        model_path = find_model_file(model.model_filename)
+        config_path = find_model_file(model.config_name)
+
+        if not model_path:
+            # 回退到旧配置
+            return self.model_path, self.config_path
+
+        return str(model_path), str(config_path) if config_path else ""
 
 
 @dataclass

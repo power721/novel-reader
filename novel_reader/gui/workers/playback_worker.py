@@ -72,7 +72,7 @@ class PlaybackWorker(QThread):
             # 检查音频目录
             book_audio_dir = AUDIO_DIR / str(self.book_id)
             if not book_audio_dir.exists():
-                book_audio_dir.mkdir()
+                book_audio_dir.mkdir(parents=True, exist_ok=True)
                 # self.error.emit("音频目录不存在，请先进行TTS转换")
                 # return
 
@@ -120,7 +120,12 @@ class PlaybackWorker(QThread):
                     print(f"🔄 [DEBUG] 即将播放章节最后一个chunk {chunk_id}，提前转换下一章 chunk {next_chapter_start}")
                     self.last_chunk_of_chapter_started.emit(next_chapter_start)
 
-                audio_path = book_audio_dir / f"chunk_{chunk_id:05d}.wav"
+                # 获取当前设置的模型ID
+                from novel_reader.core import get_setting
+                chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
+
+                # 使用新格式（带model_id）
+                audio_path = book_audio_dir / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
 
                 # 检查当前chunk音频文件是否存在（优先处理当前chunk）
                 if not audio_path.exists():

@@ -192,23 +192,51 @@ def _get_piper_voice_en(model: str, config: str):
 def warmup_piper():
     """预热中英文模型，避免首段卡死"""
     if not _check_piper_python():
-        return
+        return False
     try:
         # Warmup 中文模型
         zh_model = find_model_file(ZH_MODEL)
+        if not zh_model:
+            raise FileNotFoundError(f"未找到中文模型: {ZH_MODEL}")
         zh_config = find_model_file(ZH_CONFIG)
         zh_voice = _get_piper_voice_zh(zh_model, zh_config)
         zh_voice.synthesize("今天天气不错。", None)
 
         # Warmup 英文模型
         en_model = find_model_file(EN_MODEL)
+        if not en_model:
+            raise FileNotFoundError(f"未找到英文模型: {EN_MODEL}")
         en_config = find_model_file(EN_CONFIG)
         en_voice = _get_piper_voice_en(en_model, en_config)
         en_voice.synthesize("Hello world.", None)
 
         print("🔥 Piper 中英文模型预热完成")
+        return True
     except Exception as e:
         print(f"⚠️ Piper 预热失败: {e}")
+        return False
+
+
+def check_models_available() -> tuple:
+    """
+    检查模型是否可用
+
+    Returns:
+        (zh_available, en_available, missing_models)
+    """
+    zh_model = find_model_file(ZH_MODEL)
+    en_model = find_model_file(EN_MODEL)
+
+    zh_available = zh_model is not None
+    en_available = en_model is not None
+
+    missing = []
+    if not zh_available:
+        missing.append(("zh", ZH_MODEL))
+    if not en_available:
+        missing.append(("en", EN_MODEL))
+
+    return zh_available, en_available, missing
 
 
 # ==================== 模型查找 ====================
@@ -401,8 +429,19 @@ def _tts_mixed_subprocess(sentences: List[Tuple[str, str]], output: Path,
 # ==================== Chunk 接口（保持你原有结构） ====================
 
 
-def chunk_to_audio_path(book_id: int, chunk_id: int) -> str:
-    return str(AUDIO_DIR / str(book_id) / f"chunk_{chunk_id:05d}.wav")
+def chunk_to_audio_path(book_id: int, chunk_id: int, model_id: str = "xiao_ya") -> str:
+    """
+    获取chunk的音频文件路径（包含model_id）
+
+    Args:
+        book_id: 书籍ID
+        chunk_id: chunk ID
+        model_id: 模型ID
+
+    Returns:
+        音频文件路径
+    """
+    return str(AUDIO_DIR / str(book_id) / f"chunk_{model_id}_{chunk_id:05d}.wav")
 
 
 def convert_chunk(text: str, book_id: int, chunk_id: int) -> str:
@@ -410,7 +449,14 @@ def convert_chunk(text: str, book_id: int, chunk_id: int) -> str:
     if not text:
         raise ValueError(f"Chunk {chunk_id} 文本为空")
 
-    output = chunk_to_audio_path(book_id, chunk_id)
+    # 获取当前设置的模型ID
+    try:
+        from novel_reader.core import get_setting
+        model_id = get_setting("chinese_model_id", "xiao_ya")
+    except:
+        model_id = "xiao_ya"
+
+    output = chunk_to_audio_path(book_id, chunk_id, model_id)
 
     try:
         path = text_to_speech(text, output)

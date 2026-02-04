@@ -460,13 +460,16 @@ class TTSScheduler:
             return 0
 
     def _get_audio_path(self, book_id: int, chunk_id: int) -> str:
-        """获取音频文件路径"""
+        """获取音频文件路径（包含model_id）"""
+        # 使用中文模型ID作为默认
+        model_id = getattr(self.tts_config, 'chinese_model_id', 'xiao_ya')
         audio_dir = Path("data/audio") / str(book_id)
-        return str(audio_dir / f"chunk_{chunk_id:05d}.wav")
+        return str(audio_dir / f"chunk_{model_id}_{chunk_id:05d}.wav")
 
     def _calculate_cache_hash(self, text: str) -> str:
-        """计算缓存hash"""
-        content = f"{text}|{self.tts_config.model_path}|{self.tts_config.voice}"
+        """计算缓存hash（包含model_id）"""
+        model_id = getattr(self.tts_config, 'chinese_model_id', 'xiao_ya')
+        content = f"{text}|{model_id}|{self.tts_config.voice}"
         return hashlib.sha256(content.encode('utf-8')).hexdigest()
 
     def is_ready(self, chunk: TextChunk, book_id: int) -> bool:

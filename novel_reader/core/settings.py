@@ -18,6 +18,10 @@ DEFAULT_SETTINGS = {
     "prefetch_chunk_count": 3,  # 预转换后续chunk数量
     "volume": 1.0,  # 音量 (0.0 - 1.0)
     "playback_speed": 1.0,  # 播放速度 (0.5 - 2.0)
+    # TTS 模型设置
+    "chinese_model_id": "xiao_ya",  # 中文 TTS 模型 ID
+    "english_model_id": "amy",  # 英文 TTS 模型 ID
+    "model_dir": "models",  # 模型存储目录
 }
 
 

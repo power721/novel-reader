@@ -279,19 +279,20 @@ class ChunkManager:
 
         return chunks
 
-    def get_audio_path(self, book_id: int, chunk_id: int) -> str:
+    def get_audio_path(self, book_id: int, chunk_id: int, model_id: str = "xiao_ya") -> str:
         """
-        获取chunk的音频文件路径
+        获取chunk的音频文件路径（包含model_id）
 
         Args:
             book_id: 书籍ID
             chunk_id: chunk ID
+            model_id: 模型ID
 
         Returns:
             音频文件路径
         """
         book_dir = self.audio_dir / str(book_id)
-        return str(book_dir / f"chunk_{chunk_id:05d}.wav")
+        return str(book_dir / f"chunk_{model_id}_{chunk_id:05d}.wav")
 
     def ensure_audio_dir(self, book_id: int):
         """
@@ -304,20 +305,20 @@ class ChunkManager:
         book_dir.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
-    def calculate_hash(text: str, model_path: str, voice: str = "", speed: float = 1.0) -> str:
+    def calculate_hash(text: str, model_id: str, voice: str = "", speed: float = 1.0) -> str:
         """
         计算文本+模型的哈希值（用于缓存）
 
         Args:
             text: 文本内容
-            model_path: 模型路径
+            model_id: 模型ID
             voice: 音色
             speed: 语速
 
         Returns:
             SHA256哈希值
         """
-        content = f"{text}|{model_path}|{voice}|{speed}"
+        content = f"{text}|{model_id}|{voice}|{speed}"
         return hashlib.sha256(content.encode('utf-8')).hexdigest()
 
     def cleanup_audio_files(self, book_id: int, valid_chunks: List[int]):

@@ -50,7 +50,15 @@ class TTSWorker(QThread):
 
             from novel_reader.core import get_book, get_book_chapters
             from novel_reader.utils import load_txt_file, parse_txt
-            from novel_reader.core.tts import convert_chunk, chunk_to_audio_path, debug_chunk_content
+            from novel_reader.core.tts import convert_chunk, chunk_to_audio_path, debug_chunk_content, check_models_available
+
+            # 检查模型是否可用
+            zh_available, en_available, missing = check_models_available()
+            if not zh_available:
+                error_msg = "未找到中文 TTS 模型，请先在「设置 → TTS 模型管理」中下载模型"
+                self.log.emit(f"❌ 错误: {error_msg}")
+                self.error.emit(error_msg)
+                return
 
             self.log.emit(f"[DEBUG] Loading book {self.book_id}...")
             book = get_book(self.book_id)
