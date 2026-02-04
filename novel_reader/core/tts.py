@@ -161,8 +161,10 @@ def _check_piper_python() -> bool:
         return _PIPER_AVAILABLE
     try:
         from piper import PiperVoice  # noqa
+        # 额外检查 espeakbridge 是否可用（Windows 上常见问题）
+        from piper import espeakbridge  # noqa
         _PIPER_AVAILABLE = True
-    except ImportError:
+    except (ImportError, ModuleNotFoundError):
         _PIPER_AVAILABLE = False
     return _PIPER_AVAILABLE
 
@@ -210,7 +212,9 @@ def clear_piper_cache():
 def warmup_piper():
     """预热中英文模型，避免首段卡死"""
     if not _check_piper_python():
+        print("📌 TTS 模式: CLI (subprocess)")
         return False
+    print("📌 TTS 模式: Python API (piper-tts)")
     try:
         # 从设置获取模型ID
         try:
@@ -338,20 +342,54 @@ def text_to_speech(
     if not text:
         raise ValueError("文本为空")
 
+    # 从设置获取模型ID
+    try:
+        from novel_reader.core import get_setting
+        from novel_reader.core.model_config import get_model
+
+        zh_model_id = get_setting("chinese_model_id", "xiao_ya")
+        en_model_id = get_setting("english_model_id", "amy")
+
+        zh_model_obj = get_model(zh_model_id)
+        en_model_obj = get_model(en_model_id)
+
+        if zh_model_obj:
+            zh_model_file = zh_model_obj.model_filename
+            zh_config_file = zh_model_obj.config_name
+        else:
+            # 回退到默认
+            zh_model_file = ZH_MODEL
+            zh_config_file = ZH_CONFIG
+
+        if en_model_obj:
+            en_model_file = en_model_obj.model_filename
+            en_config_file = en_model_obj.config_name
+        else:
+            # 回退到默认
+            en_model_file = EN_MODEL
+            en_config_file = EN_CONFIG
+
+    except Exception as e:
+        print(f"⚠️ 获取模型配置失败，使用默认模型: {e}")
+        zh_model_file = ZH_MODEL
+        en_model_file = EN_MODEL
+        zh_config_file = ZH_CONFIG
+        en_config_file = EN_CONFIG
+
     # 查找模型文件
-    zh_model = find_model_file(ZH_MODEL)
+    zh_model = find_model_file(zh_model_file)
     if not zh_model:
-        raise FileNotFoundError(f"未找到中文模型: {ZH_MODEL}")
-    zh_config = find_model_file(ZH_CONFIG)
+        raise FileNotFoundError(f"未找到中文模型: {zh_model_file}")
+    zh_config = find_model_file(zh_config_file)
     if not zh_config:
         zh_config = find_model_file(Path(zh_model).stem + ".json")
         if not zh_config:
             raise FileNotFoundError("中文模型配置文件缺失")
 
-    en_model = find_model_file(EN_MODEL)
+    en_model = find_model_file(en_model_file)
     if not en_model:
-        raise FileNotFoundError(f"未找到英文模型: {EN_MODEL}")
-    en_config = find_model_file(EN_CONFIG)
+        raise FileNotFoundError(f"未找到英文模型: {en_model_file}")
+    en_config = find_model_file(en_config_file)
     if not en_config:
         en_config = find_model_file(Path(en_model).stem + ".json")
         if not en_config:
@@ -439,6 +477,7 @@ def _tts_mixed_subprocess(sentences: List[Tuple[str, str]], output: Path,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding='utf-8',
         )
         _, stderr = proc.communicate(sent_text, timeout=300)
         if proc.returncode != 0:
@@ -466,6 +505,7 @@ def _tts_mixed_subprocess(sentences: List[Tuple[str, str]], output: Path,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding='utf-8',
             )
             _, stderr = proc.communicate(sent[0], timeout=300)
             if proc.returncode != 0:

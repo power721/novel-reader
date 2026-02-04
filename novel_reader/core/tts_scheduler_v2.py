@@ -413,7 +413,8 @@ class TTSScheduler:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                encoding='utf-8'
             )
 
             stdout, stderr = process.communicate(
