@@ -212,19 +212,53 @@ def warmup_piper():
     if not _check_piper_python():
         return False
     try:
+        # 从设置获取模型ID
+        try:
+            from novel_reader.core import get_setting
+            from novel_reader.core.model_config import get_model
+
+            zh_model_id = get_setting("chinese_model_id", "xiao_ya")
+            en_model_id = get_setting("english_model_id", "amy")
+
+            zh_model_obj = get_model(zh_model_id)
+            en_model_obj = get_model(en_model_id)
+
+            if not zh_model_obj:
+                raise FileNotFoundError(f"未找到中文模型定义: {zh_model_id}")
+            if not en_model_obj:
+                raise FileNotFoundError(f"未找到英文模型定义: {en_model_id}")
+
+            # 使用模型对象中的文件名
+            zh_model_file = zh_model_obj.model_filename
+            en_model_file = en_model_obj.model_filename
+            zh_config_file = zh_model_obj.config_name
+            en_config_file = en_model_obj.config_name
+
+        except Exception as e:
+            print(f"⚠️ 获取模型配置失败，使用默认模型: {e}")
+            # 回退到默认模型
+            zh_model_file = ZH_MODEL
+            en_model_file = EN_MODEL
+            zh_config_file = ZH_CONFIG
+            en_config_file = EN_CONFIG
+
         # Warmup 中文模型
-        zh_model = find_model_file(ZH_MODEL)
+        zh_model = find_model_file(zh_model_file)
         if not zh_model:
-            raise FileNotFoundError(f"未找到中文模型: {ZH_MODEL}")
-        zh_config = find_model_file(ZH_CONFIG)
+            raise FileNotFoundError(f"未找到中文模型: {zh_model_file}")
+        zh_config = find_model_file(zh_config_file)
+        if not zh_config:
+            zh_config = find_model_file(Path(zh_model).stem + ".json")
         zh_voice = _get_piper_voice_zh(zh_model, zh_config)
         zh_voice.synthesize("今天天气不错。", None)
 
         # Warmup 英文模型
-        en_model = find_model_file(EN_MODEL)
+        en_model = find_model_file(en_model_file)
         if not en_model:
-            raise FileNotFoundError(f"未找到英文模型: {EN_MODEL}")
-        en_config = find_model_file(EN_CONFIG)
+            raise FileNotFoundError(f"未找到英文模型: {en_model_file}")
+        en_config = find_model_file(en_config_file)
+        if not en_config:
+            en_config = find_model_file(Path(en_model).stem + ".json")
         en_voice = _get_piper_voice_en(en_model, en_config)
         en_voice.synthesize("Hello world.", None)
 
