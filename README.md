@@ -10,13 +10,12 @@
 - 📚 **多本书管理** - 同时管理多本有声书
 - 🎧 **TTS 转换** - 使用 Piper 将文本转为语音（完全离线），支持中英文
 - ▶️ **音频播放** - 使用 mpv 播放音频，支持流畅的章节切换
-- 🔖 **书签功能** - 保存和跳转到任意位置
 - ⏸️ **断点续播** - 记住每本书的播放进度
 - 🔊 **音量控制** - 实时音量调节，自动保存设置
 - ⏩ **播放速度** - 支持 0.5x - 2.0x 播放速度，预设常用档位
 - 🎨 **GUI 界面** - 基于 PySide6 的现代化图形界面
 - 🚀 **智能缓存** - LRU 缓存机制，优先级调度，快速首次出声
-- 🔄 **Chunk 导航** - 精确到 ~100 字的细粒度导航
+- 🔄 **分块导航** - 精确到 ~100 字的细粒度导航
 - 🌐 **XTTS 支持** - 支持 Coqui XTTS 在线合成（可选）
 - 💾 **本地存储** - SQLite 数据库，所有数据本地保存
 - 📴 **完全离线** - Piper TTS 无需网络连接
@@ -25,7 +24,7 @@
 ## 系统要求
 
 - **操作系统**: Linux（推荐），macOS，或其他 Unix-like 系统
-- **Python**: 3.10 或更高版本
+- **Python**: 3.11
 - **依赖程序**:
   - `mpv` - 音频播放器（必需）
   - `piper-tts` - 离线 TTS 引擎（可选，通过 pip 安装）
@@ -35,7 +34,7 @@
 ### 1. 克隆仓库
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/power721/novel-reader
 cd novel-reader
 ```
 
@@ -128,7 +127,7 @@ python -m novel_reader --test
 
 1. **导入书籍** - 支持导入 TXT、EPUB、MOBI、AZW3 等格式的文本文件
 2. **自动分章** - 智能识别章节标题并分割
-3. **Chunk 导航** - 精确到 ~100 字的细粒度导航
+3. **分块导航** - 精确到 ~100 字的细粒度导航
 4. **智能缓存** - 优先级调度，快速首次出声（0.1-0.3s）
 5. **流畅播放** - 后台预合成，自动播放下一章
 6. **进度管理** - 自动保存播放位置，支持断点续播
@@ -210,29 +209,29 @@ novel-reader/
   "text_chunk_size": 100,
   "prefetch_chunks": 2,
   "volume": 1.0,
-  "playback_speed": 1.0
+  "playback_speed": 100
 }
 ```
 
 ### 配置参数说明
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `auto_play_on_startup` | 启动时自动播放 | `true` |
-| `auto_play_on_book_select` | 选择书籍时自动播放 | `false` |
-| `remember_last_book` | 记住最后选择的书籍 | `true` |
-| `auto_play_next_book` | 自动播放下一本书 | `false` |
-| `auto_play_next_chapter` | 自动播放下一章节 | `true` |
-| `chinese_model_id` | 中文 TTS 模型 ID | `xiao_ya` |
-| `english_model_id` | 英文 TTS 模型 ID | `amy` |
-| `model_dir` | 模型存储目录 | `models` |
-| `prefetch_chunk_count` | 预转换后续 chunk 数量 | `3` |
-| `cleanup_old_chunk_threshold` | 清理 N 之前的音频文件 | `50` |
-| `audio_cache_size` | 缓存 chunk 数量 | `80` |
-| `text_chunk_size` | 每个 chunk 字符数 | `100` |
-| `prefetch_chunks` | 预取 chunk 数量 | `2` |
-| `volume` | 播放音量 (0.0 - 1.0) | `1.0` |
-| `playback_speed` | 播放速度 (0.5 - 2.0) | `1.0` |
+| 参数 | 说明               | 默认值       |
+|------|------------------|-----------|
+| `auto_play_on_startup` | 启动时自动播放          | `true`    |
+| `auto_play_on_book_select` | 选择书籍时自动播放        | `false`   |
+| `remember_last_book` | 记住最后选择的书籍        | `true`    |
+| `auto_play_next_book` | 自动播放下一本书         | `false`   |
+| `auto_play_next_chapter` | 自动播放下一章节         | `true`    |
+| `chinese_model_id` | 中文 TTS 模型 ID     | `xiao_ya` |
+| `english_model_id` | 英文 TTS 模型 ID     | `amy`     |
+| `model_dir` | 模型存储目录           | `models`  |
+| `prefetch_chunk_count` | 预转换后续 chunk 数量   | `3`       |
+| `cleanup_old_chunk_threshold` | 清理 N 之前的音频文件     | `50`      |
+| `audio_cache_size` | 缓存 chunk 数量      | `80`      |
+| `text_chunk_size` | 每个 chunk 字符数     | `100`     |
+| `prefetch_chunks` | 预取 chunk 数量      | `2`       |
+| `volume` | 播放音量 (0.0 - 1.0) | `1.0`     |
+| `playback_speed` | 播放速度 (50 - 200)  | `100`     |
 
 ## 数据存储
 
