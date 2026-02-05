@@ -341,6 +341,7 @@ def text_to_speech(
     text = text.strip()
     if not text:
         raise ValueError("文本为空")
+    text = normalize_for_novel_tts(text)
 
     # 从设置获取模型ID
     try:
@@ -409,6 +410,146 @@ def text_to_speech(
     else:
         # 使用 subprocess
         return _tts_mixed_subprocess(sentences, output_file, zh_model, zh_config, en_model, en_config)
+
+
+def normalize_for_novel_tts(text: str) -> str:
+    text = basic_clean(text)
+    text = normalize_punctuation(text)
+    text = normalize_levels(text)
+    text = normalize_with_dict(text)
+    text = normalize_numbers(text)
+    text = prosody_hint(text)
+    return text
+
+
+def basic_clean(text: str) -> str:
+    text = text.replace('\u3000', ' ')
+    text = text.replace('…', '……')
+    text = text.replace('“', '「').replace('”', '」')
+    text = text.replace('‘', '『').replace('’', '』')
+    return text.strip()
+
+
+def normalize_punctuation(text: str) -> str:
+    # 连续标点压缩
+    text = re.sub(r'[！？]{2,}', '！', text)
+    text = re.sub(r'[。]{2,}', '。', text)
+    # 英文标点 → 中文
+    text = text.replace(',', '，').replace('.', '。')
+    return text
+
+
+LEVEL_MAP = {
+    "A": "甲",
+    "B": "乙",
+    "C": "丙",
+    "D": "丁",
+    "E": "戊",
+}
+
+
+def normalize_levels(text: str) -> str:
+    def repl(m):
+        return LEVEL_MAP[m.group(1)] + m.group(2)
+
+    return re.sub(r'([ABCDE])([级等类档区组阶号])', repl, text)
+
+
+ACRONYM_MAP = {
+    "CPU": "西皮尤",
+    "GPU": "吉皮尤",
+    "NPU": "恩皮尤",
+    "RAM": "内存",
+    "ROM": "只读存储",
+    "IO": "输入输出",
+    "I/O": "输入输出",
+    "AI": "诶艾",
+    "ML": "机器学习",
+    "DL": "深度学习",
+    "UUID": "通用唯一识别码",
+}
+NETWORK_MAP = {
+    "IP": "艾屁",
+    "TCP": "提西皮",
+    "UDP": "优迪皮",
+    "HTTP": "艾尺提提屁",
+    "HTTPS": "艾尺提提屁艾丝",
+    "URL": "优艾儿艾",
+    "DNS": "迪恩艾丝",
+    "LAN": "局域网",
+    "WAN": "广域网",
+}
+SOFTWARE_MAP = {
+    "API": "诶皮艾",
+    "SDK": "艾丝迪开",
+    "IDE": "集成开发环境",
+    "CLI": "命令行界面",
+    "GUI": "图形界面",
+    "OS": "操作系统",
+    "DB": "数据库",
+    "SQL": "数据库语言",
+}
+ZONE_MAP = {
+    "A区": "甲区",
+    "B区": "乙区",
+    "C区": "丙区",
+
+    "A组": "甲组",
+    "B组": "乙组",
+    "C组": "丙组",
+
+    "A号": "甲号",
+    "B号": "乙号",
+}
+LETTER_INDEX_MAP = {
+    "A": "第一",
+    "B": "第二",
+    "C": "第三",
+    "D": "第四",
+    "E": "第五",
+}
+MIXED_MAP = {
+    "Dockerfile": "Docker 文件",
+    "Web服务器": "网络服务器",
+    "Web端": "网页端",
+    "App端": "应用端",
+    "Server端": "服务器端",
+}
+UNIT_MAP = {
+    "GB": "吉字节",
+    "MB": "兆字节",
+    "KB": "千字节",
+    "GHz": "吉赫兹",
+    "MHz": "兆赫兹",
+}
+
+NORMALIZE_DICT = {}
+NORMALIZE_DICT.update(ACRONYM_MAP)
+NORMALIZE_DICT.update(NETWORK_MAP)
+NORMALIZE_DICT.update(SOFTWARE_MAP)
+NORMALIZE_DICT.update(ZONE_MAP)
+NORMALIZE_DICT.update(MIXED_MAP)
+NORMALIZE_DICT.update(UNIT_MAP)
+
+
+def normalize_with_dict(text: str) -> str:
+    for k, v in NORMALIZE_DICT.items():
+        text = text.replace(k, v)
+    return text
+
+
+def normalize_numbers(text: str) -> str:
+    text = re.sub(r'(\d+)岁', r'\1 岁', text)
+    text = re.sub(r'(\d+)年', r'\1 年', text)
+    text = re.sub(r'(\d+)km', r'\1 公里', text)
+    text = re.sub(r'(\d+)%', r'百分之\1', text)
+    return text
+
+
+def prosody_hint(text: str) -> str:
+    text = text.replace('，但是', '，不过')
+    text = text.replace('。但是', '。不过')
+    return text
 
 
 def _tts_mixed_python(sentences: List[Tuple[str, str]], output: Path,
@@ -605,5 +746,7 @@ def debug_chunk_content(book_id: int, chunk_id: int) -> dict:
 
 
 if __name__ == '__main__':
+    print(normalize_for_novel_tts("「系统检测到 CPU 使用率超过 80%。」A级权限的 CPU 使用率达到了 80%。"))
     print(split_text_for_tts("你好，我是Harold，我来自A1星球。"))
-    print(split_text_for_tts("路奚宁继续说道：“除了车票，我们还分别获得了一件E级道具……” 她将自己和妹妹的副本奖励，简单说了下。"))
+    print(split_text_for_tts(
+        "路奚宁继续说道：“除了车票，我们还分别获得了一件E级道具……” 她将自己和妹妹的副本奖励，简单说了下。"))
