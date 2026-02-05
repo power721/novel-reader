@@ -429,8 +429,8 @@ class PlayerWidget(QWidget):
             # self.chapter_progress.setValue(0)
             # self.book_progress.setValue(0)
             # 停止时禁用分段导航按钮
-            self.prev_chunk_btn.setEnabled(False)
-            self.next_chunk_btn.setEnabled(False)
+            # self.prev_chunk_btn.setEnabled(False)
+            # self.next_chunk_btn.setEnabled(False)
 
     def set_paused_state(self, is_paused: bool):
         """设置暂停状态"""
