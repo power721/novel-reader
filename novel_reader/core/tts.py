@@ -415,10 +415,12 @@ def text_to_speech(
 def normalize_for_novel_tts(text: str) -> str:
     text = basic_clean(text)
     text = normalize_punctuation(text)
+    text = protect_english_words(text)
     text = normalize_levels(text)
     text = normalize_with_dict(text)
     text = normalize_numbers(text)
     text = prosody_hint(text)
+    text = restore_english_words(text)
     return text
 
 
@@ -438,7 +440,7 @@ def normalize_punctuation(text: str) -> str:
     text = text.replace(',', '，').replace('.', '。')
     return text
 
-
+EN_WORD_RE = re.compile(r"\b[A-Za-z]{2,}\b")
 LEVEL_MAP = {
     "A": "甲",
     "B": "乙",
@@ -446,6 +448,20 @@ LEVEL_MAP = {
     "D": "丁",
     "E": "戊",
 }
+
+
+def protect_english_words(text: str) -> str:
+    """
+    保护完整英文单词，防止被 OS / A / B 等子规则拆解
+    """
+    def repl(m):
+        return f"⟪{m.group(0)}⟫"
+
+    return EN_WORD_RE.sub(repl, text)
+
+
+def restore_english_words(text: str) -> str:
+    return re.sub(r"⟪([A-Za-z]+)⟫", r"\1", text)
 
 
 def normalize_levels(text: str) -> str:
@@ -533,8 +549,19 @@ NORMALIZE_DICT.update(UNIT_MAP)
 
 
 def normalize_with_dict(text: str) -> str:
-    for k, v in NORMALIZE_DICT.items():
-        text = text.replace(k, v)
+    # key 长度从大到小，避免 OS 抢在 OSS 前
+    for k in sorted(NORMALIZE_DICT, key=len, reverse=True):
+        v = NORMALIZE_DICT[k]
+
+        # 只匹配“完整词”的英文
+        if k.isalpha() and k.isupper():
+            pattern = rf"\b{k}\b"
+        else:
+            # 非纯英文 key（比如符号）才允许直接替
+            pattern = re.escape(k)
+
+        text = re.sub(pattern, v, text)
+
     return text
 
 
@@ -746,7 +773,7 @@ def debug_chunk_content(book_id: int, chunk_id: int) -> dict:
 
 
 if __name__ == '__main__':
-    print(normalize_for_novel_tts("「系统检测到 CPU 使用率超过 80%。」A级权限的 CPU 使用率达到了 80%。"))
+    print(normalize_for_novel_tts("「系统检测到CPU使用率超过80%。」A级权限的CPU使用率达到了80%。那个副本BOSS章鱼怪。"))
     print(split_text_for_tts("你好，我是Harold，我来自A1星球。"))
     print(split_text_for_tts(
         "路奚宁继续说道：“除了车票，我们还分别获得了一件E级道具……” 她将自己和妹妹的副本奖励，简单说了下。"))
