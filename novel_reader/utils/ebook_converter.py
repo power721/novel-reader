@@ -88,45 +88,83 @@ def extract_epub_text(epub_path: Path) -> Tuple[str, str]:
     # 优先使用 spine 顺序，因为这是作者定义的阅读顺序
     spine = book.spine or []
     processed_files = set()
-    
+
+    # 跳过的导航文件名模式
+    skip_patterns = ('nav', 'toc', 'ncx', 'cover', 'title')
+
     # 按 spine 顺序处理
     if spine:
         for item in spine:
-            if isinstance(item, str):
-                # spine 中是文件名
-                if item in items_map and item not in processed_files:
-                    doc_item = items_map[item]
-                    chapter_text = _extract_text_from_html(doc_item.get_content())
-                    
-                if chapter_text:
-                    # 获取章节标题（优先使用 TOC 标题，其次使用 HTML 标题）
-                    chapter_title = chapter_titles.get(item, '')
-                    if not chapter_title:
-                        chapter_title = _extract_title_from_html(doc_item.get_content())
-                    
-                    # 如果还是没有标题，使用文件名
-                    if not chapter_title:
-                        chapter_title = Path(item).stem
-                    
-                    # 使用特殊标记章节标题
-                    all_text_parts.append(f"{CHAPTER_MARKER} {chapter_title}")
+            # spine 中的项可能是字符串（文件名）或元组（ID, linear）
+            if isinstance(item, tuple):
+                spine_id = item[0]
+                # 使用 get_item_with_id() 获取实际的文档项
+                doc_item = book.get_item_with_id(spine_id)
+            elif isinstance(item, str):
+                # 直接是文件名
+                doc_item = items_map.get(item)
+            else:
+                continue
+
+            if not doc_item:
+                continue
+
+            file_name = doc_item.get_name()
+
+            # 跳过导航和目录文件
+            if any(pattern in file_name.lower() for pattern in skip_patterns):
+                continue
+
+            if file_name in processed_files:
+                continue
+
+            chapter_text = _extract_text_from_html(doc_item.get_content())
+
+            if chapter_text:
+                # 获取章节标题（优先使用 TOC 标题，其次使用 HTML 标题）
+                chapter_title = chapter_titles.get(file_name, '')
+                if not chapter_title:
+                    chapter_title = _extract_title_from_html(doc_item.get_content())
+
+                # 如果还是没有标题，使用文件名
+                if not chapter_title:
+                    chapter_title = Path(file_name).stem
+
+                # 跳过书名作为章节标题
+                if chapter_title == title:
                     all_text_parts.append(chapter_text)
-                    processed_files.add(item)
+                    processed_files.add(file_name)
+                    continue
+
+                # 使用特殊标记章节标题
+                all_text_parts.append(f"{CHAPTER_MARKER} {chapter_title}")
+                all_text_parts.append(chapter_text)
+                processed_files.add(file_name)
     
     # 处理 spine 中没有的文件
     for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
         file_name = item.get_name()
+
+        # 跳过导航和目录文件
+        if any(pattern in file_name.lower() for pattern in skip_patterns):
+            continue
+
         if file_name not in processed_files:
             chapter_text = _extract_text_from_html(item.get_content())
-            
+
             if chapter_text:
                 chapter_title = chapter_titles.get(file_name, '')
                 if not chapter_title:
                     chapter_title = _extract_title_from_html(item.get_content())
-                
+
                 if not chapter_title:
                     chapter_title = Path(file_name).stem
-                
+
+                # 跳过书名作为章节标题
+                if chapter_title == title:
+                    all_text_parts.append(chapter_text)
+                    continue
+
                 # 使用特殊标记章节标题
                 all_text_parts.append(f"{CHAPTER_MARKER} {chapter_title}")
                 all_text_parts.append(chapter_text)
@@ -139,28 +177,29 @@ def extract_epub_text(epub_path: Path) -> Tuple[str, str]:
 def _extract_text_from_html(html_content: bytes) -> str:
     """
     从 HTML 内容中提取纯文本
-    
+
     Args:
         html_content: HTML 字节内容
-        
+
     Returns:
         提取的文本
     """
     soup = BeautifulSoup(html_content, 'html.parser')
-    
-    text_lines = []
-    
-    # 获取所有段落和 div 内容
-    for element in soup.find_all(['p', 'div']):
-        # 跳过标题元素
-        if element.name in ['h1', 'h2', 'h3']:
-            continue
-        
-        text = element.get_text(strip=True)
-        if text and len(text) > 2:  # 过滤过短的文本
-            text_lines.append(text)
-    
-    return '\n\n'.join(text_lines)
+
+    # 移除脚本和样式
+    for script in soup(['script', 'style']):
+        script.decompose()
+
+    # 移除标题元素（h1-h6），因为章节标题单独处理
+    for h in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+        h.decompose()
+
+    # 获取所有文本，用换行符分隔
+    text = soup.get_text(separator='\n', strip=True)
+
+    # 清理多余的空行
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    return '\n\n'.join(lines)
 
 
 def _extract_title_from_html(html_content: bytes) -> str:

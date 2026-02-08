@@ -127,15 +127,9 @@ def parse_txt(
 
         chapter_start_chunk = len(chunks)
 
-        # ① 章节标题单独成 chunk（如果是 EPUB 标记，去掉标记）
-        if epub_matches:
-            # EPUB 章节标记不作为 chunk，只记录章节位置
-            # 正文从标记之后开始
-            body = text[match.end():end].strip()
-        else:
-            # 传统格式，章节标题作为 chunk
-            chunks.append(title)
-            body = text[match.end():end].strip()
+        # ① 章节标题单独成 chunk
+        chunks.append(title)
+        body = text[match.end():end].strip()
 
         # ② 正文再切
         body_chunks = smart_split_chunks(body, chunk_size)

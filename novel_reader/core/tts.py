@@ -440,6 +440,7 @@ def normalize_punctuation(text: str) -> str:
     text = text.replace(',', '，').replace('.', '。')
     return text
 
+
 EN_WORD_RE = re.compile(r"\b[A-Za-z]{2,}\b")
 LEVEL_MAP = {
     "A": "甲",
@@ -454,6 +455,7 @@ def protect_english_words(text: str) -> str:
     """
     保护完整英文单词，防止被 OS / A / B 等子规则拆解
     """
+
     def repl(m):
         return f"⟪{m.group(0)}⟫"
 
@@ -719,6 +721,8 @@ def convert_chunk(text: str, book_id: int, chunk_id: int) -> str:
     output = chunk_to_audio_path(book_id, chunk_id, model_id)
 
     try:
+        # from novel_reader.core.index_tts_client import index_tts_tts
+        # path = index_tts_tts(text, output)
         path = text_to_speech(text, output)
         size = Path(path).stat().st_size
         if size == 0:
