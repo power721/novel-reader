@@ -19,10 +19,18 @@ DEFAULT_SETTINGS = {
     "cleanup_old_chunk_threshold": 50,  # 清理N之前的音频文件
     "volume": 1.0,  # 音量 (0.0 - 1.0)
     "playback_speed": 100,  # 播放速度 (X100存储，50-200，对应0.5x-2.0x)
-    # TTS 模型设置
-    "chinese_model_id": "xiao_ya",  # 中文 TTS 模型 ID
-    "english_model_id": "amy",  # 英文 TTS 模型 ID
+    # TTS 引擎设置
+    "tts_engine": "edge",  # TTS 引擎: "piper" 或 "edge"
+    # Piper TTS 模型设置
+    "chinese_model_id": "xiao_ya",  # 中文 Piper TTS 模型 ID
+    "english_model_id": "amy",  # 英文 Piper TTS 模型 ID
     "model_dir": "models",  # 模型存储目录
+    # Edge TTS 语音设置
+    "edge_chinese_voice_id": "xiaoxiao",  # 中文 Edge TTS 语音 ID
+    "edge_english_voice_id": "jenny",  # 英文 Edge TTS 语音 ID
+    "edge_rate": "+0%",  # Edge TTS 语速调整
+    "edge_pitch": "+0Hz",  # Edge TTS 音调调整
+    "edge_volume": "+0%",  # Edge TTS 音量调整
 }
 
 

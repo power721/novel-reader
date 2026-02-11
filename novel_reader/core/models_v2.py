@@ -264,12 +264,24 @@ class Book:
 @dataclass
 class TTSConfig:
     """TTS配置"""
+    # TTS 引擎选择
+    tts_engine: str = "piper"  # "piper" 或 "edge"
+
     # Piper路径
     piper_bin: str = "piper"
 
-    # 模型配置（新方式）
-    chinese_model_id: str = "xiao_ya"  # 中文模型 ID
-    english_model_id: str = "amy"  # 英文模型 ID
+    # Piper 模型配置
+    chinese_model_id: str = "xiao_ya"  # 中文 Piper 模型 ID
+    english_model_id: str = "amy"  # 英文 Piper 模型 ID
+
+    # Edge TTS 语音配置
+    edge_chinese_voice_id: str = "xiaoxiao"  # 中文 Edge TTS 语音 ID
+    edge_english_voice_id: str = "jenny"  # 英文 Edge TTS 语音 ID
+
+    # Edge TTS 参数
+    edge_rate: str = "+0%"  # 语速调整 (e.g., "+0%", "+10%")
+    edge_pitch: str = "+0Hz"  # 音调调整 (e.g., "+0Hz", "+10Hz")
+    edge_volume: str = "+0%"  # 音量调整 (e.g., "+0%", "+10%")
 
     # 旧版配置（保留用于向后兼容）
     model_path: str = ""
@@ -287,7 +299,7 @@ class TTSConfig:
     batch_size: int = 3  # 每次合成的chunk数
 
     def __post_init__(self):
-        if not self.model_path:
+        if not self.model_path and self.tts_engine == "piper":
             # 自动查找模型（旧版兼容）
             try:
                 from novel_reader.core.tts import find_model_file
@@ -309,11 +321,46 @@ class TTSConfig:
     @property
     def is_valid(self) -> bool:
         """配置是否有效"""
-        return bool(self.model_path) and Path(self.model_path).exists()
+        if self.tts_engine == "piper":
+            return bool(self.model_path) and Path(self.model_path).exists()
+        elif self.tts_engine == "edge":
+            try:
+                from novel_reader.core.edge_tts import check_edge_tts_available
+                return check_edge_tts_available()
+            except ImportError:
+                return False
+        return False
 
-    def get_model_for_language(self, language: str) -> tuple:
+    @property
+    def is_edge_tts_available(self) -> bool:
+        """检查 Edge TTS 是否可用"""
+        try:
+            from novel_reader.core.edge_tts import check_edge_tts_available
+            return check_edge_tts_available()
+        except ImportError:
+            return False
+
+    @property
+    def is_piper_available(self) -> bool:
+        """检查 Piper TTS 是否可用"""
+        try:
+            from novel_reader.core.tts import _check_piper_python
+            return _check_piper_python()
+        except ImportError:
+            return False
+
+    def get_available_engines(self) -> List[str]:
+        """获取可用的 TTS 引擎列表"""
+        engines = []
+        if self.is_piper_available:
+            engines.append("piper")
+        if self.is_edge_tts_available:
+            engines.append("edge")
+        return engines
+
+    def get_piper_model_for_language(self, language: str) -> tuple:
         """
-        根据语言获取模型路径和配置路径
+        根据语言获取 Piper 模型路径和配置路径
 
         Args:
             language: "zh" 或 "en"
@@ -339,6 +386,25 @@ class TTSConfig:
             return self.model_path, self.config_path
 
         return str(model_path), str(config_path) if config_path else ""
+
+    def get_edge_voice_for_language(self, language: str) -> Optional[str]:
+        """
+        根据语言获取 Edge TTS 语音名称
+
+        Args:
+            language: "zh" 或 "en"
+
+        Returns:
+            Edge TTS 语音名称 (e.g., "zh-CN-XiaoxiaoNeural")，如果未找到返回 None
+        """
+        from novel_reader.core.edge_tts_config import get_voice
+
+        voice_id = self.edge_chinese_voice_id if language == "zh" else self.edge_english_voice_id
+        voice = get_voice(voice_id)
+
+        if voice:
+            return voice.name
+        return None
 
 
 @dataclass
