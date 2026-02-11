@@ -141,7 +141,7 @@ class PlaybackWorker(QThread):
                     # Piper TTS format: chunk_{model_id}_{chunk_id:05d}.wav
                     audio_path = book_audio_dir / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
 
-                print(f"[DEBUG PlaybackWorker] TTS engine={tts_engine}, audio_path={audio_path}")
+                # print(f"[DEBUG PlaybackWorker] TTS engine={tts_engine}, audio_path={audio_path}")
 
                 # 检查当前chunk音频文件是否存在
                 file_needs_conversion = False
@@ -202,7 +202,7 @@ class PlaybackWorker(QThread):
 
                 # 发出预转换请求信号
                 if chunks_to_convert:
-                    print(f"🔄 [Chunk {chunk_id}] 预转换后续chunks: {chunks_to_convert}")
+                    # print(f"🔄 [Chunk {chunk_id}] 预转换后续chunks: {chunks_to_convert}")
                     self.chunks_conversion_requested.emit(chunks_to_convert)
 
                 # 在播放前更新进度和章节索引，这样点击"下一章"时能获取到实时位置
@@ -219,7 +219,7 @@ class PlaybackWorker(QThread):
                 self.progress_updated.emit(chunk_id, total_chunks)
 
                 # 播放 chunk
-                print(f"▶ [Chunk {chunk_id}/{total_chunks - 1}] 正在播放...")
+                # print(f"▶ [Chunk {chunk_id}/{total_chunks - 1}] 正在播放...")
                 try:
                     play_audio(str(audio_path))
                     played_count += 1
@@ -320,7 +320,7 @@ class PlaybackWorker(QThread):
         threshold = get_setting("cleanup_old_chunk_threshold", 50)
         keep_chunk_index = max(0, current_chunk - threshold)
 
-        print(f"[PlaybackWorker] 🔍 Cleanup: current={current_chunk}, threshold={threshold}, keep_after={keep_chunk_index}")
+        # print(f"[PlaybackWorker] 🔍 Cleanup: current={current_chunk}, threshold={threshold}, keep_after={keep_chunk_index}")
 
         if keep_chunk_index <= 0:
             return
@@ -345,7 +345,7 @@ class PlaybackWorker(QThread):
                 if chunk_id < keep_chunk_index:
                     audio_file.unlink()
                     deleted += 1
-                    print(f"[PlaybackWorker] 🗑 Deleted: {audio_file.name} (chunk {chunk_id})")
+                    # print(f"[PlaybackWorker] 🗑 Deleted: {audio_file.name} (chunk {chunk_id})")
             except (ValueError, IndexError) as e:
                 print(f"[PlaybackWorker] ⚠️ Parse error: {audio_file.name} - {e}")
                 continue
@@ -364,7 +364,7 @@ class PlaybackWorker(QThread):
                 if chunk_id < keep_chunk_index:
                     audio_file.unlink()
                     deleted += 1
-                    print(f"[PlaybackWorker] 🗑 Deleted: {audio_file.name} (chunk {chunk_id})")
+                    # print(f"[PlaybackWorker] 🗑 Deleted: {audio_file.name} (chunk {chunk_id})")
             except (ValueError, IndexError) as e:
                 print(f"[PlaybackWorker] ⚠️ Parse error: {audio_file.name} - {e}")
                 continue

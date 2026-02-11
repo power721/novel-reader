@@ -1493,7 +1493,7 @@ class MainWindow(QMainWindow):
         self.playback_worker.error.connect(self._on_playback_error)
         self.playback_worker.progress_updated.connect(self._on_playback_progress)
         self.playback_worker.chapter_finished.connect(self._on_chapter_playback_finished)
-        self.playback_worker.last_chunk_of_chapter_started.connect(self._on_last_chunk_of_chapter_started)
+        # self.playback_worker.last_chunk_of_chapter_started.connect(self._on_last_chunk_of_chapter_started)
         self.playback_worker.chapter_index_changed.connect(self._on_chapter_index_changed)
         self.playback_worker.chunks_conversion_requested.connect(self._on_chunks_conversion_requested)
         self.playback_worker.start()

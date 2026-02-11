@@ -285,7 +285,6 @@ def play_audio(file_path: str) -> None:
         print(f"[player.play_audio] ERROR: Traceback:\n{traceback.format_exc()}")
         raise
     finally:
-        print(f"[player.play_audio] DEBUG: Cleaning up playback state")
         _playback_state["current_process"] = None
 
 
