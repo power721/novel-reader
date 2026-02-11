@@ -205,8 +205,6 @@ def play_audio(file_path: str) -> None:
         print(f"[player.play_audio] ERROR: Audio file not found: {file_path}")
         raise FileNotFoundError(f"音频文件不存在: {file_path}")
 
-    print(f"[player.play_audio] DEBUG: File exists")
-
     # 检查文件大小
     file_size = os.path.getsize(file_path)
     print(f"[player.play_audio] DEBUG: File size: {file_size} bytes")
@@ -228,8 +226,6 @@ def play_audio(file_path: str) -> None:
             pass
         raise FileNotFoundError(f"音频文件过小，已删除: {file_path}")
 
-    print(f"[player.play_audio] DEBUG: File size OK, preparing to play with mpv")
-
     # 构建 mpv 命令
     # --no-video: 只播放音频
     # --really-quiet: 静默模式（减少输出）
@@ -249,17 +245,13 @@ def play_audio(file_path: str) -> None:
     print(f"[player.play_audio] DEBUG: mpv command: {' '.join(cmd)}")
 
     try:
-        print(f"[player.play_audio] DEBUG: Starting mpv subprocess...")
         process = subprocess.Popen(cmd,
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE)
-        print(f"[player.play_audio] DEBUG: mpv process started, PID={process.pid}")
         _playback_state["current_process"] = process
 
         # 等待播放完成
-        print(f"[player.play_audio] DEBUG: Waiting for playback to complete...")
         process.wait(timeout=PLAY_TIMEOUT)
-        print(f"[player.play_audio] DEBUG: Playback completed, returncode={process.returncode}")
 
         if process.returncode != 0:
             # 获取错误输出
@@ -303,8 +295,6 @@ def play_audio(file_path: str) -> None:
 def stop_playback() -> None:
     """停止当前播放"""
     global _playback_state
-
-    print(f"[player.stop_playback] DEBUG: stop_playback() called")
 
     if _playback_state["current_process"]:
         print(f"[player.stop_playback] DEBUG: Terminating current process")

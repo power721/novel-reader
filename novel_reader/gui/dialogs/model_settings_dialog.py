@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QThread, Signal
 from typing import Optional
+from novel_reader.core import get_setting, set_setting
 
 
 class ModelDownloadThread(QThread):
@@ -557,6 +558,12 @@ class ModelSettingsDialog(QDialog):
         for voice in zh_voices:
             self.edge_zh_combo.addItem(f"{voice.title} ({voice.gender})", voice.id)
 
+        # 手动添加 xiaoxiao（如果不在列表中）
+        xiaoxiao_exists = any(v.id == "xiaoxiao" for v in zh_voices)
+        if not xiaoxiao_exists:
+            print(f"[ModelSettingsDialog] DEBUG: xiaoxiao voice not in list, adding manually")
+            self.edge_zh_combo.addItem("晓伊 (Xiaoyi) (xiaoxiao)", "xiaoxiao")
+
         # 加载英文语音列表
         self.edge_en_combo.clear()
         en_voices = get_voices_by_language("en")
@@ -567,14 +574,39 @@ class ModelSettingsDialog(QDialog):
         current_zh_voice = get_setting("edge_chinese_voice_id", "xiaoxiao")
         current_en_voice = get_setting("edge_english_voice_id", "jenny")
 
+        # 验证语音 ID 是否有效
+        from novel_reader.core.edge_tts_config import get_voice
+        valid_voice_ids = ["xiaoxiao", "xiaoyi", "xiaoyan", "xiaofan", "yunxi", "yunjian", "yunxia"]
+
+        # 如果当前设置的语音ID无效或不在列表中，使用默认值
+        if current_zh_voice not in valid_voice_ids:
+            print(f"[ModelSettingsDialog] WARNING: Current setting '{current_zh_voice}' is invalid, using xiaoxiao as default")
+            current_zh_voice = "xiaoxiao"
+            # 更新设置文件
+            set_setting("edge_chinese_voice_id", current_zh_voice)
+        else:
+            print(f"[ModelSettingsDialog] Loading valid voice ID: {current_zh_voice}")
+
+        # 查找并设置当前选中的语音
         for i in range(self.edge_zh_combo.count()):
             if self.edge_zh_combo.itemData(i) == current_zh_voice:
                 self.edge_zh_combo.setCurrentIndex(i)
+                print(f"[ModelSettingsDialog] Found voice at index {i}: {current_zh_voice}")
                 break
+
+        # 同样处理英文语音
+        if current_en_voice not in valid_voice_ids:
+            print(f"[ModelSettingsDialog] WARNING: Current English voice '{current_en_voice}' is invalid, using jenny as default")
+            current_en_voice = "jenny"
+            # 更新设置文件
+            set_setting("edge_english_voice_id", current_en_voice)
+        else:
+            print(f"[ModelSettingsDialog] Loading valid English voice ID: {current_en_voice}")
 
         for i in range(self.edge_en_combo.count()):
             if self.edge_en_combo.itemData(i) == current_en_voice:
                 self.edge_en_combo.setCurrentIndex(i)
+                break
                 break
 
         # 更新语音描述
@@ -702,6 +734,16 @@ class ModelSettingsDialog(QDialog):
             # 保存 Edge TTS 语音设置
             zh_voice_id = self.edge_zh_combo.currentData()
             en_voice_id = self.edge_en_combo.currentData()
+
+            # 验证语音 ID 是否有效，如果无效则使用默认值
+            from novel_reader.core.edge_tts_config import get_voice
+            valid_voice_ids = ["xiaoxiao", "xiaoyi", "xiaoyan", "xiaofan", "yunxi", "yunjian", "yunxia"]
+
+            if zh_voice_id not in valid_voice_ids:
+                print(f"[ModelSettingsDialog] WARNING: Invalid voice ID '{zh_voice_id}', using xiaoxiao as default")
+                zh_voice_id = "xiaoxiao"
+            else:
+                print(f"[ModelSettingsDialog] Saving valid voice ID: {zh_voice_id}")
 
             set_setting("edge_chinese_voice_id", zh_voice_id)
             set_setting("edge_english_voice_id", en_voice_id)

@@ -1225,20 +1225,26 @@ class MainWindow(QMainWindow):
 
     def _stop_playback_worker_safely(self):
         """安全地停止 PlaybackWorker 并断开信号连接"""
+        print(f"[DEBUG _stop_playback_worker_safely] Called, playback_worker={self.playback_worker}")
         if self.playback_worker:
+            print(f"[DEBUG _stop_playback_worker_safely] Worker exists, isRunning={self.playback_worker.isRunning()}")
             # 使用 blockSignals 阻止所有信号
             self.playback_worker.blockSignals(True)
 
             if self.playback_worker.isRunning():
+                print(f"[DEBUG _stop_playback_worker_safely] Stopping worker...")
                 self.playback_worker.stop()
                 # 使用 wait 并设置超时，避免阻塞界面
                 if not self.playback_worker.wait(1000):  # 1秒超时
                     # 如果超时，强制终止
+                    print(f"[DEBUG _stop_playback_worker_safely] Timeout, terminating...")
                     self.playback_worker.terminate()
                     self.playback_worker.wait(500)  # 再等0.5秒
 
             # 清理引用
+            print(f"[DEBUG _stop_playback_worker_safely] Setting playback_worker = None")
             self.playback_worker = None
+            print(f"[DEBUG _stop_playback_worker_safely] Done")
 
     def _stop_tts_worker_safely(self):
         """安全地停止 TTSWorker 并断开信号连接"""
@@ -1391,40 +1397,53 @@ class MainWindow(QMainWindow):
 
     def _play_next_chunk(self):
         """播放下一个分段"""
+        print(f"[DEBUG _play_next_chunk] ===== Next chunk button clicked =====")
         target_book_id = self._get_target_book_id()
+        print(f"[DEBUG _play_next_chunk] target_book_id: {target_book_id}")
+
         if target_book_id is None:
             QMessageBox.warning(self, "警告", "请先选择一本书")
             return
 
         # 停止当前播放，确保进度已保存
+        print(f"[DEBUG _play_next_chunk] Stopping playback...")
         self._stop_playback_worker_safely()
         self._stop_tts_worker_safely()
+        print(f"[DEBUG _play_next_chunk] Playback stopped")
 
         from novel_reader.core import get_book
         from novel_reader.utils import load_txt_file, parse_txt
 
         book = get_book(target_book_id)
         if not book:
+            print(f"[DEBUG _play_next_chunk] ERROR: Book not found")
             return
+
+        print(f"[DEBUG _play_next_chunk] Book: {book['title']}")
 
         # 在停止播放后重新获取，确保是最新的位置
         current_chunk = book['current_chunk']
+        print(f"[DEBUG _play_next_chunk] current_chunk from DB: {current_chunk}")
 
         # 获取总chunk数
         text = load_txt_file(book['file_path'])
         chunks, _ = parse_txt(text)
         total_chunks = len(chunks)
+        print(f"[DEBUG _play_next_chunk] total_chunks: {total_chunks}")
 
         # 计算下一个chunk
         next_chunk = current_chunk + 1
+        print(f"[DEBUG _play_next_chunk] next_chunk: {next_chunk}")
 
         if next_chunk >= total_chunks:
             QMessageBox.information(self, "提示", "已经是最后一个分段了")
             return
 
         # 直接播放，依赖预转换机制
+        print(f"[DEBUG _play_next_chunk] Calling _play_from_chunk({next_chunk}, {target_book_id})")
         self.statusBar().showMessage(f"跳转到分段 {next_chunk}")
         self._play_from_chunk(next_chunk, target_book_id)
+        print(f"[DEBUG _play_next_chunk] ===== _play_from_chunk returned =====")
 
     def _play_previous_chunk(self):
         """播放上一个分段"""
@@ -1474,6 +1493,12 @@ class MainWindow(QMainWindow):
 
         print(f"[DEBUG] _play_from_chunk called: start_chunk={start_chunk}, book_id={book_id}")
 
+        # 检查 PlaybackWorker 状态
+        print(f"[DEBUG] _play_from_chunk: playback_worker={self.playback_worker}")
+        if self.playback_worker:
+            print(f"[DEBUG] _play_from_chunk: playback_worker.isRunning()={self.playback_worker.isRunning()}")
+            print(f"[DEBUG] _play_from_chunk: playback_worker.isFinished()={self.playback_worker.isFinished()}")
+
         if self.playback_worker and self.playback_worker.isRunning():
             print("[DEBUG] PlaybackWorker already running, returning")
             return
@@ -1482,6 +1507,7 @@ class MainWindow(QMainWindow):
         from novel_reader.core import set_setting
         set_setting("last_book_id", book_id)
 
+        print(f"[DEBUG] _play_from_chunk: Creating new PlaybackWorker...")
         # 创建播放工作线程
         self.playback_worker = PlaybackWorker(book_id, start_chunk)
         self.playback_worker.finished.connect(self._on_playback_finished)

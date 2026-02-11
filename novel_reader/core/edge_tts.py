@@ -24,6 +24,7 @@ from typing import Optional, List, Tuple
 
 try:
     import edge_tts
+
     EDGE_TTS_AVAILABLE = True
 except ImportError:
     EDGE_TTS_AVAILABLE = False
@@ -44,6 +45,7 @@ from novel_reader.core.tts import (
     concat_wavs,
     basic_clean,
 )
+
 
 # ==================== Audio Conversion ====================
 
@@ -126,12 +128,12 @@ def check_edge_tts_available() -> bool:
 
 
 async def _text_to_speech_async(
-    text: str,
-    voice_name: str,
-    output_path: str,
-    rate: str = "+0%",
-    pitch: str = "+0Hz",
-    volume: str = "+0%"
+        text: str,
+        voice_name: str,
+        output_path: str,
+        rate: str = "+0%",
+        pitch: str = "+0Hz",
+        volume: str = "+0%"
 ) -> str:
     """
     Async text-to-speech using Edge TTS
@@ -147,6 +149,8 @@ async def _text_to_speech_async(
     Returns:
         Path to generated audio file
     """
+    print(f"[edge_tts._text_to_speech_async] DEBUG: voice={voice_name} rate={rate}, pitch={pitch}, volume={volume}")
+
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -166,12 +170,12 @@ async def _text_to_speech_async(
 
 
 def _text_to_speech_sync(
-    text: str,
-    voice_name: str,
-    output_path: str,
-    rate: str = "+0%",
-    pitch: str = "+0Hz",
-    volume: str = "+0%"
+        text: str,
+        voice_name: str,
+        output_path: str,
+        rate: str = "+0%",
+        pitch: str = "+0Hz",
+        volume: str = "+0%"
 ) -> str:
     """
     Synchronous wrapper for Edge TTS
@@ -193,14 +197,14 @@ def _text_to_speech_sync(
 
 
 def text_to_speech(
-    text: str,
-    output_path: str,
-    chinese_voice_id: Optional[str] = None,
-    english_voice_id: Optional[str] = None,
-    rate: str = "+0%",
-    pitch: str = "+0Hz",
-    volume: str = "+0%",
-    convert_to_wav: bool = True
+        text: str,
+        output_path: str,
+        chinese_voice_id: Optional[str] = None,
+        english_voice_id: Optional[str] = None,
+        rate: str = "+0%",
+        pitch: str = "+0Hz",
+        volume: str = "+0%",
+        convert_to_wav: bool = True
 ) -> str:
     """
     Mixed Chinese/English text-to-speech using Edge TTS
@@ -236,9 +240,19 @@ def text_to_speech(
     if not text:
         raise ValueError("文本为空")
 
-    # Get voices
-    zh_voice_id = chinese_voice_id or DEFAULT_CHINESE_VOICE
-    en_voice_id = english_voice_id or DEFAULT_ENGLISH_VOICE
+    # Apply full novel normalization for Chinese
+    text = normalize_for_novel_tts(text)
+
+    # Get voice IDs from settings if not provided
+    from novel_reader.core import get_setting
+    if not chinese_voice_id:
+        chinese_voice_id = get_setting("edge_chinese_voice_id", DEFAULT_CHINESE_VOICE)
+
+    if not english_voice_id:
+        english_voice_id = get_setting("edge_english_voice_id", DEFAULT_ENGLISH_VOICE)
+
+    zh_voice_id = chinese_voice_id
+    en_voice_id = english_voice_id
 
     zh_voice = get_voice(zh_voice_id)
     en_voice = get_voice(en_voice_id)
@@ -251,6 +265,23 @@ def text_to_speech(
     # Split text by language first (before normalization)
     # We use a simple split without normalization to determine language segments
     sentences = split_text_for_tts(text)
+
+    # Filter out empty or punctuation-only segments
+    filtered_sentences = []
+    for sent_text, sent_lang in sentences:
+        # Check if segment contains actual alphanumeric characters
+        import re
+        if re.search(r'[a-zA-Z0-9\u4e00-\u9fff]', sent_text):
+            filtered_sentences.append((sent_text, sent_lang))
+        else:
+            # Merge punctuation with previous segment or skip
+            if filtered_sentences:
+                # Append to previous segment
+                prev_text, prev_lang = filtered_sentences[-1]
+                filtered_sentences[-1] = (prev_text + sent_text, prev_lang)
+
+    sentences = filtered_sentences
+
     if not sentences:
         # If no split needed, use Chinese voice for all
         sentences = [(text, "zh")]
@@ -259,14 +290,9 @@ def text_to_speech(
     normalized_sentences = []
     for sent_text, sent_lang in sentences:
         if sent_lang == "zh":
-            # Apply full novel normalization for Chinese
-            norm_text = normalize_for_novel_tts(sent_text)
-            normalized_sentences.append((norm_text, "zh"))
+            normalized_sentences.append((sent_text, "zh"))
         else:
-            # For English, use minimal normalization (just basic cleanup)
-            # Don't convert punctuation to Chinese
-            norm_text = basic_clean(sent_text)
-            normalized_sentences.append((norm_text, "en"))
+            normalized_sentences.append((sent_text, "en"))
 
     sentences = normalized_sentences
 
@@ -299,11 +325,56 @@ def text_to_speech(
         temp_files = []
         fallback_file = None  # Store first segment as fallback
 
-        for idx, sent in enumerate(sentences):
-            voice = en_voice if sent[1] == 'en' else zh_voice
-            temp_mp3 = Path(tmp) / f"{idx:04d}.mp3"
+        # Use a single async loop for all segments to avoid event loop issues
+        async def convert_all_segments():
+            results = []
+            for idx, sent in enumerate(sentences):
+                voice = en_voice if sent[1] == 'en' else zh_voice
+                temp_mp3 = Path(tmp) / f"{idx:04d}.mp3"
 
-            _text_to_speech_sync(sent[0], voice.name, str(temp_mp3), rate, pitch, volume)
+                print(
+                    f"[edge_tts] Converting segment {idx}/{len(sentences)}: voice={voice.id}, text=\"{sent[0][:30]}...\"")
+
+                # Create communicate object
+                communicate = edge_tts.Communicate(
+                    text=sent[0],
+                    voice=voice.name,
+                    rate=rate,
+                    pitch=pitch,
+                    volume=volume
+                )
+
+                # Save to file
+                await communicate.save(str(temp_mp3))
+
+                # Verify the MP3 was created
+                if not temp_mp3.exists():
+                    raise RuntimeError(f"Failed to generate audio for segment {idx}")
+
+                print(f"[edge_tts] Segment {idx} completed: {temp_mp3.stat().st_size} bytes")
+                results.append(str(temp_mp3))
+
+                # Small delay between segments
+                if idx < len(sentences) - 1:
+                    await asyncio.sleep(0.1)
+
+            return results
+
+        # Run all conversions in a single event loop
+        try:
+            temp_files = asyncio.run(convert_all_segments())
+        except Exception as e:
+            raise RuntimeError(f"Failed to convert segments: {e}")
+
+        # Store first segment as fallback (copy it outside temp dir before it's deleted)
+        if temp_files:
+            import shutil
+            fallback_mp3 = Path(output_file.parent) / f"temp_fallback_{output_file.stem}.mp3"
+            shutil.copy2(temp_files[0], str(fallback_mp3))
+            fallback_file = str(fallback_mp3)
+            print(f"[edge_tts] Created fallback file: {fallback_mp3.name}")
+        else:
+            raise RuntimeError("No segments were successfully converted")
 
             # Verify the MP3 was created
             if not temp_mp3.exists():
@@ -474,11 +545,11 @@ def chunk_to_audio_path(book_id: int, chunk_id: int, voice_id: str = "xiaoxiao")
 
 
 def convert_chunk(
-    text: str,
-    book_id: int,
-    chunk_id: int,
-    chinese_voice_id: Optional[str] = None,
-    english_voice_id: Optional[str] = None
+        text: str,
+        book_id: int,
+        chunk_id: int,
+        chinese_voice_id: Optional[str] = None,
+        english_voice_id: Optional[str] = None
 ) -> str:
     """
     Convert a text chunk to audio using Edge TTS
@@ -502,19 +573,12 @@ def convert_chunk(
         raise ValueError(f"Chunk {chunk_id} text is empty")
 
     # Get voice IDs from settings if not provided
+    from novel_reader.core import get_setting
     if not chinese_voice_id:
-        try:
-            from novel_reader.core import get_setting
-            chinese_voice_id = get_setting("edge_tts_chinese_voice", DEFAULT_CHINESE_VOICE)
-        except:
-            chinese_voice_id = DEFAULT_CHINESE_VOICE
+        chinese_voice_id = get_setting("edge_chinese_voice_id", DEFAULT_CHINESE_VOICE)
 
     if not english_voice_id:
-        try:
-            from novel_reader.core import get_setting
-            english_voice_id = get_setting("edge_tts_english_voice", DEFAULT_ENGLISH_VOICE)
-        except:
-            english_voice_id = DEFAULT_ENGLISH_VOICE
+        english_voice_id = get_setting("edge_english_voice_id", DEFAULT_ENGLISH_VOICE)
 
     output = chunk_to_audio_path(book_id, chunk_id, chinese_voice_id)
 
