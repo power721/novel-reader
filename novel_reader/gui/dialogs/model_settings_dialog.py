@@ -1,12 +1,14 @@
 """
 TTS 模型设置对话框
 
-用于选择和管理 TTS 模型
+用于选择和管理 TTS 模型和语音
+支持 Piper TTS (离线) 和 Edge TTS (在线)
 """
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QComboBox, QPushButton, QProgressBar, QGroupBox,
-    QMessageBox, QTreeWidgetItem, QTreeWidget, QHeaderView
+    QMessageBox, QTreeWidgetItem, QTreeWidget, QHeaderView,
+    QSpinBox, QStackedWidget
 )
 from PySide6.QtCore import Qt, QThread, Signal
 from typing import Optional
@@ -47,6 +49,7 @@ class ModelSettingsDialog(QDialog):
 
         self.current_chinese_model = "xiao_ya"
         self.current_english_model = "amy"
+        self.current_engine = "piper"
         self.download_thread: Optional[ModelDownloadThread] = None
 
         self._init_ui()
@@ -57,71 +60,83 @@ class ModelSettingsDialog(QDialog):
         """初始化界面"""
         self.setWindowTitle("TTS 模型设置")
         self.setMinimumWidth(600)
-        self.setMinimumHeight(500)
+        self.setMinimumHeight(550)
 
         layout = QVBoxLayout(self)
 
-        # ==================== 中文模型设置 ====================
-        zh_group = QGroupBox("中文模型")
-        zh_layout = QVBoxLayout()
+        # ==================== TTS 引擎选择 ====================
+        engine_group = QGroupBox("TTS 引擎")
+        engine_layout = QVBoxLayout()
 
-        # 中文模型选择
-        zh_label_layout = QHBoxLayout()
-        zh_label_layout.addWidget(QLabel("当前模型:"))
-        self.zh_combo = QComboBox()
-        self.zh_combo.currentTextChanged.connect(self._on_chinese_model_changed)
-        zh_label_layout.addWidget(self.zh_combo)
-        zh_layout.addLayout(zh_label_layout)
+        engine_label_layout = QHBoxLayout()
+        engine_label_layout.addWidget(QLabel("选择 TTS 引擎:"))
+        self.engine_combo = QComboBox()
+        self.engine_combo.addItem("Piper TTS (离线，需下载模型)", "piper")
+        self.engine_combo.addItem("Edge TTS (在线，微软语音)", "edge")
+        self.engine_combo.currentTextChanged.connect(self._on_engine_changed)
+        engine_label_layout.addWidget(self.engine_combo)
+        engine_layout.addLayout(engine_label_layout)
 
-        # 中文模型状态
-        self.zh_status_label = QLabel()
-        self.zh_status_label.setStyleSheet("color: gray;")
-        zh_layout.addWidget(self.zh_status_label)
+        # 引擎说明
+        self.engine_desc_label = QLabel()
+        self.engine_desc_label.setWordWrap(True)
+        self.engine_desc_label.setStyleSheet("color: gray; font-size: 11px;")
+        engine_layout.addWidget(self.engine_desc_label)
 
-        # 中文模型操作按钮
-        zh_btn_layout = QHBoxLayout()
-        self.zh_download_btn = QPushButton("下载")
-        self.zh_download_btn.clicked.connect(self._download_chinese_model)
-        self.zh_delete_btn = QPushButton("删除")
-        self.zh_delete_btn.clicked.connect(self._delete_chinese_model)
-        zh_btn_layout.addWidget(self.zh_download_btn)
-        zh_btn_layout.addWidget(self.zh_delete_btn)
-        zh_btn_layout.addStretch()
-        zh_layout.addLayout(zh_btn_layout)
+        engine_group.setLayout(engine_layout)
+        layout.addWidget(engine_group)
 
-        zh_group.setLayout(zh_layout)
-        layout.addWidget(zh_group)
+        # ==================== 使用 StackedWidget 切换设置面板 ====================
+        self.settings_stack = QStackedWidget()
 
-        # ==================== 英文模型设置 ====================
-        en_group = QGroupBox("英文模型")
-        en_layout = QVBoxLayout()
+        # ---- Piper TTS 设置面板 ----
+        self.piper_widget = self._create_piper_widget()
+        self.settings_stack.addWidget(self.piper_widget)
 
-        # 英文模型选择
-        en_label_layout = QHBoxLayout()
-        en_label_layout.addWidget(QLabel("当前模型:"))
-        self.en_combo = QComboBox()
-        self.en_combo.currentTextChanged.connect(self._on_english_model_changed)
-        en_label_layout.addWidget(self.en_combo)
-        en_layout.addLayout(en_label_layout)
+        # ---- Edge TTS 设置面板 ----
+        self.edge_widget = self._create_edge_widget()
+        self.settings_stack.addWidget(self.edge_widget)
 
-        # 英文模型状态
-        self.en_status_label = QLabel()
-        self.en_status_label.setStyleSheet("color: gray;")
-        en_layout.addWidget(self.en_status_label)
+        layout.addWidget(self.settings_stack)
 
-        # 英文模型操作按钮
-        en_btn_layout = QHBoxLayout()
-        self.en_download_btn = QPushButton("下载")
-        self.en_download_btn.clicked.connect(self._download_english_model)
-        self.en_delete_btn = QPushButton("删除")
-        self.en_delete_btn.clicked.connect(self._delete_english_model)
-        en_btn_layout.addWidget(self.en_download_btn)
-        en_btn_layout.addWidget(self.en_delete_btn)
-        en_btn_layout.addStretch()
-        en_layout.addLayout(en_btn_layout)
+        # ==================== 下载进度 (仅 Piper) ====================
+        self.progress_group = QGroupBox("下载进度")
+        progress_layout = QVBoxLayout()
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        progress_layout.addWidget(self.progress_bar)
+        self.progress_label = QLabel()
+        self.progress_label.setVisible(False)
+        progress_layout.addWidget(self.progress_label)
+        self.progress_group.setLayout(progress_layout)
+        layout.addWidget(self.progress_group)
 
-        en_group.setLayout(en_layout)
-        layout.addWidget(en_group)
+        # ==================== Edge TTS 状态显示 ====================
+        self.edge_status_group = QGroupBox("Edge TTS 状态")
+        edge_status_layout = QVBoxLayout()
+        self.edge_status_label = QLabel()
+        self.edge_status_label.setWordWrap(True)
+        edge_status_layout.addWidget(self.edge_status_label)
+        self.edge_status_group.setLayout(edge_status_layout)
+        self.edge_status_group.setVisible(False)  # 默认隐藏
+        layout.addWidget(self.edge_status_group)
+
+        # ==================== 所有模型列表 (仅 Piper) ====================
+        list_group = QGroupBox("所有可用模型 (Piper TTS)")
+        list_layout = QVBoxLayout()
+
+        self.model_tree = QTreeWidget()
+        self.model_tree.setHeaderLabels(["模型", "语言", "大小", "状态"])
+        # Set column resize mode
+        header = self.model_tree.header()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        list_layout.addWidget(self.model_tree)
+
+        list_group.setLayout(list_layout)
+        layout.addWidget(list_group)
 
         # ==================== 下载进度 ====================
         progress_group = QGroupBox("下载进度")
@@ -166,6 +181,171 @@ class ModelSettingsDialog(QDialog):
 
         layout.addLayout(btn_layout)
 
+    def _create_piper_widget(self):
+        """创建 Piper TTS 设置面板"""
+        widget = QDialog()
+        widget.setLayout(QVBoxLayout())
+
+        piper_layout = widget.layout()
+
+        # ==================== 中文模型设置 ====================
+        zh_group = QGroupBox("中文模型")
+        zh_layout = QVBoxLayout()
+
+        # 中文模型选择
+        zh_label_layout = QHBoxLayout()
+        zh_label_layout.addWidget(QLabel("当前模型:"))
+        self.zh_combo = QComboBox()
+        self.zh_combo.currentTextChanged.connect(self._on_chinese_model_changed)
+        zh_label_layout.addWidget(self.zh_combo)
+        zh_layout.addLayout(zh_label_layout)
+
+        # 中文模型状态
+        self.zh_status_label = QLabel()
+        self.zh_status_label.setStyleSheet("color: gray;")
+        zh_layout.addWidget(self.zh_status_label)
+
+        # 中文模型操作按钮
+        zh_btn_layout = QHBoxLayout()
+        self.zh_download_btn = QPushButton("下载")
+        self.zh_download_btn.clicked.connect(self._download_chinese_model)
+        self.zh_delete_btn = QPushButton("删除")
+        self.zh_delete_btn.clicked.connect(self._delete_chinese_model)
+        zh_btn_layout.addWidget(self.zh_download_btn)
+        zh_btn_layout.addWidget(self.zh_delete_btn)
+        zh_btn_layout.addStretch()
+        zh_layout.addLayout(zh_btn_layout)
+
+        zh_group.setLayout(zh_layout)
+        piper_layout.addWidget(zh_group)
+
+        # ==================== 英文模型设置 ====================
+        en_group = QGroupBox("英文模型")
+        en_layout = QVBoxLayout()
+
+        # 英文模型选择
+        en_label_layout = QHBoxLayout()
+        en_label_layout.addWidget(QLabel("当前模型:"))
+        self.en_combo = QComboBox()
+        self.en_combo.currentTextChanged.connect(self._on_english_model_changed)
+        en_label_layout.addWidget(self.en_combo)
+        en_layout.addLayout(en_label_layout)
+
+        # 英文模型状态
+        self.en_status_label = QLabel()
+        self.en_status_label.setStyleSheet("color: gray;")
+        en_layout.addWidget(self.en_status_label)
+
+        # 英文模型操作按钮
+        en_btn_layout = QHBoxLayout()
+        self.en_download_btn = QPushButton("下载")
+        self.en_download_btn.clicked.connect(self._download_english_model)
+        self.en_delete_btn = QPushButton("删除")
+        self.en_delete_btn.clicked.connect(self._delete_english_model)
+        en_btn_layout.addWidget(self.en_download_btn)
+        en_btn_layout.addWidget(self.en_delete_btn)
+        en_btn_layout.addStretch()
+        en_layout.addLayout(en_btn_layout)
+
+        en_group.setLayout(en_layout)
+        piper_layout.addWidget(en_group)
+
+        piper_layout.addStretch()
+        return widget
+
+    def _create_edge_widget(self):
+        """创建 Edge TTS 设置面板"""
+        widget = QDialog()
+        widget.setLayout(QVBoxLayout())
+
+        edge_layout = widget.layout()
+
+        # ==================== 中文语音设置 ====================
+        zh_edge_group = QGroupBox("中文语音")
+        zh_edge_layout = QVBoxLayout()
+
+        zh_label_layout = QHBoxLayout()
+        zh_label_layout.addWidget(QLabel("选择语音:"))
+        self.edge_zh_combo = QComboBox()
+        self.edge_zh_combo.currentTextChanged.connect(self._on_edge_voice_changed)
+        zh_label_layout.addWidget(self.edge_zh_combo)
+        zh_edge_layout.addLayout(zh_label_layout)
+
+        # 中文语音描述
+        self.edge_zh_desc_label = QLabel()
+        self.edge_zh_desc_label.setWordWrap(True)
+        self.edge_zh_desc_label.setStyleSheet("color: gray; font-size: 11px;")
+        zh_edge_layout.addWidget(self.edge_zh_desc_label)
+
+        zh_edge_group.setLayout(zh_edge_layout)
+        edge_layout.addWidget(zh_edge_group)
+
+        # ==================== 英文语音设置 ====================
+        en_edge_group = QGroupBox("英文语音")
+        en_edge_layout = QVBoxLayout()
+
+        en_label_layout = QHBoxLayout()
+        en_label_layout.addWidget(QLabel("选择语音:"))
+        self.edge_en_combo = QComboBox()
+        self.edge_en_combo.currentTextChanged.connect(self._on_edge_voice_changed)
+        en_label_layout.addWidget(self.edge_en_combo)
+        en_edge_layout.addLayout(en_label_layout)
+
+        # 英文语音描述
+        self.edge_en_desc_label = QLabel()
+        self.edge_en_desc_label.setWordWrap(True)
+        self.edge_en_desc_label.setStyleSheet("color: gray; font-size: 11px;")
+        en_edge_layout.addWidget(self.edge_en_desc_label)
+
+        en_edge_group.setLayout(en_edge_layout)
+        edge_layout.addWidget(en_edge_group)
+
+        # ==================== Edge TTS 参数设置 ====================
+        params_group = QGroupBox("语音参数调整")
+        params_layout = QVBoxLayout()
+
+        # 语速
+        rate_layout = QHBoxLayout()
+        rate_layout.addWidget(QLabel("语速:"))
+        self.edge_rate_spin = QSpinBox()
+        self.edge_rate_spin.setRange(-50, 100)
+        self.edge_rate_spin.setValue(0)
+        self.edge_rate_spin.setSuffix("%")
+        self.edge_rate_spin.setPrefix("+")
+        rate_layout.addWidget(self.edge_rate_spin)
+        rate_layout.addStretch()
+        params_layout.addLayout(rate_layout)
+
+        # 音调
+        pitch_layout = QHBoxLayout()
+        pitch_layout.addWidget(QLabel("音调:"))
+        self.edge_pitch_spin = QSpinBox()
+        self.edge_pitch_spin.setRange(-50, 50)
+        self.edge_pitch_spin.setValue(0)
+        self.edge_pitch_spin.setSuffix("Hz")
+        self.edge_pitch_spin.setPrefix("+")
+        pitch_layout.addWidget(self.edge_pitch_spin)
+        pitch_layout.addStretch()
+        params_layout.addLayout(pitch_layout)
+
+        # 音量
+        volume_layout = QHBoxLayout()
+        volume_layout.addWidget(QLabel("音量:"))
+        self.edge_volume_spin = QSpinBox()
+        self.edge_volume_spin.setRange(-100, 100)
+        self.edge_volume_spin.setValue(0)
+        self.edge_volume_spin.setSuffix("%")
+        self.edge_volume_spin.setPrefix("+")
+        volume_layout.addWidget(self.edge_volume_spin)
+        volume_layout.addStretch()
+        params_layout.addLayout(volume_layout)
+
+        params_group.setLayout(params_layout)
+        edge_layout.addWidget(params_group)
+
+        edge_layout.addStretch()
+        return widget
+
     def _load_current_settings(self):
         """加载当前设置"""
         from novel_reader.core import get_setting
@@ -173,23 +353,28 @@ class ModelSettingsDialog(QDialog):
             get_models_by_language, get_model_title
         )
 
-        # 加载中文模型列表
+        # 加载 TTS 引擎设置
+        current_engine = get_setting("tts_engine", "piper")
+        for i in range(self.engine_combo.count()):
+            if self.engine_combo.itemData(i) == current_engine:
+                self.engine_combo.setCurrentIndex(i)
+                break
+
+        # 加载 Piper 模型列表
         self.zh_combo.clear()
         zh_models = get_models_by_language("zh")
         for model in zh_models:
             self.zh_combo.addItem(model.title, model.id)
 
-        # 加载英文模型列表
         self.en_combo.clear()
         en_models = get_models_by_language("en")
         for model in en_models:
             self.en_combo.addItem(model.title, model.id)
 
-        # 设置当前选中的模型
+        # 设置当前选中的 Piper 模型
         current_zh = get_setting("chinese_model_id", "xiao_ya")
         current_en = get_setting("english_model_id", "amy")
 
-        # 根据 ID 查找并设置
         for i in range(self.zh_combo.count()):
             if self.zh_combo.itemData(i) == current_zh:
                 self.zh_combo.setCurrentIndex(i)
@@ -199,6 +384,36 @@ class ModelSettingsDialog(QDialog):
             if self.en_combo.itemData(i) == current_en:
                 self.en_combo.setCurrentIndex(i)
                 break
+
+        # 加载 Edge TTS 语音列表
+        self._load_edge_voices()
+
+        # 加载 Edge TTS 参数
+        rate_str = get_setting("edge_rate", "+0%")
+        pitch_str = get_setting("edge_pitch", "+0Hz")
+        volume_str = get_setting("edge_volume", "+0%")
+
+        # 解析参数值 (e.g., "+10%" -> 10, "-5Hz" -> -5)
+        try:
+            rate_val = int(rate_str.replace('%', '').replace('+', ''))
+            self.edge_rate_spin.setValue(rate_val)
+        except:
+            pass
+
+        try:
+            pitch_val = int(pitch_str.replace('Hz', '').replace('+', ''))
+            self.edge_pitch_spin.setValue(pitch_val)
+        except:
+            pass
+
+        try:
+            volume_val = int(volume_str.replace('%', '').replace('+', ''))
+            self.edge_volume_spin.setValue(volume_val)
+        except:
+            pass
+
+        # 根据引擎显示相应面板
+        self._on_engine_changed(current_engine)
 
     def _refresh_model_status(self):
         """刷新模型状态"""
@@ -359,35 +574,171 @@ class ModelSettingsDialog(QDialog):
             else:
                 QMessageBox.critical(self, "删除失败", f"删除模型失败: {model.title}")
 
+    def _load_edge_voices(self):
+        """加载 Edge TTS 语音列表"""
+        from novel_reader.core.edge_tts_config import get_voices_by_language
+
+        # 加载中文语音列表
+        self.edge_zh_combo.clear()
+        zh_voices = get_voices_by_language("zh")
+        for voice in zh_voices:
+            self.edge_zh_combo.addItem(f"{voice.title} ({voice.gender})", voice.id)
+
+        # 加载英文语音列表
+        self.edge_en_combo.clear()
+        en_voices = get_voices_by_language("en")
+        for voice in en_voices:
+            self.edge_en_combo.addItem(f"{voice.title} ({voice.gender})", voice.id)
+
+        from novel_reader.core import get_setting
+        # 设置当前选中的语音
+        current_zh_voice = get_setting("edge_chinese_voice_id", "xiaoxiao")
+        current_en_voice = get_setting("edge_english_voice_id", "jenny")
+
+        for i in range(self.edge_zh_combo.count()):
+            if self.edge_zh_combo.itemData(i) == current_zh_voice:
+                self.edge_zh_combo.setCurrentIndex(i)
+                break
+
+        for i in range(self.edge_en_combo.count()):
+            if self.edge_en_combo.itemData(i) == current_en_voice:
+                self.edge_en_combo.setCurrentIndex(i)
+                break
+
+        # 更新语音描述
+        self._update_edge_voice_descriptions()
+
+    def _on_engine_changed(self, engine_name: str):
+        """TTS 引擎改变事件"""
+        engine_type = self.engine_combo.currentData()
+
+        # 更新引擎描述
+        if engine_type == "piper":
+            self.engine_desc_label.setText(
+                "Piper TTS 是离线引擎，需要下载语音模型。"
+                "音质好，无网络要求，但模型文件较大。"
+            )
+            # 显示 Piper 面板
+            self.settings_stack.setCurrentWidget(self.piper_widget)
+            # 显示下载进度和模型列表
+            self.progress_group.setVisible(True)
+            self.model_tree.parent().setVisible(True)
+            # 隐藏 Edge TTS 状态
+            self.edge_status_group.setVisible(False)
+            # 刷新 Piper 模型状态
+            self._refresh_model_status()
+        else:  # Edge TTS
+            self.engine_desc_label.setText(
+                "Edge TTS 是微软在线神经网络语音，无需下载模型。"
+                "需要网络连接，语音自然流畅。"
+            )
+            # 显示 Edge 面板
+            self.settings_stack.setCurrentWidget(self.edge_widget)
+            # 隐藏下载进度和模型列表
+            self.progress_group.setVisible(False)
+            self.model_tree.parent().setVisible(False)
+            # 显示 Edge TTS 状态
+            self.edge_status_group.setVisible(True)
+            # 刷新 Edge TTS 状态
+            self._refresh_edge_status()
+
+    def _on_edge_voice_changed(self, voice_name: str):
+        """Edge TTS 语音改变事件"""
+        self._update_edge_voice_descriptions()
+
+    def _update_edge_voice_descriptions(self):
+        """更新 Edge TTS 语音描述"""
+        from novel_reader.core.edge_tts_config import get_voice
+
+        # 更新中文语音描述
+        zh_voice_id = self.edge_zh_combo.currentData()
+        zh_voice = get_voice(zh_voice_id)
+        if zh_voice:
+            self.edge_zh_desc_label.setText(
+                f"{zh_voice.description} | 语言: {zh_voice.locale}"
+            )
+
+        # 更新英文语音描述
+        en_voice_id = self.edge_en_combo.currentData()
+        en_voice = get_voice(en_voice_id)
+        if en_voice:
+            self.edge_en_desc_label.setText(
+                f"{en_voice.description} | 语言: {en_voice.locale}"
+            )
+
+    def _refresh_edge_status(self):
+        """刷新 Edge TTS 状态"""
+        from novel_reader.core.edge_tts import check_edge_tts_available
+
+        is_available = check_edge_tts_available()
+
+        if is_available:
+            self.edge_status_label.setText(
+                "<span style='color: green;'>✓ Edge TTS 可用</span><br>"
+                "Edge TTS 使用微软在线语音服务，无需下载模型。"
+            )
+            self.edge_status_label.setStyleSheet("")
+        else:
+            self.edge_status_label.setText(
+                "<span style='color: red;'>✗ Edge TTS 不可用</span><br>"
+                "请安装 edge-tts 库：<br>"
+                "<code>pip install edge-tts</code>"
+            )
+
     def _save_settings(self):
         """保存设置"""
         from novel_reader.core import set_setting, clear_piper_cache
 
-        zh_model_id = self.zh_combo.currentData()
-        en_model_id = self.en_combo.currentData()
+        # 保存 TTS 引擎选择
+        engine_type = self.engine_combo.currentData()
+        set_setting("tts_engine", engine_type)
 
-        set_setting("chinese_model_id", zh_model_id)
-        set_setting("english_model_id", en_model_id)
+        if engine_type == "piper":
+            # 保存 Piper 模型设置
+            zh_model_id = self.zh_combo.currentData()
+            en_model_id = self.en_combo.currentData()
 
-        # 清除 Piper 模型缓存，以便使用新模型
-        clear_piper_cache()
+            set_setting("chinese_model_id", zh_model_id)
+            set_setting("english_model_id", en_model_id)
 
-        # 检查模型是否已下载
-        from novel_reader.core.model_downloader import get_model_status
+            # 清除 Piper 模型缓存，以便使用新模型
+            clear_piper_cache()
 
-        zh_status = get_model_status(zh_model_id)
-        en_status = get_model_status(en_model_id)
+            # 检查模型是否已下载
+            from novel_reader.core.model_downloader import get_model_status
 
-        warnings = []
-        if not zh_status.get("exists"):
-            warnings.append(f"中文模型 '{zh_status.get('title')}' 未下载")
-        if not en_status.get("exists"):
-            warnings.append(f"英文模型 '{en_status.get('title')}' 未下载")
+            zh_status = get_model_status(zh_model_id)
+            en_status = get_model_status(en_model_id)
 
-        if warnings:
-            msg = "设置已保存，但:\n\n" + "\n".join(warnings) + "\n\n请下载模型后才能使用TTS功能。"
-            QMessageBox.warning(self, "设置已保存", msg)
-        else:
-            QMessageBox.information(self, "设置已保存", "TTS 模型设置已保存！")
+            warnings = []
+            if not zh_status.get("exists"):
+                warnings.append(f"中文模型 '{zh_status.get('title')}' 未下载")
+            if not en_status.get("exists"):
+                warnings.append(f"英文模型 '{en_status.get('title')}' 未下载")
+
+            if warnings:
+                msg = "设置已保存，但:\n\n" + "\n".join(warnings) + "\n\n请下载模型后才能使用TTS功能。"
+                QMessageBox.warning(self, "设置已保存", msg)
+            else:
+                QMessageBox.information(self, "设置已保存", "Piper TTS 模型设置已保存！")
+
+        else:  # Edge TTS
+            # 保存 Edge TTS 语音设置
+            zh_voice_id = self.edge_zh_combo.currentData()
+            en_voice_id = self.edge_en_combo.currentData()
+
+            set_setting("edge_chinese_voice_id", zh_voice_id)
+            set_setting("edge_english_voice_id", en_voice_id)
+
+            # 保存 Edge TTS 参数
+            rate_val = self.edge_rate_spin.value()
+            pitch_val = self.edge_pitch_spin.value()
+            volume_val = self.edge_volume_spin.value()
+
+            set_setting("edge_rate", f"+{rate_val}%")
+            set_setting("edge_pitch", f"+{pitch_val}Hz")
+            set_setting("edge_volume", f"+{volume_val}%")
+
+            QMessageBox.information(self, "设置已保存", "Edge TTS 语音设置已保存！")
 
         self.accept()
