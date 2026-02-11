@@ -48,14 +48,33 @@ class TTSWorker(QThread):
         try:
             self.log.emit(f"[DEBUG] TTS Worker started: book_id={self.book_id}, start_chunk={self.start_chunk}, chapter_mode={self.chapter_mode}")
 
-            from novel_reader.core import get_book, get_book_chapters
+            from novel_reader.core import get_book, get_book_chapters, get_setting
             from novel_reader.utils import load_txt_file, parse_txt
-            from novel_reader.core.tts import convert_chunk, chunk_to_audio_path, debug_chunk_content, check_models_available
+            from novel_reader.core.tts_engine import convert_chunk, chunk_to_audio_path
+            from novel_reader.core.models_v2 import TTSConfig
 
-            # 检查模型是否可用
-            zh_available, en_available, missing = check_models_available()
-            if not zh_available:
-                error_msg = "未找到中文 TTS 模型，请先在「设置 → TTS 模型管理」中下载模型"
+            # 获取当前 TTS 引擎
+            tts_engine = get_setting("tts_engine", "piper")
+            self.log.emit(f"[DEBUG] Current TTS engine: {tts_engine}")
+
+            # 检查引擎是否可用
+            tts_config = TTSConfig()
+            available_engines = tts_config.get_available_engines()
+
+            if not available_engines:
+                error_msg = "没有可用的 TTS 引擎。请安装 piper-tts 或 edge-tts"
+                self.log.emit(f"❌ 错误: {error_msg}")
+                self.error.emit(error_msg)
+                return
+
+            if tts_engine == "piper" and "piper" not in available_engines:
+                error_msg = "Piper TTS 不可用，请在设置中选择 Edge TTS 或安装 Piper"
+                self.log.emit(f"❌ 错误: {error_msg}")
+                self.error.emit(error_msg)
+                return
+
+            if tts_engine == "edge" and "edge" not in available_engines:
+                error_msg = "Edge TTS 不可用，请安装 edge-tts (pip install edge-tts)"
                 self.log.emit(f"❌ 错误: {error_msg}")
                 self.error.emit(error_msg)
                 return
@@ -145,7 +164,7 @@ class TTSWorker(QThread):
                     self.log.emit("转换已取消")
                     break
 
-                audio_path = chunk_to_audio_path(self.book_id, i)
+                audio_path = chunk_to_audio_path(self.book_id, i, engine=tts_engine)
 
                 # 检查是否已存在
                 if os.path.exists(audio_path) and os.path.getsize(audio_path) > MIN_SIZE:
@@ -156,7 +175,7 @@ class TTSWorker(QThread):
                     self.log.emit(f"[{i+1}/{total}] 正在转换 分段 {i}... (文本长度: {len(chunk_text)} 字符)")
 
                     try:
-                        convert_chunk(chunks[i], self.book_id, i)
+                        convert_chunk(chunks[i], self.book_id, i, engine=tts_engine)
                         converted += 1
                         self.log.emit(f"[{i+1}/{total}] 转换完成")
 
@@ -189,7 +208,7 @@ class TTSWorker(QThread):
                         # 为空文本创建一个静音文件，避免播放卡住
                         try:
                             import wave
-                            audio_path = chunk_to_audio_path(self.book_id, i)
+                            audio_path = chunk_to_audio_path(self.book_id, i, engine=tts_engine)
                             Path(audio_path).parent.mkdir(parents=True, exist_ok=True)
                             with wave.open(str(audio_path), 'wb') as wav_file:
                                 wav_file.setnchannels(1)
@@ -261,7 +280,7 @@ class TTSWorker(QThread):
                         self.log.emit("转换已取消")
                         break
 
-                    audio_path = chunk_to_audio_path(self.book_id, i)
+                    audio_path = chunk_to_audio_path(self.book_id, i, engine=tts_engine)
 
                     # 检查是否已存在
                     if os.path.exists(audio_path):
@@ -269,7 +288,7 @@ class TTSWorker(QThread):
                     else:
                         self.log.emit(f"[{i+1}/{total}] 后台转换...")
                         try:
-                            convert_chunk(chunks[i], self.book_id, i)
+                            convert_chunk(chunks[i], self.book_id, i, engine=tts_engine)
                             converted += 1
                         except Exception as e:
                             self.log.emit(f"[{i+1}/{total}] 转换失败: {e}")

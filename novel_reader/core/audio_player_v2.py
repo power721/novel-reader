@@ -100,19 +100,28 @@ class AudioPlayer:
             on_finished: 播放完成回调
             on_progress: 进度回调 (current_ms, total_ms)
         """
+        print(f"[AudioPlayer] DEBUG: play() called with audio_path={audio_path}")
+
         if not self.sd:
+            print(f"[AudioPlayer] ERROR: sounddevice not installed!")
             raise RuntimeError("sounddevice not installed")
 
         # 停止当前播放
         if self.state == PlayerState.PLAYING:
+            print(f"[AudioPlayer] DEBUG: Stopping current playback")
             self.stop()
 
         # 检查文件
         if not Path(audio_path).exists():
+            print(f"[AudioPlayer] ERROR: Audio file not found: {audio_path}")
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
+        print(f"[AudioPlayer] DEBUG: Audio file exists, size={Path(audio_path).stat().st_size} bytes")
+
         # 读取音频文件
+        print(f"[AudioPlayer] DEBUG: Loading WAV file...")
         audio_data, duration_ms = self._load_wav(audio_path)
+        print(f"[AudioPlayer] DEBUG: Loaded audio data: samples={len(audio_data)}, duration={duration_ms}ms")
 
         # 计算起始位置
         start_sample = int((start_offset_ms / 1000) * self.sample_rate)
@@ -130,12 +139,14 @@ class AudioPlayer:
         self._stop_flag.clear()
         self._pause_flag.clear()
 
+        print(f"[AudioPlayer] DEBUG: Starting playback thread...")
         self._play_thread = threading.Thread(
             target=self._play_loop,
             args=(audio_data[start_sample:], duration_ms - start_offset_ms),
             daemon=True
         )
         self._play_thread.start()
+        print(f"[AudioPlayer] DEBUG: Playback thread started, state={self.state}")
 
     def _play_loop(self, audio_data: np.ndarray, duration_ms: int):
         """
@@ -145,20 +156,26 @@ class AudioPlayer:
             audio_data: 音频数据 (numpy array)
             duration_ms: 时长（毫秒）
         """
+        print(f"[AudioPlayer] DEBUG: _play_loop() started, duration_ms={duration_ms}, samples={len(audio_data)}")
         try:
             # 创建音频流
+            print(f"[AudioPlayer] DEBUG: Creating sounddevice OutputStream...")
             self._stream = self.sd.OutputStream(
                 samplerate=self.sample_rate,
                 channels=1,
                 dtype='int16'
             )
+            print(f"[AudioPlayer] DEBUG: Starting OutputStream...")
             self._stream.start()
+            print(f"[AudioPlayer] DEBUG: OutputStream started successfully")
 
             # 播放参数
             chunk_size = 1024
             total_samples = len(audio_data)
             played_samples = 0
             start_time = time.time()
+
+            print(f"[AudioPlayer] DEBUG: Entering playback loop, total_samples={total_samples}, chunk_size={chunk_size}")
 
             # 播放循环
             while played_samples < total_samples:
@@ -190,7 +207,9 @@ class AudioPlayer:
                     self.on_progress(current_ms, duration_ms)
 
         except Exception as e:
-            print(f"[AudioPlayer] Playback error: {e}")
+            print(f"[AudioPlayer] ERROR: Playback error: {e}")
+            import traceback
+            print(f"[AudioPlayer] ERROR: Traceback:\n{traceback.format_exc()}")
             self.state = PlayerState.ERROR
         finally:
             # 清理
@@ -395,10 +414,13 @@ class MpvAudioPlayer:
         """
         import subprocess
 
+        print(f"[MpvAudioPlayer] DEBUG: play() called with audio_path={audio_path}")
+
         self.on_finished = on_finished
         self.current_file = audio_path
 
         cmd = [self.mpv_bin, "--no-video", "--really-quiet"]
+        print(f"[MpvAudioPlayer] DEBUG: cmd={' '.join(cmd)}")
 
         # 如果有起始偏移
         if start_offset_ms > 0:
@@ -407,8 +429,13 @@ class MpvAudioPlayer:
 
         cmd.append(audio_path)
 
+        print(f"[MpvAudioPlayer] DEBUG: Full command: {' '.join(cmd)}")
+        print(f"[MpvAudioPlayer] DEBUG: Starting mpv process...")
+
         self.process = subprocess.Popen(cmd)
         self.state = PlayerState.PLAYING
+
+        print(f"[MpvAudioPlayer] DEBUG: Process started, PID={self.process.pid}")
 
         # 启动监控线程
         thread = threading.Thread(
@@ -416,6 +443,7 @@ class MpvAudioPlayer:
             daemon=True
         )
         thread.start()
+        print(f"[MpvAudioPlayer] DEBUG: Monitor thread started")
 
     def _monitor(self):
         """监控播放进程"""
