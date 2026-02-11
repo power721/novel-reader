@@ -265,7 +265,7 @@ class Book:
 class TTSConfig:
     """TTS配置"""
     # TTS 引擎选择
-    tts_engine: str = "piper"  # "piper" 或 "edge"
+    tts_engine: str = "edge"  # "piper" 或 "edge"
 
     # Piper路径
     piper_bin: str = "piper"

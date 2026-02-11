@@ -4,7 +4,7 @@ TTSScheduler - TTS合成调度器
 Production级实现：
 - 优先级队列（URGENT > HIGH > NORMAL > LOW）
 - 后台工作线程
-- Piper CLI集成
+- 支持 Piper TTS 和 Edge TTS
 - 音频缓存集成
 - 可中断/恢复
 - 预合成策略
@@ -392,7 +392,7 @@ class TTSScheduler:
 
     def _synthesize(self, task: TTSTask) -> bool:
         """
-        执行TTS合成
+        执行TTS合成 - 使用统一的TTS引擎接口
 
         Args:
             task: TTS任务
@@ -400,36 +400,61 @@ class TTSScheduler:
         Returns:
             是否成功
         """
-        cmd = [
-            self.tts_config.piper_bin,
-            "--model", self.tts_config.model_path,
-            "--config", self.tts_config.config_path,
-            "-f", task.audio_path
-        ]
+        # 使用统一的 TTS 引擎接口
+        from .tts_engine import text_to_speech
 
         try:
-            process = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding='utf-8'
-            )
+            # 根据 TTS 引擎类型选择处理方式
+            engine_type = self.tts_config.tts_engine
 
-            stdout, stderr = process.communicate(
-                input=task.text,
-                timeout=self.config.tts_timeout
-            )
+            if engine_type == "edge":
+                # Edge TTS: 使用统一接口
+                text_to_speech(
+                    task.text,
+                    task.audio_path,
+                    engine="edge",
+                    chinese_voice_id=self.tts_config.edge_chinese_voice_id,
+                    english_voice_id=self.tts_config.edge_english_voice_id,
+                    rate=self.tts_config.edge_rate,
+                    pitch=self.tts_config.edge_pitch,
+                    volume=self.tts_config.edge_volume,
+                    convert_to_wav=True
+                )
+                print(f"[TTSScheduler] ✓ Chunk {task.chunk_id} synthesized with Edge TTS")
+                return True
 
-            if process.returncode != 0:
-                print(f"[TTSScheduler] ✗ Piper error (code={process.returncode}): {stderr[:200]}")
-                return False
+            else:  # piper
+                # Piper TTS: 使用 subprocess (保持原有逻辑)
+                cmd = [
+                    self.tts_config.piper_bin,
+                    "--model", self.tts_config.model_path,
+                    "--config", self.tts_config.config_path,
+                    "-f", task.audio_path
+                ]
 
-            return True
+                process = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding='utf-8'
+                )
+
+                stdout, stderr = process.communicate(
+                    input=task.text,
+                    timeout=self.config.tts_timeout
+                )
+
+                if process.returncode != 0:
+                    print(f"[TTSScheduler] ✗ Piper error (code={process.returncode}): {stderr[:200]}")
+                    return False
+
+                return True
 
         except subprocess.TimeoutExpired:
-            process.kill()
+            if 'process' in locals():
+                process.kill()
             print(f"[TTSScheduler] ⏱ Timeout: chunk {task.chunk_id}")
             # 删除可能损坏的文件
             if Path(task.audio_path).exists():

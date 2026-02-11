@@ -577,6 +577,7 @@ class ModelSettingsDialog(QDialog):
     def _load_edge_voices(self):
         """加载 Edge TTS 语音列表"""
         from novel_reader.core.edge_tts_config import get_voices_by_language
+        from novel_reader.core import get_setting
 
         # 加载中文语音列表
         self.edge_zh_combo.clear()
@@ -590,7 +591,6 @@ class ModelSettingsDialog(QDialog):
         for voice in en_voices:
             self.edge_en_combo.addItem(f"{voice.title} ({voice.gender})", voice.id)
 
-        from novel_reader.core import get_setting
         # 设置当前选中的语音
         current_zh_voice = get_setting("edge_chinese_voice_id", "xiaoxiao")
         current_en_voice = get_setting("edge_english_voice_id", "jenny")
