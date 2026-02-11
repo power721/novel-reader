@@ -109,6 +109,7 @@ class ModelSettingsDialog(QDialog):
         self.progress_label.setVisible(False)
         progress_layout.addWidget(self.progress_label)
         self.progress_group.setLayout(progress_layout)
+        self.progress_group.setVisible(False)  # 默认隐藏，由引擎选择控制
         layout.addWidget(self.progress_group)
 
         # ==================== Edge TTS 状态显示 ====================
@@ -122,7 +123,7 @@ class ModelSettingsDialog(QDialog):
         layout.addWidget(self.edge_status_group)
 
         # ==================== 所有模型列表 (仅 Piper) ====================
-        list_group = QGroupBox("所有可用模型 (Piper TTS)")
+        self.list_group = QGroupBox("所有可用模型 (Piper TTS)")
         list_layout = QVBoxLayout()
 
         self.model_tree = QTreeWidget()
@@ -135,37 +136,8 @@ class ModelSettingsDialog(QDialog):
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         list_layout.addWidget(self.model_tree)
 
-        list_group.setLayout(list_layout)
-        layout.addWidget(list_group)
-
-        # ==================== 下载进度 ====================
-        progress_group = QGroupBox("下载进度")
-        progress_layout = QVBoxLayout()
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        progress_layout.addWidget(self.progress_bar)
-        self.progress_label = QLabel()
-        self.progress_label.setVisible(False)
-        progress_layout.addWidget(self.progress_label)
-        progress_group.setLayout(progress_layout)
-        layout.addWidget(progress_group)
-
-        # ==================== 所有模型列表 ====================
-        list_group = QGroupBox("所有可用模型")
-        list_layout = QVBoxLayout()
-
-        self.model_tree = QTreeWidget()
-        self.model_tree.setHeaderLabels(["模型", "语言", "大小", "状态"])
-        # Set column resize mode
-        header = self.model_tree.header()
-        header.setSectionResizeMode(0, QHeaderView.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        list_layout.addWidget(self.model_tree)
-
-        list_group.setLayout(list_layout)
-        layout.addWidget(list_group)
+        self.list_group.setLayout(list_layout)
+        layout.addWidget(self.list_group)
 
         # ==================== 底部按钮 ====================
         btn_layout = QHBoxLayout()
@@ -612,6 +584,8 @@ class ModelSettingsDialog(QDialog):
         """TTS 引擎改变事件"""
         engine_type = self.engine_combo.currentData()
 
+        print(f"[DEBUG ModelSettingsDialog] Engine changed to: {engine_type}")
+
         # 更新引擎描述
         if engine_type == "piper":
             self.engine_desc_label.setText(
@@ -622,11 +596,12 @@ class ModelSettingsDialog(QDialog):
             self.settings_stack.setCurrentWidget(self.piper_widget)
             # 显示下载进度和模型列表
             self.progress_group.setVisible(True)
-            self.model_tree.parent().setVisible(True)
+            self.list_group.setVisible(True)
             # 隐藏 Edge TTS 状态
             self.edge_status_group.setVisible(False)
             # 刷新 Piper 模型状态
             self._refresh_model_status()
+            print("[DEBUG ModelSettingsDialog] Showing Piper model list")
         else:  # Edge TTS
             self.engine_desc_label.setText(
                 "Edge TTS 是微软在线神经网络语音，无需下载模型。"
@@ -636,11 +611,12 @@ class ModelSettingsDialog(QDialog):
             self.settings_stack.setCurrentWidget(self.edge_widget)
             # 隐藏下载进度和模型列表
             self.progress_group.setVisible(False)
-            self.model_tree.parent().setVisible(False)
+            self.list_group.setVisible(False)
             # 显示 Edge TTS 状态
             self.edge_status_group.setVisible(True)
             # 刷新 Edge TTS 状态
             self._refresh_edge_status()
+            print("[DEBUG ModelSettingsDialog] Hiding Piper model list")
 
     def _on_edge_voice_changed(self, voice_name: str):
         """Edge TTS 语音改变事件"""

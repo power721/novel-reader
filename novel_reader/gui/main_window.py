@@ -1107,13 +1107,27 @@ class MainWindow(QMainWindow):
         from pathlib import Path
         from novel_reader.core import get_setting
         audio_dir = Path("data/audio") / str(book_id)
-        chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
+
+        # 获取TTS引擎类型
+        tts_engine = get_setting("tts_engine", "piper")
         chunks_to_convert = []
+
         for chunk_id in sorted(self._pending_chunks):
-            # 检查新格式
-            audio_path = audio_dir / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
+            # 根据TTS引擎确定音频文件路径
+            if tts_engine == "edge":
+                # Edge TTS format: chunk_edge_{voice_id}_{chunk_id:05d}.wav
+                edge_voice_id = get_setting("edge_chinese_voice_id", "xiaoxiao")
+                audio_path = audio_dir / f"chunk_edge_{edge_voice_id}_{chunk_id:05d}.wav"
+            else:
+                # Piper TTS format: chunk_{model_id}_{chunk_id:05d}.wav
+                chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
+                audio_path = audio_dir / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
+
+            print(f"[DEBUG] Checking chunk {chunk_id}: {audio_path.name}, exists={audio_path.exists()}")
+
             if not audio_path.exists() or audio_path.stat().st_size < 20000:
                 chunks_to_convert.append(chunk_id)
+                print(f"[DEBUG] Chunk {chunk_id} needs conversion")
             else:
                 print(f"[DEBUG] Chunk {chunk_id} 已存在，跳过")
 
