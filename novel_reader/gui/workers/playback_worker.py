@@ -330,7 +330,27 @@ class PlaybackWorker(QThread):
 
         deleted = 0
         checked = 0
+
         for audio_file in book_audio_dir.glob("chunk_*.wav"):
+            checked += 1
+            try:
+                # Handle both Piper (chunk_{model_id}_{chunk_id:05d}.wav)
+                # and Edge TTS (chunk_edge_{voice_id}_{chunk_id:05d}.wav) formats
+                chunk_id_str = audio_file.stem.split('_')
+                if len(chunk_id_str) < 3:
+                    continue
+
+                # The chunk_id is always the last part
+                chunk_id = int(chunk_id_str[-1])
+                if chunk_id < keep_chunk_index:
+                    audio_file.unlink()
+                    deleted += 1
+                    print(f"[PlaybackWorker] 🗑 Deleted: {audio_file.name} (chunk {chunk_id})")
+            except (ValueError, IndexError) as e:
+                print(f"[PlaybackWorker] ⚠️ Parse error: {audio_file.name} - {e}")
+                continue
+
+        for audio_file in book_audio_dir.glob("chunk_*.mp3"):
             checked += 1
             try:
                 # Handle both Piper (chunk_{model_id}_{chunk_id:05d}.wav)
