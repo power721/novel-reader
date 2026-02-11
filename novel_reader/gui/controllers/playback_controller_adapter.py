@@ -48,10 +48,13 @@ class PlaybackControllerAdapter(QObject):
 
     def initialize(self):
         """初始化控制器"""
+        print(f"[PlaybackControllerAdapter] DEBUG: initialize() called")
+
         self.controller = PlaybackController(
             config=self.config,
             tts_config=self.tts_config
         )
+        print(f"[PlaybackControllerAdapter] DEBUG: Controller created")
 
         # 连接回调
         self.controller.on_state_changed = self._on_state_changed
@@ -59,9 +62,11 @@ class PlaybackControllerAdapter(QObject):
         self.controller.on_chapter_changed = self._on_chapter_changed
         self.controller.on_progress = self._on_progress
         self.controller.on_book_finished = self._on_book_finished
+        print(f"[PlaybackControllerAdapter] DEBUG: Callbacks connected")
 
         # 启动控制器
         self.controller.start()
+        print(f"[PlaybackControllerAdapter] DEBUG: Controller started")
 
     def shutdown(self):
         """关闭控制器"""
@@ -76,21 +81,28 @@ class PlaybackControllerAdapter(QObject):
 
     def play(self):
         """播放"""
+        print(f"[PlaybackControllerAdapter] DEBUG: play() called")
         if self.controller:
+            print(f"[PlaybackControllerAdapter] DEBUG: Controller exists, calling controller.play()")
             self.controller.play()
+        else:
+            print(f"[PlaybackControllerAdapter] ERROR: Controller is None!")
 
     def pause(self):
         """暂停"""
+        print(f"[PlaybackControllerAdapter] DEBUG: pause() called")
         if self.controller:
             self.controller.pause()
 
     def resume(self):
         """恢复播放"""
+        print(f"[PlaybackControllerAdapter] DEBUG: resume() called")
         if self.controller:
             self.controller.resume()
 
     def stop(self):
         """停止播放"""
+        print(f"[PlaybackControllerAdapter] DEBUG: stop() called")
         if self.controller:
             self.controller.stop()
 
@@ -118,6 +130,7 @@ class PlaybackControllerAdapter(QObject):
 
     def _on_state_changed(self, state: PlaybackState):
         """状态变化回调"""
+        print(f"[PlaybackControllerAdapter] DEBUG: _on_state_changed() called with state={state.name}")
         self.state_changed.emit(state.name)
 
     def _on_chunk_changed(self, chunk: TextChunk):

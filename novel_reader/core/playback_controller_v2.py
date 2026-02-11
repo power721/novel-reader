@@ -299,32 +299,53 @@ class PlaybackController:
 
     def _handle_play(self):
         """处理播放事件"""
+        print(f"[PlaybackController] DEBUG: _handle_play() called, state={self.state}")
+
         if not self.current_book:
+            print(f"[PlaybackController] ERROR: No book loaded!")
             return
 
         # 如果是暂停状态，恢复
         if self.state == PlaybackState.PAUSED:
+            print(f"[PlaybackController] DEBUG: Resuming from pause")
             self.audio_player.resume()
             self.state = PlaybackState.PLAYING
             self._notify_state_changed()
             return
 
         # 获取当前chunk
+        print(f"[PlaybackController] DEBUG: Getting chunk at index {self.current_chunk_index}")
         chunk = self.current_book.get_chunk_by_index(self.current_chunk_index)
         if not chunk:
             print(f"[PlaybackController] ✗ Chunk {self.current_chunk_index} not found")
             return
 
+        print(f"[PlaybackController] DEBUG: Found chunk {chunk.chunk_id}")
         self.current_chunk = chunk
         self.current_chapter = self.current_book.find_chapter_by_chunk_id(chunk.chunk_id)
 
         # 检查音频是否准备好
+        print(f"[PlaybackController] DEBUG: Getting audio path for book_id={self.current_book.book_id}, chunk_id={chunk.chunk_id}")
         audio_path = self.chunk_manager.get_audio_path(
             self.current_book.book_id,
             chunk.chunk_id
         )
+        print(f"[PlaybackController] DEBUG: Audio path: {audio_path}")
 
-        if not Path(audio_path).exists() or Path(audio_path).stat().st_size < 20000:
+        if not Path(audio_path).exists():
+            print(f"[PlaybackController] ERROR: Audio file does not exist: {audio_path}")
+            print(f"[PlaybackController] ⏳ Audio not ready for chunk {chunk.chunk_id}, scheduling TTS...")
+            # 调度TTS
+            self._schedule_urgent_chunks(chunk)
+            # 等待TTS完成（简化版：直接暂停）
+            self.state = PlaybackState.PAUSED
+            return
+
+        file_size = Path(audio_path).stat().st_size
+        print(f"[PlaybackController] DEBUG: Audio file size: {file_size} bytes")
+
+        if file_size < 20000:
+            print(f"[PlaybackController] ERROR: Audio file too small ({file_size} < 20000)")
             print(f"[PlaybackController] ⏳ Audio not ready for chunk {chunk.chunk_id}, scheduling TTS...")
             # 调度TTS
             self._schedule_urgent_chunks(chunk)
@@ -333,16 +354,19 @@ class PlaybackController:
             return
 
         # 开始播放
+        print(f"[PlaybackController] DEBUG: Audio ready, starting playback")
         self.state = PlaybackState.PLAYING
         self._notify_state_changed()
 
         # 播放音频
+        print(f"[PlaybackController] DEBUG: Calling audio_player.play()...")
         self.audio_player.play(
             audio_path,
             start_offset_ms=0,
             on_finished=self._on_chunk_finished,
             on_progress=self._on_playback_progress
         )
+        print(f"[PlaybackController] DEBUG: audio_player.play() returned")
 
         # 标记状态
         chunk.mark_playing()

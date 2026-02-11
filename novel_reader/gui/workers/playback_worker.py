@@ -30,6 +30,12 @@ class PlaybackWorker(QThread):
     def run(self):
         """执行播放任务"""
         print(f"[DEBUG] PlaybackWorker.run() called: book_id={self.book_id}, start_chunk={self.start_chunk}")
+
+        # Log the TTS engine being used
+        from novel_reader.core import get_setting
+        tts_engine = get_setting("tts_engine", "piper")
+        print(f"[DEBUG] PlaybackWorker: TTS engine = {tts_engine}")
+
         try:
             from novel_reader.core.player import play_audio, stop_playback
             from novel_reader.utils import load_txt_file, parse_txt
@@ -121,17 +127,40 @@ class PlaybackWorker(QThread):
                     print(f"🔄 [DEBUG] 即将播放章节最后一个chunk {chunk_id}，提前转换下一章 chunk {next_chapter_start}")
                     self.last_chunk_of_chapter_started.emit(next_chapter_start)
 
-                # 获取当前设置的模型ID
+                # 获取当前设置的模型ID和TTS引擎
                 from novel_reader.core import get_setting
+                tts_engine = get_setting("tts_engine", "piper")
                 chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
 
-                # 使用新格式（带model_id）
-                audio_path = book_audio_dir / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
+                # 根据TTS引擎确定音频文件路径
+                if tts_engine == "edge":
+                    # Edge TTS format: chunk_edge_{voice_id}_{chunk_id:05d}.wav
+                    edge_voice_id = get_setting("edge_chinese_voice_id", "xiaoxiao")
+                    audio_path = book_audio_dir / f"chunk_edge_{edge_voice_id}_{chunk_id:05d}.wav"
+                else:
+                    # Piper TTS format: chunk_{model_id}_{chunk_id:05d}.wav
+                    audio_path = book_audio_dir / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
 
-                # 检查当前chunk音频文件是否存在（优先处理当前chunk）
+                print(f"[DEBUG PlaybackWorker] TTS engine={tts_engine}, audio_path={audio_path}")
+
+                # 检查当前chunk音频文件是否存在
+                file_needs_conversion = False
+
                 if not audio_path.exists():
-                    print(f"⏳ [Chunk {chunk_id}] 音频文件不存在，请求转换...")
+                    print(f"⏳ [Chunk {chunk_id}] 音频文件不存在 ({audio_path.name})，请求转换...")
+                    file_needs_conversion = True
+                else:
+                    # File exists, check size
+                    file_size = audio_path.stat().st_size
+                    print(f"✅ [Chunk {chunk_id}] 音频文件存在: {audio_path.name} ({file_size / 1024:.1f} KB)")
 
+                    if file_size < 20000:
+                        print(f"⚠️ [Chunk {chunk_id}] 文件过小 ({file_size} < 20000)，可能损坏，删除并重新转换...")
+                        audio_path.unlink()
+                        file_needs_conversion = True
+
+                if file_needs_conversion:
+                    print(f"⏳ [Chunk {chunk_id}] 请求转换...")
                     self.chunks_conversion_requested.emit([chunk_id])
 
                     # 等待TTS转换完成
@@ -304,16 +333,20 @@ class PlaybackWorker(QThread):
         for audio_file in book_audio_dir.glob("chunk_*.wav"):
             checked += 1
             try:
+                # Handle both Piper (chunk_{model_id}_{chunk_id:05d}.wav)
+                # and Edge TTS (chunk_edge_{voice_id}_{chunk_id:05d}.wav) formats
                 chunk_id_str = audio_file.stem.split('_')
                 if len(chunk_id_str) < 3:
                     continue
 
+                # The chunk_id is always the last part
                 chunk_id = int(chunk_id_str[-1])
                 if chunk_id < keep_chunk_index:
                     audio_file.unlink()
                     deleted += 1
                     print(f"[PlaybackWorker] 🗑 Deleted: {audio_file.name} (chunk {chunk_id})")
             except (ValueError, IndexError) as e:
+                print(f"[PlaybackWorker] ⚠️ Parse error: {audio_file.name} - {e}")
                 continue
 
         if deleted > 0:
