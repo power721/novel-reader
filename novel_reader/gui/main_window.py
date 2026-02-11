@@ -711,14 +711,11 @@ class MainWindow(QMainWindow):
             end_chunk=count,  # 只转换前N个
             chapter_mode=False  # 不使用章节模式
         )
-        print(f"[DEBUG] Connecting signals...")
         self.tts_worker.progress.connect(self._on_tts_progress)
         self.tts_worker.log.connect(self._on_tts_log)
         self.tts_worker.finished.connect(self._on_auto_convert_finished)
         self.tts_worker.error.connect(self._on_tts_error)
-        print(f"[DEBUG] Starting TTS worker...")
         self.tts_worker.start()
-        print(f"[DEBUG] TTS worker started")
 
         self.statusBar().showMessage(f"🔄 自动转换前{count}个分段...")
 
@@ -1028,18 +1025,14 @@ class MainWindow(QMainWindow):
         self.tts_widget.set_converting_state(True)
 
         # 创建TTS工作线程（章节模式，不连接first_chunk_ready信号以避免重复播放）
-        print(f"[DEBUG] Creating background TTSWorker...")
         self.tts_worker = TTSWorker(self.current_book_id, start_chunk=start_chunk, chapter_mode=True)
-        print(f"[DEBUG] Connecting signals...")
         self.tts_worker.progress.connect(self._on_tts_progress)
         self.tts_worker.log.connect(self._on_tts_log)
         # 不连接first_chunk_ready，避免在播放过程中重复启动播放
         self.tts_worker.chapter_finished.connect(self._on_chapter_tts_finished)
         self.tts_worker.finished.connect(self._on_tts_finished)
         self.tts_worker.error.connect(self._on_tts_error)
-        print(f"[DEBUG] Starting background TTS worker...")
         self.tts_worker.start()
-        print(f"[DEBUG] Background TTS worker started")
 
         title_msg = f"转换: {chapter_title}" if chapter_title else f"转换从 chunk {start_chunk} 开始"
         self.statusBar().showMessage(f"🔄 后台{title_msg}...")
@@ -1123,19 +1116,13 @@ class MainWindow(QMainWindow):
                 chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
                 audio_path = audio_dir / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
 
-            print(f"[DEBUG] Checking chunk {chunk_id}: {audio_path.name}, exists={audio_path.exists()}")
-
             if not audio_path.exists() or audio_path.stat().st_size < 20000:
                 chunks_to_convert.append(chunk_id)
-                print(f"[DEBUG] Chunk {chunk_id} needs conversion")
-            else:
-                print(f"[DEBUG] Chunk {chunk_id} 已存在，跳过")
 
         # 清空待处理队列（因为要开始转换了）
         self._pending_chunks.clear()
 
         if not chunks_to_convert:
-            print(f"[DEBUG] 所有chunks已存在，无需转换")
             return
 
         start_chunk = chunks_to_convert[0]
@@ -1145,7 +1132,6 @@ class MainWindow(QMainWindow):
 
         # 清理旧的 TTS worker（如果存在且不在运行）
         if self.tts_worker and not self.tts_worker.isRunning():
-            print(f"[DEBUG] Cleaning up finished TTS worker before creating new one")
             self._stop_tts_worker_safely()
 
         # 清空日志
@@ -1153,17 +1139,13 @@ class MainWindow(QMainWindow):
         self.tts_widget.set_converting_state(True)
 
         # 创建TTS工作线程（转换指定范围）
-        print(f"[DEBUG] Creating TTSWorker for range {start_chunk}-{end_chunk}...")
         self.tts_worker = TTSWorker(book_id, start_chunk=start_chunk, end_chunk=end_chunk)
-        print(f"[DEBUG] Connecting signals...")
         self.tts_worker.progress.connect(self._on_tts_progress)
         self.tts_worker.log.connect(self._on_tts_log)
         self.tts_worker.phase1_finished.connect(self._on_tts_phase1_finished)
         self.tts_worker.finished.connect(self._on_tts_finished)
         self.tts_worker.error.connect(self._on_tts_error)
-        print(f"[DEBUG] Starting TTS worker...")
         self.tts_worker.start()
-        print(f"[DEBUG] TTS worker started")
 
         self.statusBar().showMessage(f"🔄 正在转换 {len(chunks_to_convert)} 个分段...")
 
@@ -1178,11 +1160,9 @@ class MainWindow(QMainWindow):
 
         # 清理已完成的worker对象
         if self.tts_worker and not self.tts_worker.isRunning():
-            print("[DEBUG] Cleaning up finished TTS worker")
             self._stop_tts_worker_safely()
 
         if self.playback_worker and not self.playback_worker.isRunning():
-            print("[DEBUG] Cleaning up finished playback worker")
             self._stop_playback_worker_safely()
 
         # 检查是否正在转换或播放
@@ -1193,7 +1173,6 @@ class MainWindow(QMainWindow):
 
         # 直接从指定位置播放，依赖预转换机制
         self.statusBar().showMessage(f"从 chunk {start_chunk} 开始播放...")
-        print("[DEBUG] Calling _play_from_chunk")
         self._play_from_chunk(start_chunk)
 
     @Slot(int)
@@ -1636,22 +1615,15 @@ class MainWindow(QMainWindow):
     @Slot()
     def _on_tts_phase1_finished(self):
         """TTS 第一阶段完成（当前章节）"""
-        print(f"[DEBUG] _on_tts_phase1_finished called")
         # 检查是否有待处理的chunks
         if self._pending_chunks:
             print(f"[DEBUG] Phase1完成，发现待处理chunks: {self._pending_chunks}")
             self.statusBar().showMessage(f"✅ 当前章节完成，等待后台转换完成后处理 {len(self._pending_chunks)} 个待转换chunks...", 2000)
             # 不立即处理，等待当前 worker 完成后，通过 _on_tts_finished 处理
-        else:
-            print(f"[DEBUG] Phase1完成，无待处理chunks")
 
     @Slot()
     def _on_tts_finished(self):
         """TTS 完成（最终完成）"""
-        print(f"[DEBUG] _on_tts_finished called")
-        print(f"[DEBUG] tts_worker exists: {self.tts_worker is not None}")
-        if self.tts_worker:
-            print(f"[DEBUG] tts_worker.isRunning: {self.tts_worker.isRunning()}")
 
         self.tts_widget.set_converting_state(False)
 
@@ -1696,18 +1668,14 @@ class MainWindow(QMainWindow):
         self._conversion_in_progress = True  # 标记转换正在进行
 
         # 创建 TTS 工作线程（章节模式）
-        print(f"[DEBUG] Creating TTSWorker...")
         self.tts_worker = TTSWorker(book_id, start_chunk=start_chunk, chapter_mode=True)
-        print(f"[DEBUG] Connecting signals...")
         self.tts_worker.progress.connect(self._on_tts_progress)
         self.tts_worker.log.connect(self._on_tts_log)
         self.tts_worker.first_chunk_ready.connect(self._on_first_chunk_ready)
         self.tts_worker.chapter_finished.connect(self._on_chapter_tts_finished)
         self.tts_worker.finished.connect(self._on_tts_finished)
         self.tts_worker.error.connect(self._on_tts_error)
-        print(f"[DEBUG] Starting TTS worker...")
         self.tts_worker.start()
-        print(f"[DEBUG] TTS worker started")
 
         self.statusBar().showMessage(f"正在转换章节 (从分段 {start_chunk} 开始)...")
 

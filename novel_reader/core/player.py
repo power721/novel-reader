@@ -198,8 +198,6 @@ def play_audio(file_path: str) -> None:
     """
     global _playback_state
 
-    print(f"[player.play_audio] DEBUG: play_audio() called with file_path={file_path}")
-
     # 检查音频文件是否存在
     if not os.path.exists(file_path):
         print(f"[player.play_audio] ERROR: Audio file not found: {file_path}")
@@ -207,7 +205,6 @@ def play_audio(file_path: str) -> None:
 
     # 检查文件大小
     file_size = os.path.getsize(file_path)
-    print(f"[player.play_audio] DEBUG: File size: {file_size} bytes")
 
     if file_size == 0:
         # 删除空文件
