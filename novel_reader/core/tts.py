@@ -21,8 +21,6 @@ import wave
 from pathlib import Path
 from typing import Optional, List, Tuple
 
-from novel_reader.core.xtts_client import xtts_tts
-
 # ==================== 环境配置 ====================
 
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
@@ -721,8 +719,6 @@ def convert_chunk(text: str, book_id: int, chunk_id: int) -> str:
     output = chunk_to_audio_path(book_id, chunk_id, model_id)
 
     try:
-        # from novel_reader.core.index_tts_client import index_tts_tts
-        # path = index_tts_tts(text, output)
         path = text_to_speech(text, output)
         size = Path(path).stat().st_size
         if size == 0:
