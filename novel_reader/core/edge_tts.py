@@ -17,7 +17,6 @@ This module provides:
 4. Async and sync conversion methods
 """
 import asyncio
-import re
 import tempfile
 from pathlib import Path
 from typing import Optional, List, Tuple
@@ -33,7 +32,6 @@ except ImportError:
 from novel_reader.core.edge_tts_config import (
     get_voice,
     get_voices_by_language,
-    get_default_voice,
     DEFAULT_CHINESE_VOICE,
     DEFAULT_ENGLISH_VOICE,
 )
@@ -42,8 +40,6 @@ from novel_reader.core.edge_tts_config import (
 from novel_reader.core.tts import (
     normalize_for_novel_tts,
     split_text_for_tts,
-    concat_wavs,
-    basic_clean,
 )
 
 

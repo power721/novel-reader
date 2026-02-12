@@ -2,7 +2,7 @@
 电子书格式转换模块 - 支持 EPUB 和 MOBI 转 TXT
 """
 from pathlib import Path
-from typing import Tuple, Optional, List, Dict
+from typing import Tuple, Optional, List
 import shutil
 
 # EPUB 章节标记

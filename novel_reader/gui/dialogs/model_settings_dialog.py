@@ -10,9 +10,9 @@ from PySide6.QtWidgets import (
     QMessageBox, QTreeWidgetItem, QTreeWidget, QHeaderView,
     QSpinBox, QStackedWidget
 )
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import QThread, Signal
 from typing import Optional
-from novel_reader.core import get_setting, set_setting
+from novel_reader.core import set_setting
 
 
 class ModelDownloadThread(QThread):

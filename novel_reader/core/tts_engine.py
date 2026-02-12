@@ -13,7 +13,6 @@ Usage:
     # Or specify engine explicitly
     audio_path = text_to_speech("Hello world", "output.wav", engine="edge")
 """
-import tempfile
 from pathlib import Path
 from typing import Optional, List
 

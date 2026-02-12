@@ -13,14 +13,12 @@ import hashlib
 
 from .sentence_model import (
     Sentence,
-    SentenceStatus,
     TTSBatch,
     ChapterV2,
     BookV2,
     SentenceSplitter,
     BatchBuilder
 )
-from .audio_cache import AudioCache
 
 
 class SentenceManager:

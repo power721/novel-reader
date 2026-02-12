@@ -2,7 +2,7 @@
 书签管理模块
 """
 from novel_reader.models import get_conn
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 
 def add_bookmark(book_id: int, chunk: int, note: str = "") -> int:

@@ -2,8 +2,8 @@
 主窗口 - Novel Reader 主界面
 """
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QSplitter, QMenuBar, QMenu, QMessageBox, QFileDialog
+    QMainWindow, QWidget, QVBoxLayout,
+    QSplitter, QMessageBox,
 )
 from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt, Slot
@@ -583,7 +583,7 @@ class MainWindow(QMainWindow):
         """删除书籍"""
         # 检查是否正在播放或转换该书
         if (self.playback_worker and self.playback_worker.isRunning() and
-            self.playback_worker.book_id == book_id):
+                self.playback_worker.book_id == book_id):
             QMessageBox.warning(
                 self,
                 "无法删除",
@@ -592,7 +592,7 @@ class MainWindow(QMainWindow):
             return
 
         if (self.tts_worker and self.tts_worker.isRunning() and
-            self.tts_worker.book_id == book_id):
+                self.tts_worker.book_id == book_id):
             QMessageBox.warning(
                 self,
                 "无法删除",
@@ -865,7 +865,7 @@ class MainWindow(QMainWindow):
         """音量变化"""
         from novel_reader.core.player import set_volume_realtime
         from novel_reader.core import set_setting
-        
+
         set_volume_realtime(volume)
         set_setting("volume", volume)
         self.statusBar().showMessage(f"音量: {int(volume * 100)}%", 2000)
@@ -875,7 +875,7 @@ class MainWindow(QMainWindow):
         """播放速度变化"""
         from novel_reader.core.player import set_playback_speed_realtime
         from novel_reader.core import set_setting
-        
+
         set_playback_speed_realtime(speed)
         set_setting("playback_speed", round(speed * 100))
         self.statusBar().showMessage(f"播放速度: {speed:.2f}x", 2000)
@@ -980,13 +980,14 @@ class MainWindow(QMainWindow):
 
         # 检查下一章节的音频是否存在（新格式）
         chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
-        next_chapter_audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_{chinese_model_id}_{next_chapter_start:05d}.wav"
+        next_chapter_audio_path = AUDIO_DIR / str(
+            self.current_book_id) / f"chunk_{chinese_model_id}_{next_chapter_start:05d}.wav"
 
         if Path(next_chapter_audio_path).exists():
             # 文件存在，检查大小
             file_size = Path(next_chapter_audio_path).stat().st_size
             if file_size > 20000:  # 大于20KB认为有效
-                print(f"✅ 下一章节音频已存在 ({file_size/1024:.1f} KB)，无需转换")
+                print(f"✅ 下一章节音频已存在 ({file_size / 1024:.1f} KB)，无需转换")
                 return
             else:
                 print(f"⚠ 下一章节音频文件过小 ({file_size} bytes)，需要重新转换")
@@ -1167,7 +1168,7 @@ class MainWindow(QMainWindow):
 
         # 检查是否正在转换或播放
         if (self.tts_worker and self.tts_worker.isRunning()) or \
-           (self.playback_worker and self.playback_worker.isRunning()):
+                (self.playback_worker and self.playback_worker.isRunning()):
             print("[DEBUG] Already converting or playing, returning")
             return  # 已在转换或播放中，不重复触发
 
@@ -1178,7 +1179,8 @@ class MainWindow(QMainWindow):
     @Slot(int)
     def _on_chapter_double_clicked(self, start_chunk: int):
         """章节被双击 - 强制从指定位置播放（依赖预转换机制）"""
-        print(f"[DEBUG] _on_chapter_double_clicked called: start_chunk={start_chunk}, current_book_id={self.current_book_id}")
+        print(
+            f"[DEBUG] _on_chapter_double_clicked called: start_chunk={start_chunk}, current_book_id={self.current_book_id}")
 
         if self.current_book_id is None:
             QMessageBox.warning(self, "警告", "请先选择一本书")
@@ -1618,7 +1620,8 @@ class MainWindow(QMainWindow):
         # 检查是否有待处理的chunks
         if self._pending_chunks:
             print(f"[DEBUG] Phase1完成，发现待处理chunks: {self._pending_chunks}")
-            self.statusBar().showMessage(f"✅ 当前章节完成，等待后台转换完成后处理 {len(self._pending_chunks)} 个待转换chunks...", 2000)
+            self.statusBar().showMessage(
+                f"✅ 当前章节完成，等待后台转换完成后处理 {len(self._pending_chunks)} 个待转换chunks...", 2000)
             # 不立即处理，等待当前 worker 完成后，通过 _on_tts_finished 处理
 
     @Slot()
@@ -1714,7 +1717,7 @@ class MainWindow(QMainWindow):
                 file_size = audio_path.stat().st_size
                 if file_size > 20000:  # 大于20KB认为有效
                     file_ready = True
-                    print(f"[DEBUG] File ready: {file_size/1024:.1f} KB")
+                    print(f"[DEBUG] File ready: {file_size / 1024:.1f} KB")
                     break
                 else:
                     print(f"[DEBUG] File too small: {file_size} bytes, waiting...")

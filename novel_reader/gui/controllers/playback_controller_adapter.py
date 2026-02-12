@@ -3,9 +3,8 @@ PlaybackController GUI适配器
 
 将新的PlaybackController架构连接到PySide6 GUI
 """
-from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtCore import QObject, Signal
 from typing import Optional
-from pathlib import Path
 
 from novel_reader.core.playback_controller_v2 import (
     PlaybackController,

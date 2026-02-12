@@ -2,9 +2,7 @@
 数据库层 - SQLite 数据库初始化和连接管理
 """
 import sqlite3
-import os
 from pathlib import Path
-from typing import Optional
 
 
 # 数据库文件路径

@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem,
     QLabel, QFileDialog, QMessageBox, QMenu
 )
-from PySide6.QtCore import Qt, Signal, QUrl, QPoint
+from PySide6.QtCore import Qt, Signal, QPoint
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from typing import Optional
 from pathlib import Path

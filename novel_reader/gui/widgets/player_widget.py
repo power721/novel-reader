@@ -3,7 +3,7 @@
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QProgressBar, QGroupBox, QMessageBox, QFrame, QSlider, QComboBox
+    QProgressBar, QGroupBox, QMessageBox, QSlider
 )
 from PySide6.QtCore import Qt, Signal
 from typing import Optional

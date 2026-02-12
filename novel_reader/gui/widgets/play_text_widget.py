@@ -4,7 +4,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTextEdit
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Signal
 from typing import Optional
 
 

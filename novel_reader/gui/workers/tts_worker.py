@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 import os
-from typing import Optional, List
+from typing import Optional
 
 MIN_SIZE = 20000
 
