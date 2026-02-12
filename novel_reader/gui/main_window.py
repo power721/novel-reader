@@ -33,6 +33,7 @@ class MainWindow(QMainWindow):
         self._pending_chunks: set = set()  # 待转换的chunks
         self._book_cache: dict = {}  # 书籍信息缓存
         self._models_checked = False  # 是否已检查过模型
+        self._is_creating_worker: bool = False  # 防止竞态条件的标志
 
         # 初始化界面
         self._init_ui()
@@ -228,9 +229,13 @@ class MainWindow(QMainWindow):
         # TTS 转换信号
         self.tts_widget.convert_book_requested.connect(self._convert_book)
 
-    def _load_data(self):
-        """加载数据"""
-        from novel_reader.core import list_books, get_setting, get_book
+    def _load_data(self, auto_play: bool = True):
+        """加载数据
+
+        Args:
+            auto_play: 是否自动播放（默认True，用于启动时；刷新列表时应传False）
+        """
+        from novel_reader.core import list_books, get_setting
 
         # 加载保存的音量
         saved_volume = get_setting("volume", 1.0)
@@ -274,8 +279,8 @@ class MainWindow(QMainWindow):
                 from novel_reader.core.tts import check_models_available
                 zh_available, en_available, missing = check_models_available()
 
-                auto_play = get_setting("auto_play_on_startup", True)
-                if auto_play and zh_available:  # 只有在模型可用时才自动播放
+                auto_play_enabled = get_setting("auto_play_on_startup", True)
+                if auto_play and auto_play_enabled and zh_available:  # 只有在模型可用时才自动播放
                     # 延迟一点再自动播放，避免界面未完全加载
                     from PySide6.QtCore import QTimer
                     QTimer.singleShot(500, self._auto_play_last_position)
@@ -315,7 +320,7 @@ class MainWindow(QMainWindow):
 
     def _refresh_all(self):
         """刷新所有数据"""
-        self._load_data()
+        self._load_data(auto_play=False)  # 刷新时不自动播放
         if self.current_book_id:
             current_chunk = self._get_current_playing_chunk(self.current_book_id)
             self.chapter_list_widget.load_chapters(self.current_book_id, current_chunk)
@@ -1207,25 +1212,41 @@ class MainWindow(QMainWindow):
     def _stop_playback_worker_safely(self):
         """安全地停止 PlaybackWorker 并断开信号连接"""
         print(f"[DEBUG _stop_playback_worker_safely] Called, playback_worker={self.playback_worker}")
-        if self.playback_worker:
-            print(f"[DEBUG _stop_playback_worker_safely] Worker exists, isRunning={self.playback_worker.isRunning()}")
-            # 使用 blockSignals 阻止所有信号
-            self.playback_worker.blockSignals(True)
 
-            if self.playback_worker.isRunning():
-                print(f"[DEBUG _stop_playback_worker_safely] Stopping worker...")
-                self.playback_worker.stop()
-                # 使用 wait 并设置超时，避免阻塞界面
-                if not self.playback_worker.wait(1000):  # 1秒超时
-                    # 如果超时，强制终止
-                    print(f"[DEBUG _stop_playback_worker_safely] Timeout, terminating...")
-                    self.playback_worker.terminate()
-                    self.playback_worker.wait(500)  # 再等0.5秒
+        if not self.playback_worker:
+            print(f"[DEBUG _stop_playback_worker_safely] No worker, returning")
+            return
 
-            # 清理引用
-            print(f"[DEBUG _stop_playback_worker_safely] Setting playback_worker = None")
-            self.playback_worker = None
-            print(f"[DEBUG _stop_playback_worker_safely] Done")
+        print(f"[DEBUG _stop_playback_worker_safely] Worker exists, isRunning={self.playback_worker.isRunning()}")
+
+        # 保存引用，然后立即清空（允许创建新的worker）
+        worker = self.playback_worker
+        self.playback_worker = None
+
+        # 阻止所有信号，避免停止过程中的信号干扰
+        worker.blockSignals(True)
+
+        if worker.isRunning():
+            print(f"[DEBUG _stop_playback_worker_safely] Stopping worker...")
+            # 调用 stop 方法设置标志并停止音频
+            worker.stop()
+
+            # 尝试温和终止（不等待，让线程自然退出）
+            worker.terminate()
+
+        # 断开所有信号连接
+        try:
+            worker.finished.disconnect()
+            worker.error.disconnect()
+            worker.progress_updated.disconnect()
+            worker.chapter_finished.disconnect()
+            worker.last_chunk_of_chapter_started.disconnect()
+            worker.chapter_index_changed.disconnect()
+            worker.chunks_conversion_requested.disconnect()
+        except:
+            pass
+
+        print(f"[DEBUG _stop_playback_worker_safely] Done")
 
     def _stop_tts_worker_safely(self):
         """安全地停止 TTSWorker 并断开信号连接"""
@@ -1474,6 +1495,11 @@ class MainWindow(QMainWindow):
 
         print(f"[DEBUG] _play_from_chunk called: start_chunk={start_chunk}, book_id={book_id}")
 
+        # 检查是否正在创建 worker（防止竞态条件）
+        if self._is_creating_worker:
+            print("[DEBUG] Already creating a worker, returning")
+            return
+
         # 检查 PlaybackWorker 状态
         print(f"[DEBUG] _play_from_chunk: playback_worker={self.playback_worker}")
         if self.playback_worker:
@@ -1489,16 +1515,24 @@ class MainWindow(QMainWindow):
         set_setting("last_book_id", book_id)
 
         print(f"[DEBUG] _play_from_chunk: Creating new PlaybackWorker...")
-        # 创建播放工作线程
-        self.playback_worker = PlaybackWorker(book_id, start_chunk)
-        self.playback_worker.finished.connect(self._on_playback_finished)
-        self.playback_worker.error.connect(self._on_playback_error)
-        self.playback_worker.progress_updated.connect(self._on_playback_progress)
-        self.playback_worker.chapter_finished.connect(self._on_chapter_playback_finished)
-        # self.playback_worker.last_chunk_of_chapter_started.connect(self._on_last_chunk_of_chapter_started)
-        self.playback_worker.chapter_index_changed.connect(self._on_chapter_index_changed)
-        self.playback_worker.chunks_conversion_requested.connect(self._on_chunks_conversion_requested)
-        self.playback_worker.start()
+
+        # 设置标志，防止竞态条件
+        self._is_creating_worker = True
+
+        try:
+            # 创建播放工作线程
+            self.playback_worker = PlaybackWorker(book_id, start_chunk)
+            self.playback_worker.finished.connect(self._on_playback_finished)
+            self.playback_worker.error.connect(self._on_playback_error)
+            self.playback_worker.progress_updated.connect(self._on_playback_progress)
+            self.playback_worker.chapter_finished.connect(self._on_chapter_playback_finished)
+            # self.playback_worker.last_chunk_of_chapter_started.connect(self._on_last_chunk_of_chapter_started)
+            self.playback_worker.chapter_index_changed.connect(self._on_chapter_index_changed)
+            self.playback_worker.chunks_conversion_requested.connect(self._on_chunks_conversion_requested)
+            self.playback_worker.start()
+        finally:
+            # 清除标志（无论成功还是失败）
+            self._is_creating_worker = False
 
         # 获取书籍信息和当前章节，更新播放显示
         from novel_reader.core import get_book, get_book_chapters

@@ -517,13 +517,6 @@ ZONE_MAP = {
     "A号": "甲号",
     "B号": "乙号",
 }
-LETTER_INDEX_MAP = {
-    "A": "第一",
-    "B": "第二",
-    "C": "第三",
-    "D": "第四",
-    "E": "第五",
-}
 MIXED_MAP = {
     "Dockerfile": "Docker 文件",
     "Web服务器": "网络服务器",

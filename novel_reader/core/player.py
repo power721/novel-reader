@@ -137,7 +137,7 @@ def play_book(book_id: int, start_chunk: Optional[int] = None) -> None:
             # 播放 chunk
             print(f"▶ [Chunk {chunk_id}/{len(chunks)-1}] 正在播放...")
             try:
-                play_audio(str(audio_path))
+                play_audio(str(audio_path), should_stop_check_fn=lambda: _playback_state["should_stop"])
                 played_count += 1
             except FileNotFoundError as e:
                 print(f"❌ [Chunk {chunk_id}] 播放失败: {e}")
@@ -179,18 +179,19 @@ def play_chunk(book_id: int, chunk_id: int) -> None:
         raise FileNotFoundError(f"音频文件不存在: {audio_path}")
 
     print(f"播放 chunk {chunk_id}: {audio_path}")
-    play_audio(str(audio_path))
+    play_audio(str(audio_path), should_stop_check_fn=lambda: _playback_state["should_stop"])
 
     # 更新播放进度
     update_progress(book_id, chunk_id)
 
 
-def play_audio(file_path: str) -> None:
+def play_audio(file_path: str, should_stop_check_fn=None) -> None:
     """
     使用 mpv 播放音频文件
 
     Args:
         file_path: 音频文件路径
+        should_stop_check_fn: 可选的停止检查函数，定期调用以判断是否应该停止播放
 
     Raises:
         FileNotFoundError: 如果 mpv 不存在或音频文件不存在
@@ -246,10 +247,31 @@ def play_audio(file_path: str) -> None:
                                    stderr=subprocess.PIPE)
         _playback_state["current_process"] = process
 
-        # 等待播放完成
-        process.wait(timeout=PLAY_TIMEOUT)
+        # 等待播放完成，定期检查是否应该停止
+        import time
+        check_interval = 0.1  # 每100ms检查一次
+        waited = 0
+        while waited < PLAY_TIMEOUT:
+            if should_stop_check_fn and should_stop_check_fn():
+                print(f"[player.play_audio] INFO: Stop requested, terminating process")
+                process.terminate()
+                try:
+                    process.wait(timeout=0.5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+                break
 
-        if process.returncode != 0:
+            # 检查进程是否已结束
+            if process.poll() is not None:
+                # 进程已结束
+                break
+
+            time.sleep(check_interval)
+            waited += check_interval
+
+        # 如果是正常结束（非被停止），检查返回码
+        if process.poll() is not None and process.returncode != 0:
             # 获取错误输出
             _, stderr = process.communicate()
             error_msg = stderr.decode('utf-8', errors='ignore').strip()
@@ -263,15 +285,12 @@ def play_audio(file_path: str) -> None:
                 print(f"  ❌ 音频文件丢失: {file_path}")
             else:
                 print(f"  💡 提示: 文件可能损坏，建议重新转换")
-                print(f"  🔧 测试命令: mpv --no-video \"{file_path}\"")
+                print(f"  🔧 测试测试命令: mpv --no-video \"{file_path}\"")
 
                 # 尝试获取更多信息
                 if file_size < 100:
                     print(f"  ❌ 文件过小，可能是转换失败")
 
-    except subprocess.TimeoutExpired:
-        process.kill()
-        print(f"[player.play_audio] ERROR: Playback timeout")
     except FileNotFoundError:
         print(f"[player.play_audio] ERROR: mpv not found!")
         raise FileNotFoundError(
@@ -293,7 +312,19 @@ def stop_playback() -> None:
 
     if _playback_state["current_process"]:
         print(f"[player.stop_playback] DEBUG: Terminating current process")
-        _playback_state["current_process"].terminate()
+        process = _playback_state["current_process"]
+
+        # 先尝试优雅终止
+        process.terminate()
+
+        # 等待最多0.5秒，如果还没退出则强制终止
+        try:
+            process.wait(timeout=0.5)
+        except subprocess.TimeoutExpired:
+            print(f"[player.stop_playback] DEBUG: Process didn't terminate, killing...")
+            process.kill()
+            process.wait(timeout=0.5)
+
         print("播放已停止")
     else:
         print(f"[player.stop_playback] DEBUG: No current process to stop")

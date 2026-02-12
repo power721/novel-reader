@@ -221,7 +221,8 @@ class PlaybackWorker(QThread):
                 # 播放 chunk
                 # print(f"▶ [Chunk {chunk_id}/{total_chunks - 1}] 正在播放...")
                 try:
-                    play_audio(str(audio_path))
+                    # 传入停止检查函数，让 play_audio 可以响应停止请求
+                    play_audio(str(audio_path), should_stop_check_fn=lambda: not self._is_running)
                     played_count += 1
                 except FileNotFoundError as e:
                     print(f"❌ [Chunk {chunk_id}] 播放失败: {e}")
@@ -254,7 +255,7 @@ class PlaybackWorker(QThread):
                     if file_ready:
                         # 重试播放
                         try:
-                            play_audio(str(audio_path))
+                            play_audio(str(audio_path), should_stop_check_fn=lambda: not self._is_running)
                             played_count += 1
                             print(f"✅ [Chunk {chunk_id}] 重试播放成功")
                         except FileNotFoundError as retry_error:

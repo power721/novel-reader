@@ -260,7 +260,8 @@ def text_to_speech(
 
     # Split text by language first (before normalization)
     # We use a simple split without normalization to determine language segments
-    sentences = split_text_for_tts(text)
+    # sentences = split_text_for_tts(text)
+    sentences = [(text, "zh")] # TODO: detect language
 
     # Filter out empty or punctuation-only segments
     filtered_sentences = []
