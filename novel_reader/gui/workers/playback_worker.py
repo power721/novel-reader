@@ -29,8 +29,6 @@ class PlaybackWorker(QThread):
 
     def run(self):
         """执行播放任务"""
-        print(f"[DEBUG] PlaybackWorker.run() called: book_id={self.book_id}, start_chunk={self.start_chunk}")
-
         # Log the TTS engine being used
         from novel_reader.core import get_setting
         tts_engine = get_setting("tts_engine", "piper")
@@ -57,9 +55,6 @@ class PlaybackWorker(QThread):
 
             # 计算起始位置
             start = self.start_chunk if self.start_chunk is not None else book['current_chunk']
-
-            print(f"[DEBUG] PlaybackWorker: starting playback from chunk {start}, total {total_chunks}")
-            print(f"[DEBUG] Chapters: {len(chapters)}")
 
             # 发送初始进度
             self.progress_updated.emit(start, total_chunks)

@@ -311,7 +311,7 @@ def stop_playback() -> None:
     global _playback_state
 
     if _playback_state["current_process"]:
-        print(f"[player.stop_playback] DEBUG: Terminating current process")
+        # print(f"[player.stop_playback] DEBUG: Terminating current process")
         process = _playback_state["current_process"]
 
         # 先尝试优雅终止
@@ -335,7 +335,7 @@ def stop_playback() -> None:
     try:
         if os.path.exists(_ipc_socket):
             os.remove(_ipc_socket)
-            print(f"[player.stop_playback] DEBUG: Removed IPC socket: {_ipc_socket}")
+            # print(f"[player.stop_playback] DEBUG: Removed IPC socket: {_ipc_socket}")
     except:
         pass
 
