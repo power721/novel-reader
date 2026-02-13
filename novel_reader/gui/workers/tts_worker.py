@@ -79,24 +79,24 @@ class TTSWorker(QThread):
                 self.error.emit(error_msg)
                 return
 
-            self.log.emit(f"[DEBUG] Loading book {self.book_id}...")
+            # self.log.emit(f"[DEBUG] Loading book {self.book_id}...")
             book = get_book(self.book_id)
             if book is None:
                 self.error.emit("书籍不存在")
                 return
 
-            self.log.emit(f"[DEBUG] Book found: {book['title']}")
+            # self.log.emit(f"[DEBUG] Book found: {book['title']}")
 
             # 读取并解析文本
-            self.log.emit(f"[DEBUG] Loading and parsing text file: {book['file_path']}")
+            # self.log.emit(f"[DEBUG] Loading and parsing text file: {book['file_path']}")
             text = load_txt_file(book['file_path'])
             chunks, chapters = parse_txt(text)
             self.log.emit(f"[DEBUG] Text parsed: {len(chunks)} chunks, {len(chapters)} chapters")
 
             # 获取章节列表
-            self.log.emit(f"[DEBUG] Loading chapter list...")
+            # self.log.emit(f"[DEBUG] Loading chapter list...")
             book_chapters = get_book_chapters(self.book_id)
-            self.log.emit(f"[DEBUG] Found {len(book_chapters)} chapters in database")
+            # self.log.emit(f"[DEBUG] Found {len(book_chapters)} chapters in database")
 
             # 确定转换范围
             if self.start_chunk is not None:
@@ -113,7 +113,7 @@ class TTSWorker(QThread):
             converted = 0
             skipped = 0
 
-            self.log.emit(f"[DEBUG] Conversion range: start={start_pos}, end={total}, total_chunks={len(chunks)}")
+            # self.log.emit(f"[DEBUG] Conversion range: start={start_pos}, end={total}, total_chunks={len(chunks)}")
 
             # 章节模式：确定当前章节的结束位置
             current_chapter_end = None
@@ -240,7 +240,7 @@ class TTSWorker(QThread):
             # 第一阶段完成后，发出 phase1_finished 信号以触发处理待处理队列
             # 这样可以让新的转换请求及时开始，而无需等待预转换完成
             if self._is_running:
-                self.log.emit(f"✅ 第一阶段转换完成，发出 phase1_finished 信号")
+                # self.log.emit(f"✅ 第一阶段转换完成，发出 phase1_finished 信号")
                 self.phase1_finished.emit()
 
             # 第二阶段：继续转换指定数量的后续章节（后台）

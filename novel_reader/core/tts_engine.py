@@ -386,8 +386,8 @@ def convert_chunk(
     if size == 0:
         raise RuntimeError("Audio file is empty")
 
-    engine_name = engine or get_setting("tts_engine", "piper")
-    print(f"✓ Chunk {chunk_id} OK ({size / 1024:.1f} KB) [{engine_name.upper()}]")
+    # engine_name = engine or get_setting("tts_engine", "piper")
+    # print(f"✓ Chunk {chunk_id} OK ({size / 1024:.1f} KB) [{engine_name.upper()}]")
 
     return result
 

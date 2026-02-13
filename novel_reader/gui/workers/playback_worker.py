@@ -142,12 +142,12 @@ class PlaybackWorker(QThread):
                 file_needs_conversion = False
 
                 if not audio_path.exists():
-                    print(f"⏳ [Chunk {chunk_id}] 音频文件不存在 ({audio_path.name})，请求转换...")
+                    # print(f"⏳ [Chunk {chunk_id}] 音频文件不存在 ({audio_path.name})，请求转换...")
                     file_needs_conversion = True
                 else:
                     # File exists, check size
                     file_size = audio_path.stat().st_size
-                    print(f"✅ [Chunk {chunk_id}] 音频文件存在: {audio_path.name} ({file_size / 1024:.1f} KB)")
+                    # print(f"✅ [Chunk {chunk_id}] 音频文件存在: {audio_path.name} ({file_size / 1024:.1f} KB)")
 
                     if file_size < 20000:
                         print(f"⚠️ [Chunk {chunk_id}] 文件过小 ({file_size} < 20000)，可能损坏，删除并重新转换...")
@@ -155,7 +155,7 @@ class PlaybackWorker(QThread):
                         file_needs_conversion = True
 
                 if file_needs_conversion:
-                    print(f"⏳ [Chunk {chunk_id}] 请求转换...")
+                    # print(f"⏳ [Chunk {chunk_id}] 请求转换...")
                     self.chunks_conversion_requested.emit([chunk_id])
 
                     # 等待TTS转换完成
@@ -365,7 +365,7 @@ class PlaybackWorker(QThread):
                 print(f"[PlaybackWorker] ⚠️ Parse error: {audio_file.name} - {e}")
                 continue
 
-        if deleted > 0:
-            print(f"[PlaybackWorker] ✅ Cleaned up {deleted}/{checked} old audio files (before chunk {keep_chunk_index})")
-        else:
-            print(f"[PlaybackWorker] ℹ️ No files to delete (checked {checked} files)")
+        # if deleted > 0:
+        #     print(f"[PlaybackWorker] ✅ Cleaned up {deleted}/{checked} old audio files (before chunk {keep_chunk_index})")
+        # else:
+        #     print(f"[PlaybackWorker] ℹ️ No files to delete (checked {checked} files)")

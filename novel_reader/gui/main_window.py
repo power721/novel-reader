@@ -1055,7 +1055,7 @@ class MainWindow(QMainWindow):
         if not chunk_ids:
             return
 
-        print(f"[DEBUG] 收到批量chunk转换请求: {chunk_ids}")
+        # print(f"[DEBUG] 收到批量chunk转换请求: {chunk_ids}")
 
         # 添加到待处理队列
         new_chunks = set(chunk_ids) - self._pending_chunks
@@ -1134,7 +1134,7 @@ class MainWindow(QMainWindow):
         start_chunk = chunks_to_convert[0]
         end_chunk = chunks_to_convert[-1] + 1
 
-        print(f"[DEBUG] 启动TTS转换: book_id={book_id}, range={start_chunk}-{end_chunk}, chunks={chunks_to_convert}")
+        # print(f"[DEBUG] 启动TTS转换: book_id={book_id}, range={start_chunk}-{end_chunk}, chunks={chunks_to_convert}")
 
         # 清理旧的 TTS worker（如果存在且不在运行）
         if self.tts_worker and not self.tts_worker.isRunning():

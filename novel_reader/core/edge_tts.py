@@ -591,7 +591,7 @@ def convert_chunk(
         if size == 0:
             raise RuntimeError("Audio file is empty")
 
-        print(f"✓ Chunk {chunk_id} OK ({size / 1024:.1f} KB) [Edge TTS]")
+        # print(f"✓ Chunk {chunk_id} OK ({size / 1024:.1f} KB) [Edge TTS]")
         return path
 
     except Exception as e:
