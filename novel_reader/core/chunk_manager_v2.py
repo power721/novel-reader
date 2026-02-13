@@ -27,6 +27,8 @@ class ChunkManager:
 
     # 章节标题正则（支持多种格式）
     CHAPTER_PATTERNS = [
+        # EPUB/MOBI 转换标记
+        re.compile(r'^### CHAPTER ###\s*(.+?)\s*$', re.MULTILINE),
         # 中文格式
         re.compile(r'^(第[零一二三四五六七八九十百千0-9]+[章节回卷集部篇讲].*)$', re.MULTILINE),
         re.compile(r'^([零一二三四五六七八九十百千0-9]+)[、\.](.*)$', re.MULTILINE),
@@ -34,6 +36,15 @@ class ChunkManager:
         re.compile(r'^(Chapter\s*\d+.*$)', re.IGNORECASE | re.MULTILINE),
         re.compile(r'^第\d+章.*$', re.MULTILINE),
     ]
+
+    # 跳过的章节标题（非正文内容）
+    SKIP_CHAPTER_TITLES = {
+        '目录', '目次', 'table of contents', 'toc',
+        '封面', '封底', '书名页', '版权页',
+        '作者简介', '作者介绍', '关于作者',
+        '推荐序', '推荐语', '书评',
+        '附录', '后记', '跋', '编者按'
+    }
 
     # 句子切分正则（按标点符号）
     SENTENCE_DELIMITERS = re.compile(r'([。！？；!?;]|\n{2,})')
@@ -147,6 +158,10 @@ class ChunkManager:
 
             # 提取章节文本
             chapter_text = text[start_pos:end_pos].strip()
+
+            # 跳过非正文章节（简介、目录等）
+            if title.lower() in self.SKIP_CHAPTER_TITLES:
+                continue
 
             # 过滤空章节
             if chapter_text:

@@ -39,7 +39,6 @@ from novel_reader.core.edge_tts_config import (
 # Import text processing from Piper TTS
 from novel_reader.core.tts import (
     normalize_for_novel_tts,
-    split_text_for_tts,
 )
 
 

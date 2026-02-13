@@ -4,6 +4,15 @@
 import re
 from typing import List, Tuple
 
+# 跳过的章节标题（非正文内容）
+SKIP_CHAPTER_TITLES = {
+    '目录', '目次', 'table of contents', 'toc',
+    '封面', '封底', '书名页', '版权页',
+    '作者简介', '作者介绍', '关于作者',
+    '推荐序', '推荐语', '书评',
+    '附录', '后记', '跋', '编者按'
+}
+
 # EPUB 章节标记
 EPUB_CHAPTER_PATTERN = re.compile(
     r'^### CHAPTER ###\s*(.+?)\s*$',
@@ -12,12 +21,12 @@ EPUB_CHAPTER_PATTERN = re.compile(
 
 # 传统章节模式
 CHAPTER_PATTERN = re.compile(
-    r'^第\s*[一二三四五六七八九十百千0-9]{1,9}\s*[章节回][^\。\,\。\，\！\？\!\?]*$',
+    r'^第\s*[一二三四五六七八九十百千0-9]{1,9}\s*[章节回].*?$',  # Stop at newline
     re.MULTILINE
 )
 
 SENTENCE_SEP = re.compile(
-    r'([。！？]+(?:[”’」』】"]+)?)'
+    r'([。！？]+(?:[”’」』】"\n]+)?)'
 )
 CLAUSE_SEP = re.compile(r'([，、；])')
 
@@ -121,7 +130,11 @@ def parse_txt(
         else:
             # 传统格式：第一章 xxx
             title = match.group().strip()
-        
+
+        # 跳过非正文章节（简介、目录等）
+        if title.lower() in SKIP_CHAPTER_TITLES:
+            continue
+
         start = match.start()
         end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
 
