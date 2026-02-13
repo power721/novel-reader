@@ -761,6 +761,9 @@ class MainWindow(QMainWindow):
         self._stop_playback_worker_safely()
         self._stop_tts_worker_safely()
 
+        # 高亮正在播放的书籍
+        self.book_list_widget.set_playing_book(book_id)
+
         # 保存最后播放的书籍ID
         from novel_reader.core import set_setting
         set_setting("last_book_id", book_id)
@@ -795,6 +798,10 @@ class MainWindow(QMainWindow):
         """停止播放"""
         self._stop_playback_worker_safely()
         self.player_widget.set_playing_state(False)
+
+        # 清除正在播放的高亮
+        self.book_list_widget.set_playing_book(None)
+
         self.statusBar().showMessage("播放已停止", 3000)
 
     @Slot()
@@ -822,6 +829,10 @@ class MainWindow(QMainWindow):
     def _on_playback_finished(self):
         """播放完成"""
         self.player_widget.set_playing_state(False)
+
+        # 清除正在播放的高亮
+        self.book_list_widget.set_playing_book(None)
+
         self.statusBar().showMessage("播放完成", 3000)
 
         # 检查是否启用自动播放下一本书
@@ -1492,6 +1503,9 @@ class MainWindow(QMainWindow):
         # 保存最后播放的书籍ID
         from novel_reader.core import set_setting
         set_setting("last_book_id", book_id)
+
+        # 高亮正在播放的书籍
+        self.book_list_widget.set_playing_book(book_id)
 
         # 设置标志，防止竞态条件
         self._is_creating_worker = True

@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox, QFormLayout
 )
 from PySide6.QtCore import Qt, Signal, QPoint
-from PySide6.QtGui import QDragEnterEvent, QDropEvent
+from PySide6.QtGui import QDragEnterEvent, QDropEvent, QColor
 from typing import Optional
 from pathlib import Path
 import os
@@ -28,6 +28,7 @@ class BookListWidget(QWidget):
         super().__init__(parent)
 
         self.current_book_id: Optional[int] = None
+        self.playing_book_id: Optional[int] = None  # 正在播放的书籍ID
 
         self._setup_ui()
         self._setup_drag_drop()
@@ -296,6 +297,9 @@ class BookListWidget(QWidget):
             self.book_selected.emit(book_id)
             print(f"[INFO] Auto-selected book: {book_id}")
 
+        # 应用正在播放的高亮（必须在所有item添加完成后）
+        self._apply_playing_highlight()
+
         self.books_updated.emit()
 
     def select_book_by_id(self, book_id: int) -> bool:
@@ -462,3 +466,62 @@ class BookListWidget(QWidget):
         layout.addRow(buttons)
 
         dialog.exec()
+
+    def set_playing_book(self, book_id: Optional[int]):
+        """
+        设置正在播放的书籍并高亮显示
+
+        Args:
+            book_id: 正在播放的书籍ID，如果为None则清除高亮
+        """
+        old_playing_id = self.playing_book_id
+        self.playing_book_id = book_id
+
+        # 如果书籍ID发生变化，重新加载列表以更新高亮
+        if old_playing_id != book_id:
+            # 使用正在播放的书籍ID来保持选中状态
+            select_id = book_id if book_id is not None else self.current_book_id
+            self.load_books(auto_select_book_id=select_id)
+
+    def _apply_playing_highlight(self):
+        """应用正在播放的高亮样式"""
+        if self.playing_book_id is None:
+            # 清除所有高亮
+            for i in range(self.books_tree.topLevelItemCount()):
+                item = self.books_tree.topLevelItem(i)
+                if item.text(0) != "-":
+                    # 清除自定义样式
+                    for col in range(item.columnCount()):
+                        item.setData(col, Qt.BackgroundRole, None)
+                        item.setData(col, Qt.ForegroundRole, None)
+                    # 移除播放图标
+                    title = item.text(1)
+                    if title.startswith("▶ "):
+                        item.setText(1, title[2:])
+        else:
+            # 应用高亮到正在播放的书籍
+            for i in range(self.books_tree.topLevelItemCount()):
+                item = self.books_tree.topLevelItem(i)
+                if item.text(0) == "-":
+                    continue
+
+                book_id = int(item.text(0))
+                if book_id == self.playing_book_id:
+                    # 设置高亮样式
+                    for col in range(item.columnCount()):
+                        item.setBackground(col, QColor("#e8f5e9"))
+                        if col == 1:  # 书名列使用深绿色文字
+                            item.setForeground(col, QColor("#1b5e20"))
+                    # 添加播放图标
+                    title = item.text(1)
+                    if not title.startswith("▶ "):
+                        item.setText(1, f"▶ {title}")
+                else:
+                    # 清除其他书籍的高亮
+                    for col in range(item.columnCount()):
+                        item.setData(col, Qt.BackgroundRole, None)
+                        item.setData(col, Qt.ForegroundRole, None)
+                    # 移除播放图标
+                    title = item.text(1)
+                    if title.startswith("▶ "):
+                        item.setText(1, title[2:])
