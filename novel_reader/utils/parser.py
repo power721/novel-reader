@@ -58,7 +58,7 @@ def split_by_sentence(text: str) -> List[str]:
 
 def fix_quote_boundary(sentences: List[str]) -> List[str]:
     """
-    修复中文引号跨句问题：
+    修复引号跨句问题：
     - 如果一句以左引号开头，而上一句没有以右引号结尾
     - 则把左引号并回上一句
     """
@@ -69,9 +69,14 @@ def fix_quote_boundary(sentences: List[str]) -> List[str]:
 
     for s in sentences[1:]:
         s = s.strip()
-        if s.startswith("“") and not fixed[-1].endswith("”"):
+        # Check both Chinese and English quotes
+        starts_with_quote = s.startswith('“') or s.startswith('"')
+        ends_with_quote = fixed[-1].endswith('”') or fixed[-1].endswith('"')
+
+        if starts_with_quote and not ends_with_quote:
             # 把左引号并回上一句
-            fixed[-1] += "”"
+            quote_char = s[0]  # Get the actual quote character used
+            fixed[-1] += quote_char
             fixed.append(s[1:].lstrip())
         else:
             fixed.append(s)
@@ -105,7 +110,7 @@ def parse_txt(
         chunk_size: int = 60
 ) -> Tuple[List[str], List[Tuple[str, int]]]:
     text = normalize_text(text)
-    
+
     # === 优先检查 EPUB 章节标记 ===
     epub_matches = list(EPUB_CHAPTER_PATTERN.finditer(text))
     
