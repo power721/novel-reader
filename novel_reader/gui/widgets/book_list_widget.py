@@ -3,12 +3,14 @@
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem,
-    QLabel, QFileDialog, QMessageBox, QMenu
+    QLabel, QFileDialog, QMessageBox, QMenu, QDialog,
+    QDialogButtonBox, QFormLayout
 )
 from PySide6.QtCore import Qt, Signal, QPoint
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from typing import Optional
 from pathlib import Path
+import os
 
 
 class BookListWidget(QWidget):
@@ -158,6 +160,9 @@ class BookListWidget(QWidget):
         # 创建右键菜单
         menu = QMenu(self)
 
+        # 书籍信息操作
+        info_action = menu.addAction("ℹ️ 书籍信息")
+
         # 重命名操作
         rename_action = menu.addAction("✏️ 重命名")
 
@@ -167,7 +172,10 @@ class BookListWidget(QWidget):
         # 显示菜单并获取用户选择
         action = menu.exec_(self.books_tree.mapToGlobal(pos))
 
-        if action == rename_action:
+        if action == info_action:
+            self._show_book_info(book_id)
+
+        elif action == rename_action:
             # 获取当前书名
             from novel_reader.core import get_book
             book = get_book(book_id)
@@ -354,3 +362,103 @@ class BookListWidget(QWidget):
                 self.book_imported.emit(book_id)
             except Exception as e:
                 QMessageBox.critical(self, "错误", f"导入失败: {e}")
+
+    def _show_book_info(self, book_id: int):
+        """显示书籍信息对话框"""
+        from novel_reader.core import get_book, get_book_chapters
+
+        book = get_book(book_id)
+        if not book:
+            QMessageBox.warning(self, "错误", "无法获取书籍信息")
+            return
+
+        chapters = get_book_chapters(book_id)
+
+        # 获取文件大小
+        file_size = "未知"
+        if book['file_path'] and os.path.exists(book['file_path']):
+            try:
+                size_bytes = os.path.getsize(book['file_path'])
+                # 格式化为人类可读的大小
+                if size_bytes < 1024:
+                    file_size = f"{size_bytes} B"
+                elif size_bytes < 1024 * 1024:
+                    file_size = f"{size_bytes / 1024:.1f} KB"
+                elif size_bytes < 1024 * 1024 * 1024:
+                    file_size = f"{size_bytes / (1024 * 1024):.1f} MB"
+                else:
+                    file_size = f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+            except Exception as e:
+                file_size = f"获取失败: {e}"
+
+        # 获取文本文件统计信息
+        char_count = "-"
+        chunk_count = "-"
+        if book['file_path'] and os.path.exists(book['file_path']):
+            try:
+                with open(book['file_path'], 'r', encoding='utf-8') as f:
+                    text = f.read()
+                    char_count = f"{len(text):,}"
+                    # 估算 chunk 数量（假设每个 chunk 约 100 字符）
+                    chunk_count = f"{len(text) // 100:,}"
+            except Exception as e:
+                char_count = f"读取失败: {e}"
+
+        # 创建对话框
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"书籍信息 - {book['title']}")
+        dialog.setMinimumWidth(500)
+
+        layout = QFormLayout(dialog)
+
+        # 书籍基本信息
+        layout.addRow("书名：", QLabel(book['title']))
+        layout.addRow("书籍 ID：", QLabel(str(book['id'])))
+
+        # 文件信息
+        file_path_label = QLabel(book['file_path'] or "未知")
+        file_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        file_path_label.setWordWrap(True)
+        layout.addRow("文件路径：", file_path_label)
+
+        layout.addRow("文件大小：", QLabel(file_size))
+        layout.addRow("字符数：", QLabel(char_count))
+        layout.addRow("Chunk 数量：", QLabel(chunk_count))
+
+        # 原始文件信息
+        if book['original_filename']:
+            layout.addRow("原始文件名：", QLabel(book['original_filename']))
+        if book['file_format']:
+            layout.addRow("文件格式：", QLabel(book['file_format'].upper()))
+
+        # 章节信息
+        layout.addRow("章节数量：", QLabel(str(len(chapters))))
+
+        # 播放进度
+        current_chapter = book.get('current_chapter', 0)
+        current_chunk = book.get('current_chunk', 0)
+        layout.addRow("当前章节：", QLabel(str(current_chapter)))
+        layout.addRow("当前 Chunk：", QLabel(str(current_chunk)))
+
+        # 时间信息
+        created_at = book.get('created_at', '')
+        if created_at:
+            created_label = QLabel(created_at[:19].replace('T', ' '))
+            layout.addRow("导入时间：", created_label)
+
+        updated_at = book.get('updated_at', '')
+        if updated_at:
+            updated_label = QLabel(updated_at[:19].replace('T', ' '))
+            layout.addRow("更新时间：", updated_label)
+
+        last_played_at = book.get('last_played_at')
+        if last_played_at:
+            last_played_label = QLabel(last_played_at[:19].replace('T', ' '))
+            layout.addRow("最后播放：", last_played_label)
+
+        # 添加确定按钮
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok)
+        buttons.accepted.connect(dialog.accept)
+        layout.addRow(buttons)
+
+        dialog.exec()

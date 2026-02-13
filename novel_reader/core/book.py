@@ -44,12 +44,12 @@ def import_book(file_path: str) -> int:
         
         # 转换为 TXT 文件
         txt_path, book_title = convert_ebook_to_txt(file_path)
-        
-        # 移动到数据目录
-        final_txt_path = Path("data/converted") / file_path_obj.with_suffix('.txt').name
+
+        # 移动到数据目录（使用绝对路径）
+        final_txt_path = Path.cwd() / "data" / "converted" / file_path_obj.with_suffix('.txt').name
         final_txt_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(txt_path, final_txt_path)
-        file_path = str(final_txt_path)
+        file_path = str(final_txt_path.resolve())  # 存储绝对路径
         
         print(f"✓ 转换完成: {final_txt_path.name}")
     else:
