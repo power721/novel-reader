@@ -571,7 +571,6 @@ def pause_mpv() -> bool:
             sock.sendall(command.encode())
 
             sock.close()
-            print("⏸ mpv 已暂停")
             return True
         except Exception as e:
             print(f"暂停 mpv 失败: {e}")
@@ -598,7 +597,6 @@ def resume_mpv() -> bool:
             sock.sendall(command.encode())
 
             sock.close()
-            print("▶️ mpv 已恢复")
             return True
         except Exception as e:
             print(f"恢复 mpv 失败: {e}")

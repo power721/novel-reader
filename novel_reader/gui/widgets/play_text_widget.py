@@ -93,9 +93,13 @@ class PlayTextWidget(QWidget):
             current_text = chunks[chunk_id]
 
             next_texts = []
-            for i in range(2):
+            count = 0
+            for i in range(5):
                 if chunk_id + i + 1 < len(chunks):
                     next_texts.append(chunks[chunk_id + i + 1])
+                    count += len(chunks[chunk_id + i + 1])
+                    if count >= 150:
+                        break
 
             # 构建HTML显示，高亮当前chunk
             html_content = "<html><body style='background-color: #f5f5f5;'>"
