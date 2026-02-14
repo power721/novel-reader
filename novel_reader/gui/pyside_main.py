@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 from pathlib import Path
 
-from novel_reader.core import warmup_piper
+from novel_reader.core import warmup_current_engine
 
 
 def init_database():
@@ -86,7 +86,8 @@ def run_gui(create_test: bool = False):
     if create_test:
         create_test_data()
 
-    warmup_piper()
+    # 预热当前配置的 TTS 引擎
+    warmup_current_engine()
 
     # 启用高 DPI 缩放
     QApplication.setHighDpiScaleFactorRoundingPolicy(

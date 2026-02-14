@@ -1,20 +1,11 @@
-from __future__ import annotations
-
 """
-AudioPlayer - 基于 sounddevice 的音频播放器
+音频播放器 - 支持 sounddevice 和 mpv
 
-Production级实现：
-- 使用 sounddevice 进行低延迟播放
-- 支持 play / pause / stop / seek
-- 精确的播放进度追踪
-- 播放完成回调
-- 线程安全
+提供统一的音频播放接口，自动选择最佳后端
 """
+
 import threading
 import time
-import wave
-import numpy as np
-from pathlib import Path
 from typing import Optional, Callable, Tuple
 from enum import Enum, auto
 from dataclasses import dataclass
@@ -36,8 +27,8 @@ class PlaybackPosition:
     total_ms: int
 
     @property
-    def progress_percent(self) -> float:
-        """进度百分比"""
+    def progress(self) -> float:
+        """播放进度百分比"""
         if self.total_ms == 0:
             return 0.0
         return (self.offset_ms / self.total_ms) * 100
@@ -85,146 +76,116 @@ class AudioPlayer:
             self.sd = sd
         except ImportError:
             self.sd = None
-            print("[AudioPlayer] WARNING: sounddevice not installed, pip install sounddevice")
 
     def play(self, audio_path: str,
-             start_offset_ms: int = 0,
-             on_finished: Optional[Callable] = None,
-             on_progress: Optional[Callable[[int, int], None]] = None):
+            start_offset_ms: int = 0,
+            on_finished: Optional[Callable] = None,
+            on_progress: Optional[Callable[[int, int], None]] = None):
         """
-        播放音频文件
+        播放音频
 
         Args:
             audio_path: 音频文件路径
             start_offset_ms: 起始偏移（毫秒）
-            on_finished: 播放完成回调
-            on_progress: 进度回调 (current_ms, total_ms)
+            on_finished: 完成回调
+            on_progress: 进度回调
         """
-        print(f"[AudioPlayer] DEBUG: play() called with audio_path={audio_path}")
+        import wave
 
         if not self.sd:
-            print(f"[AudioPlayer] ERROR: sounddevice not installed!")
-            raise RuntimeError("sounddevice not installed")
+            raise RuntimeError("sounddevice not available")
 
-        # 停止当前播放
-        if self.state == PlayerState.PLAYING:
-            print(f"[AudioPlayer] DEBUG: Stopping current playback")
-            self.stop()
+        # 停止之前的播放
+        self.stop()
 
-        # 检查文件
-        if not Path(audio_path).exists():
-            print(f"[AudioPlayer] ERROR: Audio file not found: {audio_path}")
-            raise FileNotFoundError(f"Audio file not found: {audio_path}")
-
-        print(f"[AudioPlayer] DEBUG: Audio file exists, size={Path(audio_path).stat().st_size} bytes")
-
-        # 读取音频文件
-        print(f"[AudioPlayer] DEBUG: Loading WAV file...")
-        audio_data, duration_ms = self._load_wav(audio_path)
-        print(f"[AudioPlayer] DEBUG: Loaded audio data: samples={len(audio_data)}, duration={duration_ms}ms")
-
-        # 计算起始位置
-        start_sample = int((start_offset_ms / 1000) * self.sample_rate)
-
-        if start_sample >= len(audio_data):
-            raise ValueError(f"Start offset ({start_offset_ms}ms) exceeds duration ({duration_ms}ms)")
-
-        # 设置状态
-        self.current_file = audio_path
+        # 设置状态和回调
+        self.state = PlayerState.PLAYING
         self.on_finished = on_finished
         self.on_progress = on_progress
-        self.state = PlayerState.PLAYING
+        self.current_file = audio_path
 
-        # 启动播放线程
+        # 重置标志
         self._stop_flag.clear()
         self._pause_flag.clear()
 
-        print(f"[AudioPlayer] DEBUG: Starting playback thread...")
+        # 启动播放线程
         self._play_thread = threading.Thread(
-            target=self._play_loop,
-            args=(audio_data[start_sample:], duration_ms - start_offset_ms),
+            target=self._play_audio,
+            args=(audio_path, start_offset_ms),
             daemon=True
         )
         self._play_thread.start()
-        print(f"[AudioPlayer] DEBUG: Playback thread started, state={self.state}")
 
-    def _play_loop(self, audio_data: np.ndarray, duration_ms: int):
-        """
-        播放循环
+    def _play_audio(self, audio_path: str, start_offset_ms: int):
+        """播放音频文件"""
+        import wave
+        import numpy as np
 
-        Args:
-            audio_data: 音频数据 (numpy array)
-            duration_ms: 时长（毫秒）
-        """
-        print(f"[AudioPlayer] DEBUG: _play_loop() started, duration_ms={duration_ms}, samples={len(audio_data)}")
         try:
-            # 创建音频流
-            print(f"[AudioPlayer] DEBUG: Creating sounddevice OutputStream...")
-            self._stream = self.sd.OutputStream(
-                samplerate=self.sample_rate,
-                channels=1,
-                dtype='int16'
-            )
-            print(f"[AudioPlayer] DEBUG: Starting OutputStream...")
-            self._stream.start()
-            print(f"[AudioPlayer] DEBUG: OutputStream started successfully")
+            with wave.open(audio_path, 'rb') as wav_file:
+                # 获取音频参数
+                frames = wav_file.getnframes()
+                rate = wav_file.getframerate()
+                duration_ms = int((frames / rate) * 1000)
 
-            # 播放参数
-            chunk_size = 1024
-            total_samples = len(audio_data)
-            played_samples = 0
-            start_time = time.time()
+                # 计算起始帧
+                start_frame = int((start_offset_ms / 1000) * rate)
 
-            print(f"[AudioPlayer] DEBUG: Entering playback loop, total_samples={total_samples}, chunk_size={chunk_size}")
+                # 设置起始位置
+                if start_frame > 0:
+                    wav_file.setpos(start_frame)
 
-            # 播放循环
-            while played_samples < total_samples:
-                # 检查停止标志
-                if self._stop_flag.is_set():
-                    break
+                # 读取数据
+                data = wav_file.readframes(frames - start_frame)
+                audio_data = np.frombuffer(data, dtype=np.int16)
 
-                # 检查暂停标志
-                if self._pause_flag.is_set():
-                    time.sleep(0.1)
-                    continue
+                # 转换为 float32
+                audio_data = audio_data.astype(np.float32) / 32768.0
 
-                # 计算本次播放的样本数
-                remaining = total_samples - played_samples
-                samples_to_play = min(chunk_size, remaining)
+                # 应用音量
+                audio_data = audio_data * self._volume
 
-                # 应用音量控制
-                chunk_data = audio_data[played_samples:played_samples + samples_to_play].astype(np.float32)
-                chunk_data = chunk_data * self._volume
-                chunk_data = np.clip(chunk_data, -32768, 32767).astype(np.int16)
-                
                 # 播放
-                self._stream.write(chunk_data)
-                played_samples += samples_to_play
+                self._stream = self.sd.OutputStream(
+                    samplerate=rate,
+                    channels=1,
+                    dtype='float32'
+                )
 
-                # 进度回调
-                if self.on_progress:
-                    current_ms = int((played_samples / self.sample_rate) * 1000)
-                    self.on_progress(current_ms, duration_ms)
+                with self._stream:
+                    chunk_size = 1024
+                    offset = start_offset_ms
+
+                    for i in range(0, len(audio_data), chunk_size):
+                        # 检查停止标志
+                        if self._stop_flag.is_set():
+                            break
+
+                        # 检查暂停标志
+                        while self._pause_flag.is_set():
+                            if self._stop_flag.is_set():
+                                break
+                            time.sleep(0.1)
+
+                        # 播放音频块
+                        chunk = audio_data[i:i+chunk_size]
+                        self._stream.write(chunk)
+
+                        # 更新进度
+                        offset = int((i / rate) * 1000) + start_offset_ms
+                        if self.on_progress:
+                            self.on_progress(offset, duration_ms)
+
+                    # 播放完成
+                    if not self._stop_flag.is_set():
+                        if self.on_finished:
+                            self.on_finished()
 
         except Exception as e:
-            print(f"[AudioPlayer] ERROR: Playback error: {e}")
-            import traceback
-            print(f"[AudioPlayer] ERROR: Traceback:\n{traceback.format_exc()}")
+            print(f"[AudioPlayer] Error: {e}")
             self.state = PlayerState.ERROR
         finally:
-            # 清理
-            if self._stream:
-                self._stream.stop()
-                self._stream.close()
-                self._stream = None
-
-            # 更新状态
-            if not self._stop_flag.is_set():
-                self.state = PlayerState.STOPPED
-                if self.on_finished:
-                    self.on_finished()
-            else:
-                self.state = PlayerState.STOPPED
+            self.state = PlayerState.STOPPED
 
     def stop(self):
         """停止播放"""
@@ -255,28 +216,17 @@ class AudioPlayer:
 
     def seek(self, offset_ms: int):
         """
-        Seek到指定位置（需要重新加载音频）
+        Seek 到指定位置（需要重新加载音频）
 
         Args:
             offset_ms: 偏移（毫秒）
         """
-        if not self.current_file:
-            return
-
-        # 停止当前播放
-        was_playing = self.state == PlayerState.PLAYING
-        self.stop()
-
-        # 从新位置开始播放
-        self.play(
-            self.current_file,
-            start_offset_ms=offset_ms,
-            on_finished=self.on_finished,
-            on_progress=self.on_progress
-        )
-
-        if not was_playing:
-            self.pause()
+        if self.current_file and self.state != PlayerState.STOPPED:
+            # 停止当前播放
+            self.stop()
+            # 重新播放
+            self.play(self.current_file, offset_ms,
+                     self.on_finished, self.on_progress)
 
     @property
     def is_playing(self) -> bool:
@@ -288,105 +238,25 @@ class AudioPlayer:
         """是否已暂停"""
         return self.state == PlayerState.PAUSED
 
-    @property
-    def is_stopped(self) -> bool:
-        """是否已停止"""
-        return self.state == PlayerState.STOPPED
-
-    def _load_wav(self, audio_path: str) -> tuple:
-        """
-        加载WAV文件
-
-        Args:
-            audio_path: 音频文件路径
-
-        Returns:
-            (audio_data, duration_ms)
-        """
-        with wave.open(audio_path, 'rb') as wav_file:
-            frames = wav_file.getnframes()
-            rate = wav_file.getframerate()
-            channels = wav_file.getnchannels()
-            sample_width = wav_file.getsampwidth()
-
-            # 读取音频数据
-            audio_data = wav_file.readframes(frames)
-
-        # 转换为numpy数组
-        audio_array = np.frombuffer(audio_data, dtype=np.int16)
-
-        # 如果是立体声，转换为单声道
-        if channels == 2:
-            audio_array = audio_array.reshape(-1, 2).mean(axis=1).astype(np.int16)
-
-        # 计算时长
-        duration_ms = int((frames / rate) * 1000)
-
-        return audio_array, duration_ms
-
-    def get_duration(self, audio_path: str) -> int:
-        """
-        获取音频文件时长
-
-        Args:
-            audio_path: 音频文件路径
-
-        Returns:
-            时长（毫秒）
-        """
-        try:
-            with wave.open(audio_path, 'rb') as wav_file:
-                frames = wav_file.getnframes()
-                rate = wav_file.getframerate()
-                return int((frames / rate) * 1000)
-        except:
-            return 0
-
     def set_volume(self, volume: float):
         """
         设置音量
 
         Args:
-            volume: 音量值 (0.0 - 1.0)
+            volume: 音量 (0.0 - 1.0)
         """
         self._volume = max(0.0, min(1.0, volume))
-        print(f"[AudioPlayer] Volume set to {self._volume * 100:.0f}%")
-
-    def get_volume(self) -> float:
-        """
-        获取当前音量
-
-        Returns:
-            音量值 (0.0 - 1.0)
-        """
-        return self._volume
-
-    def adjust_volume(self, delta: float):
-        """
-        调整音量
-
-        Args:
-            delta: 音量变化量 (正数增大，负数减小)
-        """
-        self.set_volume(self._volume + delta)
-
-    @property
-    def volume(self) -> float:
-        """当前音量 (只读属性)"""
-        return self._volume
-
-    @volume.setter
-    def volume(self, value: float):
-        """设置音量"""
-        self.set_volume(value)
 
 
-# 简化版播放器（使用mpv作为fallback）
+# ==================== 简化版播放器（使用 mpv 作为 fallback）====================
+
 class MpvAudioPlayer:
     """
     简化音频播放器 - 使用 mpv
 
     作为 sounddevice 不可用时的后备方案
+
+    使用 mpv IPC (进程间通信) 进行控制
     """
 
     def __init__(self, mpv_bin: str = "mpv"):
@@ -395,6 +265,9 @@ class MpvAudioPlayer:
         self.process = None
         self.state = PlayerState.STOPPED
         self.current_file: Optional[str] = None
+
+        # IPC socket 路径
+        self.ipc_socket_path: Optional[str] = None
 
         # 回调
         self.on_finished: Optional[Callable] = None
@@ -413,13 +286,28 @@ class MpvAudioPlayer:
             on_progress: 进度回调
         """
         import subprocess
+        import tempfile
+        import os
 
         print(f"[MpvAudioPlayer] DEBUG: play() called with audio_path={audio_path}")
 
         self.on_finished = on_finished
         self.current_file = audio_path
 
-        cmd = [self.mpv_bin, "--no-video", "--really-quiet"]
+        # 创建 IPC socket 文件
+        if self.ipc_socket_path and os.path.exists(self.ipc_socket_path):
+            os.unlink(self.ipc_socket_path)
+
+        fd, self.ipc_socket_path = tempfile.mkstemp(suffix='.sock', prefix='mpv-')
+        os.close(fd)
+        os.unlink(self.ipc_socket_path)
+
+        cmd = [
+            self.mpv_bin,
+            "--no-video",
+            "--really-quiet",
+            f"--input-ipc-server={self.ipc_socket_path}"
+        ]
         print(f"[MpvAudioPlayer] DEBUG: cmd={' '.join(cmd)}")
 
         # 如果有起始偏移
@@ -430,6 +318,7 @@ class MpvAudioPlayer:
         cmd.append(audio_path)
 
         print(f"[MpvAudioPlayer] DEBUG: Full command: {' '.join(cmd)}")
+        print(f"[MpvAudioPlayer] DEBUG: IPC socket: {self.ipc_socket_path}")
         print(f"[MpvAudioPlayer] DEBUG: Starting mpv process...")
 
         self.process = subprocess.Popen(cmd)
@@ -445,16 +334,69 @@ class MpvAudioPlayer:
         thread.start()
         print(f"[MpvAudioPlayer] DEBUG: Monitor thread started")
 
+    def _send_command(self, *args):
+        """
+        通过 IPC 发送命令到 mpv
+
+        Args:
+            *args: mpv 命令参数，例如 "stop", "set", "pause", "yes"
+        """
+        import socket
+        import json
+        import os
+
+        if not self.ipc_socket_path:
+            print("[MpvAudioPlayer] Warning: No IPC socket path")
+            return False
+
+        if not os.path.exists(self.ipc_socket_path):
+            print(f"[MpvAudioPlayer] Warning: IPC socket not exists: {self.ipc_socket_path}")
+            return False
+
+        try:
+            # 创建 Unix socket 连接
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.connect(self.ipc_socket_path)
+
+            # 构建 JSON 命令
+            command = {"command": list(args)}
+            message = json.dumps(command) + "\n"
+
+            # 发送命令
+            sock.sendall(message.encode('utf-8'))
+            sock.close()
+
+            print(f"[MpvAudioPlayer] IPC command sent: {args}")
+            return True
+
+        except Exception as e:
+            print(f"[MpvAudioPlayer] IPC command failed: {e}")
+            return False
+
     def _monitor(self):
         """监控播放进程"""
         if self.process:
             self.process.wait()
+            # 清理 IPC socket
+            if self.ipc_socket_path:
+                import os
+                try:
+                    os.unlink(self.ipc_socket_path)
+                except:
+                    pass
             if self.on_finished:
                 self.on_finished()
             self.state = PlayerState.STOPPED
 
     def stop(self):
         """停止播放"""
+        # 优先使用 IPC 发送停止命令
+        if self._send_command("stop"):
+            self.state = PlayerState.STOPPED
+            print("[MpvAudioPlayer] ⏹ Stopped (via IPC)")
+            return
+
+        # 如果 IPC 失败，使用传统方式
         if self.process:
             self.process.terminate()
             try:
@@ -464,17 +406,43 @@ class MpvAudioPlayer:
         self.state = PlayerState.STOPPED
 
     def pause(self):
-        """暂停（mpv不支持）"""
-        print("[MpvAudioPlayer] Pause not supported")
+        """暂停播放"""
+        # 使用 IPC 发送暂停命令
+        if self._send_command("set", "pause", "yes"):
+            self.state = PlayerState.PAUSED
+            print("[MpvAudioPlayer] ⏸ Paused (via IPC)")
+        else:
+            print("[MpvAudioPlayer] Pause not supported")
 
     def resume(self):
-        """恢复（mpv不支持）"""
-        print("[MpvAudioPlayer] Resume not supported")
+        """恢复播放"""
+        # 使用 IPC 发送恢复命令
+        if self._send_command("set", "pause", "no"):
+            self.state = PlayerState.PLAYING
+            print("[MpvAudioPlayer] ▶ Resumed (via IPC)")
+        else:
+            print("[MpvAudioPlayer] Resume not supported")
+
+    def set_volume(self, volume: float):
+        """
+        设置音量
+
+        Args:
+            volume: 音量 (0.0 - 1.0)
+        """
+        volume_100 = int(volume * 100)
+        self._send_command("set", "volume", volume_100)
+        print(f"[MpvAudioPlayer] 🔊 Volume: {volume_100}%")
 
     @property
     def is_playing(self) -> bool:
         """是否正在播放"""
         return self.state == PlayerState.PLAYING
+
+    @property
+    def is_paused(self) -> bool:
+        """是否已暂停"""
+        return self.state == PlayerState.PAUSED
 
     def get_duration(self, audio_path: str) -> int:
         """获取音频时长"""

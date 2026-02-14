@@ -434,6 +434,7 @@ def normalize_punctuation(text: str) -> str:
     # 连续标点压缩
     text = re.sub(r'[！？]{2,}', '！', text)
     text = re.sub(r'[。]{2,}', '。', text)
+    text = re.sub(r'={3,}', ' ', text)
     # 英文标点 → 中文
     text = text.replace(',', '，').replace('.', '。')
     return text

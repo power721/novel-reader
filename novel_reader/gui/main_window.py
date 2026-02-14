@@ -3,7 +3,7 @@
 """
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout,
-    QSplitter, QMessageBox,
+    QSplitter, QMessageBox, QApplication,
 )
 from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt, Slot
@@ -586,15 +586,26 @@ class MainWindow(QMainWindow):
         # 重新创建菜单会复杂，所以这里只更新状态栏提示
 
     def _check_models_on_startup(self):
-        """启动时检查模型是否可用"""
+        """启动时检查模型是否可用（仅 Piper TTS）"""
         # 避免重复检查
         if self._models_checked:
             return
         self._models_checked = True
 
+        from novel_reader.core import get_setting, get_current_engine
+
+        # 只在 Piper TTS 引擎时检查模型
+        engine = get_current_engine()
+        if engine.engine_type != "piper":
+            # Edge TTS 不需要本地模型
+            print(f"📌 TTS 引擎: {engine.engine_type.upper()} - 跳过模型检查")
+            return
+
+        # 检查 Piper 模型
         from novel_reader.core.tts import check_models_available
         from PySide6.QtCore import QTimer
 
+        print("🔍 检查 Piper TTS 模型...")
         zh_available, en_available, missing = check_models_available()
 
         if not zh_available or not en_available:
@@ -605,20 +616,23 @@ class MainWindow(QMainWindow):
                 missing_models.append(f"{lang_name}: {model_name}")
 
             QTimer.singleShot(500, lambda: self._show_missing_models_dialog(missing_models))
+        else:
+            print("✓ Piper TTS 模型检查完成")
 
     def _show_missing_models_dialog(self, missing_models: list):
-        """显示缺失模型对话框"""
+        """显示缺失模型对话框（仅 Piper TTS）"""
         from PySide6.QtWidgets import QMessageBox
         from .dialogs import ModelSettingsDialog
 
-        msg = "以下 TTS 模型文件未找到：\n\n"
+        msg = "以下 Piper TTS 模型文件未找到：\n\n"
         msg += "\n".join(f"• {m}" for m in missing_models)
-        msg += "\n\n请下载所需的模型后才能使用 TTS 功能。"
+        msg += "\n\n请下载所需的模型后才能使用 Piper TTS 功能。"
+        msg += "\n\n提示：您可以切换到 Edge TTS（在线服务）无需下载模型。"
         msg += "\n\n点击「确定」打开模型设置对话框。"
 
         reply = QMessageBox.warning(
             self,
-            "模型文件缺失",
+            "Piper 模型文件缺失",
             msg,
             QMessageBox.Ok
         )
@@ -2090,13 +2104,21 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """窗口关闭事件"""
+        print("正在关闭应用...")
+
         # 停止所有工作线程
         if self.playback_worker and self.playback_worker.isRunning():
+            print("停止播放线程...")
             self.playback_worker.stop()
-            self.playback_worker.wait()
+            self.playback_worker.wait(3000)  # 等待最多3秒
 
         if self.tts_worker and self.tts_worker.isRunning():
+            print("停止TTS线程...")
             self.tts_worker.stop()
-            self.tts_worker.wait()
+            self.tts_worker.wait(3000)  # 等待最多3秒
 
+        print("应用已关闭")
         event.accept()
+
+        # 确保应用程序退出
+        QApplication.quit()
