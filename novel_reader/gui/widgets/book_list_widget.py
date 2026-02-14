@@ -164,6 +164,24 @@ class BookListWidget(QWidget):
         # 书籍信息操作
         info_action = menu.addAction("ℹ️ 书籍信息")
 
+        # 添加分隔线
+        menu.addSeparator()
+
+        # 文件操作
+        open_book_file_action = menu.addAction("📄 打开书籍文件")
+        open_book_dir_action = menu.addAction("📂 打开书籍目录")
+
+        # 添加分隔线
+        menu.addSeparator()
+
+        # 音频文件操作
+        open_audio_dir_action = menu.addAction("📁 打开音频目录")
+        check_audio_size_action = menu.addAction("📊 查看音频大小")
+        clean_audio_cache_action = menu.addAction("🧹 清理音频缓存")
+
+        # 添加分隔线
+        menu.addSeparator()
+
         # 重命名操作
         rename_action = menu.addAction("✏️ 重命名")
 
@@ -175,6 +193,21 @@ class BookListWidget(QWidget):
 
         if action == info_action:
             self._show_book_info(book_id)
+
+        elif action == open_book_file_action:
+            self._open_book_file(book_id)
+
+        elif action == open_book_dir_action:
+            self._open_book_directory(book_id)
+
+        elif action == open_audio_dir_action:
+            self._open_audio_directory(book_id)
+
+        elif action == check_audio_size_action:
+            self._check_audio_size(book_id)
+
+        elif action == clean_audio_cache_action:
+            self._clean_audio_cache(book_id)
 
         elif action == rename_action:
             # 获取当前书名
@@ -525,3 +558,249 @@ class BookListWidget(QWidget):
                     title = item.text(1)
                     if title.startswith("▶️ "):
                         item.setText(1, title[2:])
+
+    def _open_book_directory(self, book_id: int):
+        """打开书籍的原始文件目录"""
+        from novel_reader.core import get_book
+        import subprocess
+        import os
+
+        book = get_book(book_id)
+        if not book:
+            QMessageBox.warning(self, "错误", "无法获取书籍信息")
+            return
+
+        # 获取文件路径
+        file_path = book.get('file_path')
+        if not file_path:
+            QMessageBox.warning(self, "文件路径", "该书籍没有文件路径信息")
+            return
+
+        if not os.path.exists(file_path):
+            QMessageBox.warning(
+                self,
+                "文件不存在",
+                f"原始文件不存在：\n\n{file_path}"
+            )
+            return
+
+        # 获取文件所在目录
+        book_dir = os.path.dirname(file_path)
+        abs_dir = os.path.abspath(book_dir)
+
+        try:
+            # 使用文件管理器打开目录
+            subprocess.run(['xdg-open', abs_dir], check=False)
+            print(f"[INFO] Opened book directory: {abs_dir}")
+        except FileNotFoundError:
+            try:
+                # Fallback 到 nautilus (GNOME) - 直接选中文件
+                abs_path = os.path.abspath(file_path)
+                subprocess.run(['nautilus', '--select', abs_path], check=False)
+            except FileNotFoundError:
+                try:
+                    # Fallback 到 dolphin (KDE) - 直接选中文件
+                    subprocess.run(['dolphin', '--select', abs_path], check=False)
+                except FileNotFoundError:
+                    # 最后的 fallback - 只打开目录
+                    abs_dir = os.path.abspath(book_dir)
+                    os.system(f'xdg-open "{abs_dir}"')
+
+
+    def _open_book_file(self, book_id: int):
+        """打开书籍的原始文件"""
+        from novel_reader.core import get_book
+        import subprocess
+        import os
+
+        book = get_book(book_id)
+        if not book:
+            QMessageBox.warning(self, "错误", "无法获取书籍信息")
+            return
+
+        # 获取文件路径
+        file_path = book.get('file_path')
+        if not file_path:
+            QMessageBox.warning(self, "文件路径", "该书籍没有文件路径信息")
+            return
+
+        if not os.path.exists(file_path):
+            QMessageBox.warning(
+                self,
+                "文件不存在",
+                f"原始文件不存在：\n\n{file_path}"
+            )
+            return
+
+        try:
+            # 使用文件管理器打开目录并选中文件
+            subprocess.run(['xdg-open', file_path], check=False)
+            abs_path = os.path.abspath(file_path)
+            print(f"[INFO] Opened book file: {abs_path}")
+        except FileNotFoundError:
+            try:
+                # Fallback 到 nautilus (GNOME) - 直接选中文件
+                abs_path = os.path.abspath(file_path)
+                subprocess.run(['nautilus', '--select', abs_path], check=False)
+            except FileNotFoundError:
+                try:
+                    # Fallback 到 dolphin (KDE) - 直接选中文件
+                    subprocess.run(['dolphin', '--select', abs_path], check=False)
+                except FileNotFoundError:
+                    # 最后的 fallback - 只打开目录
+                    book_dir = os.path.dirname(file_path)
+                    abs_dir = os.path.abspath(book_dir)
+                    os.system(f'xdg-open "{abs_dir}"')
+    def _open_audio_directory(self, book_id: int):
+        """打开书籍的音频目录"""
+        from novel_reader.core import get_book
+        import subprocess
+        import os
+
+        book = get_book(book_id)
+        if not book:
+            QMessageBox.warning(self, "错误", "无法获取书籍信息")
+            return
+
+        # 构建音频目录路径（使用项目的 data/audio 目录）
+        audio_dir = f"data/audio/{book_id}"
+
+        if not os.path.exists(audio_dir):
+            QMessageBox.information(
+                self,
+                "音频目录",
+                f"该书还没有生成音频文件\n\n音频目录：{audio_dir}"
+            )
+            return
+
+        try:
+            # 转换为绝对路径
+            abs_audio_dir = os.path.abspath(audio_dir)
+
+            # 使用文件管理器打开目录
+            subprocess.run(['xdg-open', abs_audio_dir], check=False)
+            print(f"[INFO] Opened audio directory: {abs_audio_dir}")
+        except FileNotFoundError:
+            try:
+                # Fallback 到 nautilus (GNOME)
+                subprocess.run(['nautilus', abs_audio_dir], check=False)
+            except FileNotFoundError:
+                try:
+                    # Fallback 到 dolphin (KDE)
+                    subprocess.run(['dolphin', abs_audio_dir], check=False)
+                except FileNotFoundError:
+                    # 最后的 fallback - 直接用 xdg-open
+                    os.system(f'xdg-open "{abs_audio_dir}"')
+
+    def _check_audio_size(self, book_id: int):
+        """查看书籍的音频文件大小"""
+        from novel_reader.core import get_book
+        import os
+
+        book = get_book(book_id)
+        if not book:
+            QMessageBox.warning(self, "错误", "无法获取书籍信息")
+            return
+
+        # 构建音频目录路径（使用项目的 data/audio 目录）
+        audio_dir = f"data/audio/{book_id}"
+
+        if not os.path.exists(audio_dir):
+            QMessageBox.information(
+                self,
+                "音频文件",
+                f"该书还没有生成音频文件\n\n书籍：{book['title']}"
+            )
+            return
+
+        # 统计音频文件
+        total_size = 0
+        file_count = 0
+        from pathlib import Path
+
+        audio_files = list(Path(audio_dir).rglob("*.wav"))
+        for audio_file in audio_files:
+            total_size += audio_file.stat().st_size
+            file_count += 1
+
+        # 格式化大小
+        if total_size < 1024:
+            size_text = f"{total_size} B"
+        elif total_size < 1024 * 1024:
+            size_text = f"{total_size / 1024:.1f} KB"
+        elif total_size < 1024 * 1024 * 1024:
+            size_text = f"{total_size / (1024 * 1024):.1f} MB"
+        else:
+            size_text = f"{total_size / (1024 * 1024 * 1024):.2f} GB"
+
+        # 显示信息
+        abs_audio_dir = os.path.abspath(audio_dir)
+        QMessageBox.information(
+            self,
+            "音频文件统计",
+            f"书籍：{book['title']}\n\n"
+            f"音频文件数量：{file_count}\n"
+            f"总大小：{size_text}\n\n"
+            f"音频目录：\n{abs_audio_dir}"
+        )
+
+    def _clean_audio_cache(self, book_id: int):
+        """清理书籍的音频缓存"""
+        from novel_reader.core import get_book
+        import os
+        import shutil
+
+        book = get_book(book_id)
+        if not book:
+            QMessageBox.warning(self, "错误", "无法获取书籍信息")
+            return
+
+        # 构建音频目录路径（使用项目的 data/audio 目录）
+        audio_dir = f"data/audio/{book_id}"
+
+        if not os.path.exists(audio_dir):
+            QMessageBox.information(
+                self,
+                "音频缓存",
+                f"该书还没有音频缓存\n\n书籍：{book['title']}"
+            )
+            return
+
+        # 确认清理
+        reply = QMessageBox.question(
+            self,
+            "确认清理",
+            f"确定要清理「{book['title']}」的音频缓存吗？\n\n"
+            f"这将删除所有已生成的音频文件，但不会删除书籍信息。\n\n"
+            f"下次播放时需要重新转换音频。",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply != QMessageBox.Yes:
+            return
+
+        try:
+            # 统计文件数量
+            from pathlib import Path
+            file_count = len(list(Path(audio_dir).rglob("*.wav")))
+
+            # 删除音频目录
+            shutil.rmtree(audio_dir)
+            abs_audio_dir = os.path.abspath(audio_dir)
+            print(f"[INFO] Cleaned audio cache for book {book_id}: {abs_audio_dir}")
+
+            QMessageBox.information(
+                self,
+                "清理成功",
+                f"已清理「{book['title']}」的音频缓存\n\n"
+                f"共删除 {file_count} 个音频文件\n"
+                f"目录：{abs_audio_dir}"
+            )
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "清理失败",
+                f"清理音频缓存时出错：\n{str(e)}"
+            )
