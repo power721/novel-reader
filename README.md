@@ -408,6 +408,60 @@ models/
 
 可以通过修改此文件添加新的模型支持。
 
+## 打包为可执行程序
+
+### 快速打包
+
+使用提供的打包脚本将程序打包为独立的可执行文件：
+
+```bash
+# 安装打包工具
+pip install pyinstaller
+
+# 运行打包脚本
+./build.sh
+```
+
+打包完成后，在 `dist/` 目录会生成：
+
+```
+dist/
+├── novel-reader                          # 可执行文件
+├── novel-reader-linux/                   # 发布目录
+│   ├── novel-reader                      # 可执行文件
+│   ├── start.sh                          # 启动脚本
+│   ├── README.txt                        # 用户说明
+│   └── INSTALL.md                        # 安装指南
+└── novel-reader-YYYYMMDD-linux-x86_64.tar.gz  # 压缩包
+```
+
+### 系统要求
+
+打包后的程序在目标系统上需要：
+
+- **mpv 播放器**（必需）: `sudo apt install mpv`
+- **TTS 模型**（可选）: 首次运行时下载
+
+### 分发
+
+将压缩包发送给用户：
+
+```bash
+# 用户解压
+tar -xzf novel-reader-YYYYMMDD-linux-x86_64.tar.gz
+cd novel-reader-linux
+
+# 安装系统依赖
+sudo apt install mpv
+
+# 运行程序
+./start.sh
+```
+
+### 更多信息
+
+详细的打包指南请参考 [docs/BUILD.md](docs/BUILD.md)。
+
 ## 开发
 
 ```bash
