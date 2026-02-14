@@ -72,9 +72,15 @@ def fix_quote_boundary(sentences: List[str]) -> List[str]:
         s = s.strip()
         # Check both Chinese and English quotes
         starts_with_quote = s.startswith('“') or s.startswith('"')
-        ends_with_quote = fixed[-1].endswith('”') or fixed[-1].endswith('"')
+        text = fixed[-1]
+        count = (
+                text.count('“') +
+                text.count('”') +
+                text.count('"')
+        )
+        pair_with_quote = count % 2 == 0
 
-        if starts_with_quote and not ends_with_quote:
+        if starts_with_quote and not pair_with_quote:
             # 把左引号并回上一句
             quote_char = s[0]  # Get the actual quote character used
             fixed[-1] += quote_char
@@ -169,7 +175,7 @@ if __name__ == "__main__":
     sample_text = """
 第1章 雾起之日
 
-清晨的雾气像一层薄纱笼罩着城市，街道的轮廓在灰白中若隐若现。”林舟站在阳台上，手里捧着一杯已经凉掉的咖啡。“他隐约觉得，这一天和以往不同。远处的钟声响起，低沉而缓慢，仿佛在提醒什么即将到来。
+清晨的雾气像一层薄纱笼罩着城市，街道的轮廓在灰白中若隐若现。“林舟站在阳台上，手里捧着一杯已经凉掉的咖啡。”他隐约觉得，这一天和以往不同。远处的钟声响起，低沉而缓慢，仿佛在提醒什么即将到来。
 好，这里给你一份可以直接复制给 Claude Code 使用的「高质量工程型 Prompt」。
 这是按 “让 Claude 产出 production 级代码，而不是示例” 来写的。
 
@@ -215,7 +221,7 @@ if __name__ == "__main__":
     print("文本解析测试")
     print("=" * 60)
 
-    print(split_by_sentence("清晨的雾气像一层薄纱笼罩着城市，街道的轮廓在灰白中若隐若现。”林舟站在阳台上，手里捧着一杯已经凉掉的咖啡。“他隐约觉得，这一天和以往不同。远处的钟声响起，低沉而缓慢，仿佛在提醒什么即将到来。"))
+    print(split_by_sentence("清晨的雾气像一层薄纱笼罩着城市，街道的轮廓在灰白中若隐若现。“林舟站在阳台上，手里捧着一杯已经凉掉的咖啡。”他隐约觉得，这一天和以往不同。远处的钟声响起，低沉而缓慢，仿佛在提醒什么即将到来。"))
 
     chunks, chapters = parse_txt(sample_text, chunk_size=60)
 
