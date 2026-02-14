@@ -119,7 +119,7 @@ class PlaybackWorker(QThread):
                 # 检查是否是章节的最后一个chunk，如果是则提前转换下一章
                 if chunk_id in chapter_boundaries and chunk_id > start:
                     next_chapter_start = chapter_boundaries[chunk_id]
-                    print(f"🔄 [DEBUG] 即将播放章节最后一个chunk {chunk_id}，提前转换下一章 chunk {next_chapter_start}")
+                    # print(f"🔄 [DEBUG] 即将播放章节最后一个chunk {chunk_id}，提前转换下一章 chunk {next_chapter_start}")
                     self.last_chunk_of_chapter_started.emit(next_chapter_start)
 
                 # 获取当前设置的模型ID和TTS引擎

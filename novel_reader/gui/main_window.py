@@ -1241,8 +1241,15 @@ class MainWindow(QMainWindow):
             # 调用 stop 方法设置标志并停止音频
             worker.stop()
 
-            # 尝试温和终止（不等待，让线程自然退出）
+            # 尝试温和终止
             worker.terminate()
+
+            # 等待线程完全停止（最多2秒），避免竞态条件
+            if not worker.wait(2000):
+                # 超时则再次尝试
+                print(f"[DEBUG _stop_playback_worker_safely] Worker didn't stop, trying again...")
+                worker.terminate()
+                worker.wait(500)
 
         # 断开所有信号连接
         try:
@@ -1278,6 +1285,18 @@ class MainWindow(QMainWindow):
 
     def _play_previous_chapter(self):
         """播放上一章"""
+        # 等待任何正在进行的 worker 创建完成
+        import time
+        max_wait = 3  # 最多等待3秒
+        waited = 0
+        while self._is_creating_worker and waited < max_wait:
+            time.sleep(0.1)
+            waited += 0.1
+
+        if waited >= max_wait:
+            print("[DEBUG] Timeout waiting for worker creation, ignoring request")
+            return
+
         target_book_id = self._get_target_book_id()
         if target_book_id is None:
             QMessageBox.warning(self, "警告", "请先选择一本书")
@@ -1343,6 +1362,18 @@ class MainWindow(QMainWindow):
 
     def _play_next_chapter(self):
         """播放下一章"""
+        # 等待任何正在进行的 worker 创建完成
+        import time
+        max_wait = 3  # 最多等待3秒
+        waited = 0
+        while self._is_creating_worker and waited < max_wait:
+            time.sleep(0.1)
+            waited += 0.1
+
+        if waited >= max_wait:
+            print("[DEBUG] Timeout waiting for worker creation, ignoring request")
+            return
+
         target_book_id = self._get_target_book_id()
         if target_book_id is None:
             QMessageBox.warning(self, "警告", "请先选择一本书")
@@ -1409,6 +1440,18 @@ class MainWindow(QMainWindow):
 
     def _play_next_chunk(self):
         """播放下一个分段"""
+        # 等待任何正在进行的 worker 创建完成
+        import time
+        max_wait = 3  # 最多等待3秒
+        waited = 0
+        while self._is_creating_worker and waited < max_wait:
+            time.sleep(0.1)
+            waited += 0.1
+
+        if waited >= max_wait:
+            print("[DEBUG] Timeout waiting for worker creation, ignoring request")
+            return
+
         target_book_id = self._get_target_book_id()
 
         if target_book_id is None:
@@ -1447,6 +1490,18 @@ class MainWindow(QMainWindow):
 
     def _play_previous_chunk(self):
         """播放上一个分段"""
+        # 等待任何正在进行的 worker 创建完成
+        import time
+        max_wait = 3  # 最多等待3秒
+        waited = 0
+        while self._is_creating_worker and waited < max_wait:
+            time.sleep(0.1)
+            waited += 0.1
+
+        if waited >= max_wait:
+            print("[DEBUG] Timeout waiting for worker creation, ignoring request")
+            return
+
         target_book_id = self._get_target_book_id()
         if target_book_id is None:
             QMessageBox.warning(self, "警告", "请先选择一本书")

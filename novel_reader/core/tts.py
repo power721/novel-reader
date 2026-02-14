@@ -412,11 +412,11 @@ def text_to_speech(
 
 def normalize_for_novel_tts(text: str) -> str:
     text = basic_clean(text)
+    text = normalize_numbers(text)
     text = normalize_punctuation(text)
     text = protect_english_words(text)
     text = normalize_levels(text)
     text = normalize_with_dict(text)
-    text = normalize_numbers(text)
     text = prosody_hint(text)
     text = restore_english_words(text)
     return text
@@ -559,6 +559,8 @@ def normalize_with_dict(text: str) -> str:
 
 
 def normalize_numbers(text: str) -> str:
+    # 处理小数：0.05 → 0点05
+    text = re.sub(r'(\d+)\.(\d+)', r'\1点\2', text)
     text = re.sub(r'(\d+)岁', r'\1 岁', text)
     text = re.sub(r'(\d+)年', r'\1 年', text)
     text = re.sub(r'(\d+)km', r'\1 公里', text)

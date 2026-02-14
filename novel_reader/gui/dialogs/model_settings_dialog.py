@@ -695,19 +695,25 @@ class ModelSettingsDialog(QDialog):
 
     def _save_settings(self):
         """保存设置"""
-        from novel_reader.core import set_setting, clear_piper_cache
+        from novel_reader.core import set_settings, clear_piper_cache
+
+        # 收集所有配置更新
+        updates = {}
 
         # 保存 TTS 引擎选择
         engine_type = self.engine_combo.currentData()
-        set_setting("tts_engine", engine_type)
+        updates["tts_engine"] = engine_type
 
         if engine_type == "piper":
             # 保存 Piper 模型设置
             zh_model_id = self.zh_combo.currentData()
             en_model_id = self.en_combo.currentData()
 
-            set_setting("chinese_model_id", zh_model_id)
-            set_setting("english_model_id", en_model_id)
+            updates["chinese_model_id"] = zh_model_id
+            updates["english_model_id"] = en_model_id
+
+            # 批量保存配置
+            set_settings(updates)
 
             # 清除 Piper 模型缓存，以便使用新模型
             clear_piper_cache()
@@ -745,17 +751,20 @@ class ModelSettingsDialog(QDialog):
             else:
                 print(f"[ModelSettingsDialog] Saving valid voice ID: {zh_voice_id}")
 
-            set_setting("edge_chinese_voice_id", zh_voice_id)
-            set_setting("edge_english_voice_id", en_voice_id)
+            updates["edge_chinese_voice_id"] = zh_voice_id
+            updates["edge_english_voice_id"] = en_voice_id
 
             # 保存 Edge TTS 参数
             rate_val = self.edge_rate_spin.value()
             pitch_val = self.edge_pitch_spin.value()
             volume_val = self.edge_volume_spin.value()
 
-            set_setting("edge_rate", f"+{rate_val}%")
-            set_setting("edge_pitch", f"+{pitch_val}Hz")
-            set_setting("edge_volume", f"+{volume_val}%")
+            updates["edge_rate"] = f"+{rate_val}%"
+            updates["edge_pitch"] = f"+{pitch_val}Hz"
+            updates["edge_volume"] = f"+{volume_val}%"
+
+            # 批量保存配置
+            set_settings(updates)
 
             QMessageBox.information(self, "设置已保存", "Edge TTS 语音设置已保存！")
 

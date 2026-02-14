@@ -144,7 +144,7 @@ async def _text_to_speech_async(
     Returns:
         Path to generated audio file
     """
-    print(f"[edge_tts._text_to_speech_async] DEBUG: voice={voice_name} rate={rate}, pitch={pitch}, volume={volume}")
+    print(f"[edge_tts._text_to_speech_async] DEBUG: text={len(text)} voice={voice_name} rate={rate}, pitch={pitch}, volume={volume}")
 
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)

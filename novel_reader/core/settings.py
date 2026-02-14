@@ -107,6 +107,18 @@ def set_setting(key: str, value: Any) -> None:
     save_settings(settings)
 
 
+def set_settings(updates: dict[str, Any]) -> None:
+    """
+    批量设置多个配置项（只保存一次）
+
+    Args:
+        updates: 配置键值对字典
+    """
+    settings = load_settings()
+    settings.update(updates)
+    save_settings(settings)
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("配置管理测试")
