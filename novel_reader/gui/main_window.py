@@ -34,6 +34,7 @@ class MainWindow(QMainWindow):
         self._book_cache: dict = {}  # 书籍信息缓存
         self._models_checked = False  # 是否已检查过模型
         self._is_creating_worker: bool = False  # 防止竞态条件的标志
+        self._is_processing_auto_next: bool = False  # 防止自动播放下一本书时的重复触发
 
         # 初始化界面
         self._init_ui()
@@ -819,6 +820,37 @@ class MainWindow(QMainWindow):
         audio_files = list(book_audio_dir.glob("*.wav"))
         return len(audio_files) > 0, len(audio_files)
 
+    def _play_and_switch_book(self, book_id: int, book_title: str):
+        """播放并切换书籍（用于自动播放下一本书）
+
+        与 _play_book 的区别：
+        - _play_book：播放已经选中的书籍，UI 已经加载
+        - _play_and_switch_book：切换到新书籍并播放，需要先加载 UI
+
+        Args:
+            book_id: 书籍 ID
+            book_title: 书籍标题（用于日志）
+        """
+        try:
+            print(f"[INFO] Playing next book: {book_title} (id={book_id})")
+
+            # 在实际播放前更新 current_book_id（避免竞态条件）
+            # 如果在这里就更新，那么在 _play_book 被调用前，如果有其他 finished 信号触发，
+            # 它会使用新的 book_id，导致跳书
+            self.current_book_id = book_id
+
+            # 刚开始播放，没有当前 chunk，传入 None
+            self.chapter_list_widget.load_chapters(book_id, None)
+            self.play_text_widget.load_content(book_id)
+            self.player_widget.set_book(book_id)
+            self.tts_widget.set_book(book_id)
+
+            # 现在调用 _play_book 开始播放
+            self._play_book(book_id)
+        finally:
+            # 清除标志，允许下次自动播放
+            self._is_processing_auto_next = False
+
     @Slot(int)
     def _play_book(self, book_id: int):
         """播放书籍"""
@@ -896,6 +928,18 @@ class MainWindow(QMainWindow):
     @Slot()
     def _on_playback_finished(self):
         """播放完成"""
+        # 如果正在处理自动播放下一本书，忽略重复触发
+        if self._is_processing_auto_next:
+            print("[DEBUG] _on_playback_finished: Already processing auto-next, ignoring")
+            return
+
+        import traceback
+        print(f"[DEBUG] _on_playback_finished called from:")
+        for line in traceback.format_stack()[-5:]:
+            if '/novel_reader/gui/' in line:
+                print(f"  {line.strip()}")
+                break
+        """播放完成"""
         self.player_widget.set_playing_state(False)
 
         # 清除正在播放的高亮
@@ -917,6 +961,7 @@ class MainWindow(QMainWindow):
             for i, book in enumerate(books):
                 if book['id'] == self.current_book_id:
                     current_index = i
+                    print(f"[DEBUG _on_playback_finished] Found current book: id={self.current_book_id}, index={i}, title={book['title'][:20]}")
                     break
 
             # 如果找到下一本书，自动播放
@@ -925,17 +970,16 @@ class MainWindow(QMainWindow):
                 self.statusBar().showMessage(f"自动播放下一本书: {next_book['title']}", 3000)
                 print(f"[INFO] Auto-playing next book: {next_book['title']}")
 
-                # 切换到下一本书并开始播放
-                self.current_book_id = next_book['id']
-                # 刚开始播放，没有当前chunk，传入None
-                self.chapter_list_widget.load_chapters(next_book['id'], None)
-                self.play_text_widget.load_content(next_book['id'])
-                self.player_widget.set_book(next_book['id'])
-                self.tts_widget.set_book(next_book['id'])
+                # 设置标志，防止重复触发
+                self._is_processing_auto_next = True
 
-                # 延迟一点再开始播放
+                # 延迟一点再开始播放，不要立即更新 current_book_id
+                # current_book_id 会在 _play_and_switch_book 方法内部更新，这样可以避免竞态条件
                 from PySide6.QtCore import QTimer
-                QTimer.singleShot(500, lambda: self._play_book(next_book['id']))
+                QTimer.singleShot(500, lambda: self._play_and_switch_book(
+                    next_book['id'],
+                    next_book['title']
+                ))
 
     @Slot(str)
     def _on_playback_error(self, error_msg: str):
@@ -1630,13 +1674,17 @@ class MainWindow(QMainWindow):
         # 高亮正在播放的书籍
         self.book_list_widget.set_playing_book(book_id)
 
+        # 先停止旧的 worker，防止重复触发
+        if self.playback_worker:
+            self._stop_playback_worker_safely()
+
         # 设置标志，防止竞态条件
         self._is_creating_worker = True
 
         try:
             # 创建播放工作线程
             self.playback_worker = PlaybackWorker(book_id, start_chunk)
-            self.playback_worker.finished.connect(self._on_playback_finished)
+            self.playback_worker.finished.connect(self._on_playback_finished, Qt.ConnectionType.UniqueConnection)
             self.playback_worker.error.connect(self._on_playback_error)
             self.playback_worker.progress_updated.connect(self._on_playback_progress)
             self.playback_worker.chapter_finished.connect(self._on_chapter_playback_finished)
