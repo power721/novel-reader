@@ -29,6 +29,7 @@
 - **Python**: 3.11
 - **依赖程序**:
   - `mpv` - 音频播放器（必需）
+  - `ffmpeg` - 音频转换工具（可选，Edge TTS 需要）
   - `piper-tts` - 离线 TTS 引擎（可选，通过 pip 安装）
 
 ## 安装
@@ -52,20 +53,24 @@ pip install -r requirements.txt
 
 ```bash
 sudo apt update
-sudo apt install mpv
+sudo apt install mpv ffmpeg
 ```
 
 #### Arch Linux
 
 ```bash
-sudo pacman -S mpv
+sudo pacman -S mpv ffmpeg
 ```
 
 #### macOS
 
 ```bash
-brew install mpv
+brew install mpv ffmpeg
 ```
+
+**说明**：
+- `mpv` 是必需的，用于音频播放
+- `ffmpeg` 是可选的，仅在需要使用 Edge TTS 时需要（用于 MP3 到 WAV 转换）
 
 ### 4. 下载 TTS 模型
 
@@ -167,7 +172,7 @@ Novel Reader 支持完整的键盘快捷键控制：
 ### TTS 选项
 
 - **Piper TTS** (默认) - 完全离线，支持中英文
-- **Edge TTS** (可选) - Microsoft Edge TTS 在线语音，支持多种中英文音色
+- **Edge TTS** (可选) - Microsoft Edge TTS 在线语音，支持多种中英文音色，需要安装 ffmpeg
 
 #### 模型管理
 
@@ -284,6 +289,13 @@ novel-reader/
 - 确认 mpv 已正确安装: `mpv --version`
 - 检查音频设备是否正常工作
 - 尝试使用 `mpv <audio_file>` 直接播放测试
+
+### Edge TTS 转换失败
+
+- 确认 ffmpeg 已正确安装: `ffmpeg --version`
+- Edge TTS 需要使用 ffmpeg 将 MP3 转换为 WAV 格式
+- 检查网络连接（Edge TTS 需要在线访问 Microsoft 服务器）
+- 尝试切换到 Piper TTS（完全离线）
 
 ### 中文支持
 
