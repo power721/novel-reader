@@ -83,22 +83,26 @@ class PlayTextWidget(QWidget):
                 self.text_display.setPlainText(f"Chunk {chunk_id} 超出范围")
                 return
 
+            count = 0
             # 获取前两个、当前和后两个chunk的文本
             prev_texts = []
-            for i in range(2):
+            for i in range(5):
                 offset = i + 1
                 if chunk_id - offset >= 0:
                     prev_texts.insert(0, chunks[chunk_id - offset])
+                    count += len(chunks[chunk_id - offset])
+                    if count >= 120:
+                        break
 
             current_text = chunks[chunk_id]
+            count += len(chunks[chunk_id])
 
             next_texts = []
-            count = 0
             for i in range(5):
                 if chunk_id + i + 1 < len(chunks):
                     next_texts.append(chunks[chunk_id + i + 1])
                     count += len(chunks[chunk_id + i + 1])
-                    if count >= 150:
+                    if count >= 300:
                         break
 
             # 构建HTML显示，高亮当前chunk
