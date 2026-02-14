@@ -277,6 +277,8 @@ class MainWindow(QMainWindow):
         self.player_widget.play_next_chapter_requested.connect(self._play_next_chapter)
         self.player_widget.play_previous_chunk_requested.connect(self._play_previous_chunk)
         self.player_widget.play_next_chunk_requested.connect(self._play_next_chunk)
+        self.player_widget.play_backward_chunks_requested.connect(self._play_backward_chunks)
+        self.player_widget.play_forward_chunks_requested.connect(self._play_forward_chunks)
         self.player_widget.volume_changed.connect(self._on_volume_changed)
         self.player_widget.playback_speed_changed.connect(self._on_playback_speed_changed)
 
@@ -1599,6 +1601,109 @@ class MainWindow(QMainWindow):
         # 直接播放，依赖预转换机制
         self.statusBar().showMessage(f"跳转到分段 {next_chunk}")
         self._play_from_chunk(next_chunk, target_book_id)
+
+    def _play_forward_chunks(self, count: int):
+        """前进N个分段
+
+        Args:
+            count: 要前进的分段数量
+        """
+        # 等待任何正在进行的 worker 创建完成
+        import time
+        max_wait = 3  # 最多等待3秒
+        waited = 0
+        while self._is_creating_worker and waited < max_wait:
+            time.sleep(0.1)
+            waited += 0.1
+
+        if waited >= max_wait:
+            print("[DEBUG] Timeout waiting for worker creation, ignoring request")
+            return
+
+        target_book_id = self._get_target_book_id()
+
+        if target_book_id is None:
+            QMessageBox.warning(self, "警告", "请先选择一本书")
+            return
+
+        # 停止当前播放，确保进度已保存
+        self._stop_playback_worker_safely()
+        self._stop_tts_worker_safely()
+
+        from novel_reader.core import get_book
+        from novel_reader.utils import load_txt_file, parse_txt
+
+        book = get_book(target_book_id)
+        if not book:
+            return
+
+        # 在停止播放后重新获取，确保是最新的位置
+        current_chunk = book['current_chunk']
+
+        # 获取总chunk数
+        text = load_txt_file(book['file_path'])
+        chunks, _ = parse_txt(text)
+        total_chunks = len(chunks)
+
+        # 计算目标chunk
+        target_chunk = current_chunk + count
+
+        if target_chunk >= total_chunks:
+            target_chunk = total_chunks - 1
+            QMessageBox.information(self, "提示", f"已调整到最后一个分段（第{target_chunk}个）")
+
+        # 直接播放，依赖预转换机制
+        self.statusBar().showMessage(f"前进{count}个分段，跳转到分段 {target_chunk}")
+        self._play_from_chunk(target_chunk, target_book_id)
+
+    def _play_backward_chunks(self, count: int):
+        """后退N个分段
+
+        Args:
+            count: 要后退的分段数量
+        """
+        # 等待任何正在进行的 worker 创建完成
+        import time
+        max_wait = 3  # 最多等待3秒
+        waited = 0
+        while self._is_creating_worker and waited < max_wait:
+            time.sleep(0.1)
+            waited += 0.1
+
+        if waited >= max_wait:
+            print("[DEBUG] Timeout waiting for worker creation, ignoring request")
+            return
+
+        target_book_id = self._get_target_book_id()
+
+        if target_book_id is None:
+            QMessageBox.warning(self, "警告", "请先选择一本书")
+            return
+
+        # 停止当前播放，确保进度已保存
+        self._stop_playback_worker_safely()
+        self._stop_tts_worker_safely()
+
+        from novel_reader.core import get_book
+        from novel_reader.utils import load_txt_file, parse_txt
+
+        book = get_book(target_book_id)
+        if not book:
+            return
+
+        # 在停止播放后重新获取，确保是最新的位置
+        current_chunk = book['current_chunk']
+
+        # 计算目标chunk
+        target_chunk = current_chunk - count
+
+        if target_chunk < 0:
+            target_chunk = 0
+            QMessageBox.information(self, "提示", f"已调整到第一个分段（第0个）")
+
+        # 直接播放，依赖预转换机制
+        self.statusBar().showMessage(f"后退{count}个分段，跳转到分段 {target_chunk}")
+        self._play_from_chunk(target_chunk, target_book_id)
 
     def _play_previous_chunk(self):
         """播放上一个分段"""

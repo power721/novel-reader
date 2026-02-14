@@ -22,6 +22,8 @@ class PlayerWidget(QWidget):
     play_next_chapter_requested = Signal()  # 请求播放下一章
     play_previous_chunk_requested = Signal()  # 请求播放上一分段
     play_next_chunk_requested = Signal()  # 请求播放下一分段
+    play_backward_chunks_requested = Signal(int)  # 请求后退N个分段，参数：chunk数量
+    play_forward_chunks_requested = Signal(int)  # 请求前进N个分段，参数：chunk数量
     volume_changed = Signal(float)  # 音量变化，参数：volume (0.0 - 1.0)
     playback_speed_changed = Signal(float)  # 播放速度变化，参数：speed (0.5 - 2.0)
 
@@ -120,6 +122,16 @@ class PlayerWidget(QWidget):
         # 分段导航按钮行
         chunk_nav_layout = QHBoxLayout()
 
+        self.backward_10_btn = QPushButton("-10")
+        self.backward_10_btn.setStyleSheet("padding: 6px 10px; font-size: 11px;")
+        self.backward_10_btn.setToolTip("后退10个分段")
+        self.backward_10_btn.clicked.connect(lambda: self._on_backward_chunks_clicked(10))
+
+        self.backward_5_btn = QPushButton("-5")
+        self.backward_5_btn.setStyleSheet("padding: 6px 10px; font-size: 11px;")
+        self.backward_5_btn.setToolTip("后退5个分段")
+        self.backward_5_btn.clicked.connect(lambda: self._on_backward_chunks_clicked(5))
+
         self.prev_chunk_btn = QPushButton("◀ 后退")
         self.prev_chunk_btn.setStyleSheet("padding: 6px 10px; font-size: 11px;")
         self.prev_chunk_btn.clicked.connect(self._on_prev_chunk_clicked)
@@ -131,10 +143,24 @@ class PlayerWidget(QWidget):
         self.next_chunk_btn.setStyleSheet("padding: 6px 10px; font-size: 11px;")
         self.next_chunk_btn.clicked.connect(self._on_next_chunk_clicked)
 
+        self.forward_5_btn = QPushButton("+5")
+        self.forward_5_btn.setStyleSheet("padding: 6px 10px; font-size: 11px;")
+        self.forward_5_btn.setToolTip("前进5个分段")
+        self.forward_5_btn.clicked.connect(lambda: self._on_forward_chunks_clicked(5))
+
+        self.forward_10_btn = QPushButton("+10")
+        self.forward_10_btn.setStyleSheet("padding: 6px 10px; font-size: 11px;")
+        self.forward_10_btn.setToolTip("前进10个分段")
+        self.forward_10_btn.clicked.connect(lambda: self._on_forward_chunks_clicked(10))
+
         chunk_nav_layout.addStretch()
+        chunk_nav_layout.addWidget(self.backward_10_btn)
+        chunk_nav_layout.addWidget(self.backward_5_btn)
         chunk_nav_layout.addWidget(self.prev_chunk_btn)
         chunk_nav_layout.addWidget(chunk_label)
         chunk_nav_layout.addWidget(self.next_chunk_btn)
+        chunk_nav_layout.addWidget(self.forward_5_btn)
+        chunk_nav_layout.addWidget(self.forward_10_btn)
         chunk_nav_layout.addStretch()
 
         player_layout.addLayout(chunk_nav_layout)
@@ -330,6 +356,27 @@ class PlayerWidget(QWidget):
             QMessageBox.warning(self, "警告", "请先选择一本书")
             return
         self.play_next_chunk_requested.emit()
+
+    def _on_backward_chunks_clicked(self, count: int):
+        """后退N分段按钮点击事件"""
+        if self.current_book_id is None:
+            QMessageBox.warning(self, "警告", "请先选择一本书")
+            return
+        self.play_backward_chunks_requested.emit(count)
+
+    def _on_forward_chunks_clicked(self, count: int):
+        """下一分段按钮点击事件"""
+        if self.current_book_id is None:
+            QMessageBox.warning(self, "警告", "请先选择一本书")
+            return
+        self.play_next_chunk_requested.emit()
+
+    def _on_forward_chunks_clicked(self, count: int):
+        """前进N分段按钮点击事件"""
+        if self.current_book_id is None:
+            QMessageBox.warning(self, "警告", "请先选择一本书")
+            return
+        self.play_forward_chunks_requested.emit(count)
 
     def _on_volume_changed(self, value: int):
         """音量滑块变化事件"""
