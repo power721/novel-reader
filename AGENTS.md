@@ -104,7 +104,7 @@ except Exception as e:
 - Example: `"添加音量调节功能"` or `"修复播放进度保存问题"`
 
 ### Important Notes
-- TTS uses piper-tts (offline) or Coqui XTTS (online, optional)
+- TTS uses piper-tts (offline) or Edge TTS (online, optional)
 - Audio playback via mpv system dependency
 - The `ui/` directory contains legacy TUI, prefer GUI changes
 - `tests/` directory exists but pytest is not configured

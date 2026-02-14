@@ -514,8 +514,8 @@ class BookListWidget(QWidget):
                             item.setForeground(col, QColor("#1b5e20"))
                     # 添加播放图标
                     title = item.text(1)
-                    if not title.startswith("▶ "):
-                        item.setText(1, f"▶ {title}")
+                    if not title.startswith("▶️ "):
+                        item.setText(1, f"▶️ {title}")
                 else:
                     # 清除其他书籍的高亮
                     for col in range(item.columnCount()):
@@ -523,5 +523,5 @@ class BookListWidget(QWidget):
                         item.setData(col, Qt.ForegroundRole, None)
                     # 移除播放图标
                     title = item.text(1)
-                    if title.startswith("▶ "):
+                    if title.startswith("▶️ "):
                         item.setText(1, title[2:])

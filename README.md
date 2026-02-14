@@ -16,7 +16,7 @@
 - 🎨 **GUI 界面** - 基于 PySide6 的现代化图形界面
 - 🚀 **智能缓存** - LRU 缓存机制，优先级调度，快速首次出声
 - 🔄 **分块导航** - 精确到 ~100 字的细粒度导航
-- 🌐 **XTTS 支持** - 支持 Coqui XTTS 在线合成（可选）
+- 🌐 **Edge TTS 支持** - 支持 Microsoft Edge TTS 在线语音（可选）
 - 💾 **本地存储** - SQLite 数据库，所有数据本地保存
 - 📴 **完全离线** - Piper TTS 无需网络连接
 - 🗑️ **自动清理** - 自动清理旧音频文件，节省存储空间
@@ -146,7 +146,7 @@ python -m novel_reader --test
 ### TTS 选项
 
 - **Piper TTS** (默认) - 完全离线，支持中英文
-- **XTTS** (可选) - Coqui XTTS 在线合成，需要配置服务器
+- **Edge TTS** (可选) - Microsoft Edge TTS 在线语音，支持多种中英文音色
 
 #### 模型管理
 
@@ -396,7 +396,7 @@ MIT License
 
 - [PySide6](https://wiki.qt.io/Qt_for_Python) - GUI 框架
 - [Piper](https://github.com/rhasspy/piper) - 快速离线 TTS
-- [Coqui XTTS](https://github.com/coqui-ai/TTS) - 在线 TTS（可选）
+- [Edge TTS](https://github.com/rany2/edge-tts) - Microsoft 在线 TTS（可选）
 - [mpv](https://mpv.io/) - 媒体播放器
 - [g2pW](https://github.com/Gregorius/pinyin-g2pW) - 中文转拼音
 - [sentence-stream](https://github.com/jjlee/sentence-stream) - 句子分割
