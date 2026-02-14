@@ -125,7 +125,7 @@ class PlayerWidget(QWidget):
         self.prev_chunk_btn.clicked.connect(self._on_prev_chunk_clicked)
 
         chunk_label = QLabel("分段导航:")
-        chunk_label.setStyleSheet("color: #666; font-size: 11px;")
+        chunk_label.setStyleSheet("font-size: 11px;")
 
         self.next_chunk_btn = QPushButton("前进 ▶")
         self.next_chunk_btn.setStyleSheet("padding: 6px 10px; font-size: 11px;")
@@ -409,13 +409,15 @@ class PlayerWidget(QWidget):
         if book_title or chapter_title:
             self.current_book_label.setText(book_title)
             self.current_chapter_label.setText(chapter_title)
-            self.current_book_label.setStyleSheet("color: #222;font-weight: 600;")
-            self.current_chapter_label.setStyleSheet("color: rgba(0, 0, 0, 0.55);")
+            # 使用主题系统的颜色，不设置硬编码颜色
+            self.current_book_label.setStyleSheet("font-weight: 600;")
+            self.current_chapter_label.setStyleSheet("")
         else:
             self.current_book_label.setText("未选择书籍")
             self.current_chapter_label.setText("未选择章节")
-            self.current_book_label.setStyleSheet("color: #222; font-style: italic;")
-            self.current_chapter_label.setStyleSheet("color: rgba(0, 0, 0, 0.55); font-style: italic;")
+            # 使用主题系统的颜色，不设置硬编码颜色
+            self.current_book_label.setStyleSheet("font-style: italic;")
+            self.current_chapter_label.setStyleSheet("font-style: italic;")
 
     def set_playing_state(self, is_playing: bool):
         """设置播放状态"""

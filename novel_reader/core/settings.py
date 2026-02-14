@@ -31,6 +31,8 @@ DEFAULT_SETTINGS = {
     "edge_rate": "+0%",  # Edge TTS 语速调整
     "edge_pitch": "+0Hz",  # Edge TTS 音调调整
     "edge_volume": "+0%",  # Edge TTS 音量调整
+    # 界面主题设置
+    "theme": "light",  # 主题: "light" (亮色) 或 "dark" (暗色/夜间模式)
 }
 
 

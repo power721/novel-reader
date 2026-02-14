@@ -102,6 +102,13 @@ def run_gui(create_test: bool = False):
     app.setApplicationVersion("0.1.0")
     app.setOrganizationName("Novel Reader")
 
+    # 应用主题（从配置中读取）
+    from novel_reader.core import settings
+    from novel_reader.gui import themes
+
+    current_theme = settings.get_setting("theme", "light")
+    themes.ThemeManager.apply_theme(current_theme, app)
+
     # 创建主窗口
     from .main_window import MainWindow
     window = MainWindow()

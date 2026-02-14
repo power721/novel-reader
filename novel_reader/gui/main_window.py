@@ -179,8 +179,28 @@ class MainWindow(QMainWindow):
         # 设置菜单
         settings_menu = menubar.addMenu("设置(&S)")
 
-        # 自动播放选项
+        # 主题选项
         from novel_reader.core import get_setting
+        current_theme = get_setting("theme", "light")
+
+        # 创建主题子菜单
+        theme_menu = settings_menu.addMenu("主题(&T)")
+
+        self.theme_light_action = QAction("亮色主题(&L)", self)
+        self.theme_light_action.setCheckable(True)
+        self.theme_light_action.setChecked(current_theme == "light")
+        self.theme_light_action.triggered.connect(lambda: self._set_theme("light"))
+        theme_menu.addAction(self.theme_light_action)
+
+        self.theme_dark_action = QAction("暗色主题(&D)", self)
+        self.theme_dark_action.setCheckable(True)
+        self.theme_dark_action.setChecked(current_theme == "dark")
+        self.theme_dark_action.triggered.connect(lambda: self._set_theme("dark"))
+        theme_menu.addAction(self.theme_dark_action)
+
+        settings_menu.addSeparator()
+
+        # 自动播放选项
         auto_play_enabled = get_setting("auto_play_on_startup", True)
         auto_play_next_chapter_enabled = get_setting("auto_play_next_chapter", True)
         auto_play_next_book_enabled = get_setting("auto_play_next_book", False)
@@ -538,6 +558,32 @@ class MainWindow(QMainWindow):
         status = "启用" if current_state else "禁用"
         self.statusBar().showMessage(f"已{status}启动时自动播放", 3000)
         print(f"[INFO] Auto-play on startup: {status}")
+
+    def _set_theme(self, theme_name: str):
+        """设置主题
+
+        Args:
+            theme_name: 主题名称 ("light" 或 "dark")
+        """
+        from novel_reader.core import set_setting
+        from novel_reader.gui import themes
+        from PySide6.QtWidgets import QApplication
+
+        # 保存设置
+        set_setting("theme", theme_name)
+
+        # 更新菜单状态
+        self.theme_light_action.setChecked(theme_name == "light")
+        self.theme_dark_action.setChecked(theme_name == "dark")
+
+        # 应用主题
+        app = QApplication.instance()
+        themes.ThemeManager.apply_theme(theme_name, app)
+
+        # 显示提示
+        theme_display = "亮色" if theme_name == "light" else "暗色"
+        self.statusBar().showMessage(f"已切换到{theme_display}主题", 3000)
+        print(f"[INFO] Theme changed to: {theme_name}")
 
     def _toggle_auto_play_next_book(self):
         """切换自动播放下一本书设置"""

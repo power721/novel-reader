@@ -48,18 +48,6 @@ class ChapterListWidget(QWidget):
             QTreeWidget::item {
                 padding: 5px;
             }
-            QTreeWidget::item:hover {
-                background-color: #e8f4fd;
-            }
-            QTreeWidget::item:selected {
-                background-color: #308cc6;
-                color: white;
-            }
-            QTreeWidget::item[current-chapter] {
-                background-color: #c8e6c9;
-                color: #1b5e20;
-                font-weight: bold;
-            }
         """)
 
         # 连接信号

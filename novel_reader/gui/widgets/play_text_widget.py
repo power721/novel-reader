@@ -37,8 +37,7 @@ class PlayTextWidget(QWidget):
         self.text_display.setPlainText("未播放")
         self.text_display.setStyleSheet("""
             QTextEdit {
-                background-color: #f5f5f5;
-                border: 1px solid #ddd;
+                border: 1px solid;
                 border-radius: 4px;
                 padding: 8px;
                 font-family: 'Microsoft YaHei UI', 'SimHei', sans-serif;
@@ -102,24 +101,24 @@ class PlayTextWidget(QWidget):
                         break
 
             # 构建HTML显示，高亮当前chunk
-            html_content = "<html><body style='background-color: #f5f5f5;'>"
+            html_content = "<html><body>"
 
-            # 前两个chunk（灰色小字）
+            # 前两个chunk（使用CSS类控制样式）
             for prev_text in prev_texts:
                 escaped_prev = prev_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                html_content += f"<div style='color: #999; font-size: 13px; margin-bottom: 8px;'>{escaped_prev}</div>"
+                html_content += f"<div style='font-size: 13px; margin-bottom: 8px; opacity: 0.7;'>{escaped_prev}</div>"
 
-            # 当前chunk（黑色大字，高亮背景）- 添加锚点用于滚动定位
+            # 当前chunk（高亮背景）- 添加锚点用于滚动定位
             escaped_current = current_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
             html_content += "<a name='current'></a>"
-            html_content += f"<div style='background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 10px 0; border-radius: 4px;'>"
-            html_content += f"<div style='color: #000; font-size: 15px; font-weight: 500;'>{escaped_current}</div>"
+            html_content += "<div style='border-left: 4px solid; padding: 12px; margin: 10px 0; border-radius: 4px;'>"
+            html_content += f"<div style='font-size: 15px; font-weight: 500;'>{escaped_current}</div>"
             html_content += "</div>"
 
-            # 后两个chunk（灰色小字）
+            # 后两个chunk（使用CSS类控制样式）
             for next_text in next_texts:
                 escaped_next = next_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                html_content += f"<div style='color: #999; font-size: 13px; margin-top: 8px;'>{escaped_next}</div>"
+                html_content += f"<div style='font-size: 13px; margin-top: 8px; opacity: 0.7;'>{escaped_next}</div>"
 
             html_content += "</body></html>"
 
