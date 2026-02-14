@@ -71,7 +71,7 @@ def fix_quote_boundary(sentences: List[str]) -> List[str]:
     for s in sentences[1:]:
         s = s.strip()
         # Check both Chinese and English quotes
-        starts_with_quote = s.startswith('“') or s.startswith('"')
+        starts_with_quote = s.startswith('”') or s.startswith('"')
         text = fixed[-1]
         count = (
                 text.count('“') +
