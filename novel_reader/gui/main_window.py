@@ -103,6 +103,54 @@ class MainWindow(QMainWindow):
         # ==================== 底部状态栏 ====================
         self.statusBar().showMessage("就绪")
 
+        # ==================== 设置快捷键 ====================
+        self._setup_shortcuts()
+
+    def _setup_shortcuts(self):
+        """设置全局快捷键"""
+        from PySide6.QtGui import QKeySequence, QShortcut
+        from PySide6.QtCore import QObject
+
+        # 空格键：播放/暂停
+        shortcut_play_pause = QShortcut(QKeySequence("Space"), self)
+        shortcut_play_pause.setObjectName("shortcut_play_pause")
+        shortcut_play_pause.activated.connect(self._on_play_pause_shortcut)
+
+        # Escape：停止播放
+        shortcut_stop = QShortcut(QKeySequence("Escape"), self)
+        shortcut_stop.setObjectName("shortcut_stop")
+        shortcut_stop.activated.connect(self._on_stop_shortcut)
+
+        # 左箭头：后退一个分段
+        shortcut_prev_chunk = QShortcut(QKeySequence("Left"), self)
+        shortcut_prev_chunk.setObjectName("shortcut_prev_chunk")
+        shortcut_prev_chunk.activated.connect(self._on_prev_chunk_shortcut)
+
+        # 右箭头：前进一个分段
+        shortcut_next_chunk = QShortcut(QKeySequence("Right"), self)
+        shortcut_next_chunk.setObjectName("shortcut_next_chunk")
+        shortcut_next_chunk.activated.connect(self._on_next_chunk_shortcut)
+
+        # PageUp：上一章
+        shortcut_prev_chapter = QShortcut(QKeySequence("PageUp"), self)
+        shortcut_prev_chapter.setObjectName("shortcut_prev_chapter")
+        shortcut_prev_chapter.activated.connect(self._on_prev_chapter_shortcut)
+
+        # PageDown：下一章
+        shortcut_next_chapter = QShortcut(QKeySequence("PageDown"), self)
+        shortcut_next_chapter.setObjectName("shortcut_next_chapter")
+        shortcut_next_chapter.activated.connect(self._on_next_chapter_shortcut)
+
+        # 上箭头：增加音量
+        shortcut_volume_up = QShortcut(QKeySequence("Up"), self)
+        shortcut_volume_up.setObjectName("shortcut_volume_up")
+        shortcut_volume_up.activated.connect(self._on_volume_up_shortcut)
+
+        # 下箭头：减少音量
+        shortcut_volume_down = QShortcut(QKeySequence("Down"), self)
+        shortcut_volume_down.setObjectName("shortcut_volume_down")
+        shortcut_volume_down.activated.connect(self._on_volume_down_shortcut)
+
     def _create_menu_bar(self):
         """创建菜单栏"""
         menubar = self.menuBar()
@@ -189,6 +237,11 @@ class MainWindow(QMainWindow):
         debug_chunk_action = QAction("调试当前Chunk(&C)", self)
         debug_chunk_action.triggered.connect(self._debug_current_chunk)
         help_menu.addAction(debug_chunk_action)
+
+        shortcuts_action = QAction("快捷键(&K)", self)
+        shortcuts_action.setShortcut("F1")
+        shortcuts_action.triggered.connect(self._show_shortcuts)
+        help_menu.addAction(shortcuts_action)
 
         help_menu.addSeparator()
 
@@ -810,7 +863,7 @@ class MainWindow(QMainWindow):
         if self.playback_worker and self.playback_worker.isRunning():
             self.playback_worker.pause()
             self.player_widget.set_paused_state(True)
-            self.statusBar().showMessage("播放已暂停", 3000)
+            self.statusBar().showMessage("已暂停", 3000)
 
     @Slot()
     def _resume_playback(self):
@@ -824,6 +877,7 @@ class MainWindow(QMainWindow):
             current_book_id = self.player_widget.current_book_id
             if current_book_id is not None:
                 self._play_book(current_book_id)
+                self.statusBar().showMessage("重新开始播放", 3000)
 
     @Slot()
     def _on_playback_finished(self):
@@ -1936,6 +1990,101 @@ class MainWindow(QMainWindow):
         msg += f"\n文本预览:\n{debug_info['text_preview']}..."
 
         QMessageBox.information(self, f"Chunk {current_chunk} 调试", msg)
+
+    # ==================== 快捷键处理函数 ====================
+
+    def _on_play_pause_shortcut(self):
+        """空格键：播放/暂停切换"""
+        if not self.current_book_id:
+            return
+
+        if self.playback_worker and self.playback_worker.isRunning():
+            # 正在播放，切换暂停/继续
+            if self.player_widget.is_paused:
+                self._resume_playback()
+            else:
+                self._pause_playback()
+        else:
+            # 未播放，开始播放
+            self._play_book(self.current_book_id)
+
+    def _on_stop_shortcut(self):
+        """Escape：停止播放"""
+        if self.playback_worker and self.playback_worker.isRunning():
+            self._stop_playback()
+
+    def _on_prev_chunk_shortcut(self):
+        """左箭头：后退一个分段"""
+        if self.current_book_id:
+            self._play_previous_chunk()
+
+    def _on_next_chunk_shortcut(self):
+        """右箭头：前进一个分段"""
+        if self.current_book_id:
+            self._play_next_chunk()
+
+    def _on_prev_chapter_shortcut(self):
+        """Ctrl+左箭头：上一章"""
+        if self.current_book_id:
+            self._play_previous_chapter()
+
+    def _on_next_chapter_shortcut(self):
+        """Ctrl+右箭头：下一章"""
+        if self.current_book_id:
+            self._play_next_chapter()
+
+    def _on_volume_up_shortcut(self):
+        """上箭头：增加音量"""
+        current_volume = self.player_widget.get_volume()
+        new_volume = min(1.0, current_volume + 0.05)
+        self.player_widget.set_volume(new_volume)
+        self.player_widget.volume_changed.emit(new_volume)
+        self.statusBar().showMessage(f"音量: {int(new_volume * 100)}%", 1000)
+
+    def _on_volume_down_shortcut(self):
+        """下箭头：减少音量"""
+        current_volume = self.player_widget.get_volume()
+        new_volume = max(0.0, current_volume - 0.05)
+        self.player_widget.set_volume(new_volume)
+        self.player_widget.volume_changed.emit(new_volume)
+        self.statusBar().showMessage(f"音量: {int(new_volume * 100)}%", 1000)
+
+    def _show_shortcuts(self):
+        """显示快捷键帮助"""
+        shortcuts_text = """
+        <h2>键盘快捷键</h2>
+        <table border="1" cellpadding="8" cellspacing="0">
+        <tr><td><b>空格</b></td><td>播放 / 暂停</td></tr>
+        <tr><td><b>Escape</b></td><td>停止播放</td></tr>
+        <tr><td><b>←</b></td><td>后退一个分段</td></tr>
+        <tr><td><b>→</b></td><td>前进一个分段</td></tr>
+        <tr><td><b>PageUp</b></td><td>上一章</td></tr>
+        <tr><td><b>PageDown</b></td><td>下一章</td></tr>
+        <tr><td><b>↑</b></td><td>增加音量</td></tr>
+        <tr><td><b>↓</b></td><td>减少音量</td></tr>
+        <tr><td><b>Ctrl + I</b></td><td>导入书籍</td></tr>
+        <tr><td><b>F5</b></td><td>刷新列表</td></tr>
+        <tr><td><b>F1</b></td><td>显示此帮助</td></tr>
+        </table>
+        """
+
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QPushButton
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("快捷键")
+        dialog.setMinimumSize(450, 500)  # 设置最小宽度和高度
+
+        layout = QVBoxLayout(dialog)
+
+        text_browser = QTextBrowser()
+        text_browser.setHtml(shortcuts_text)
+        layout.addWidget(text_browser)
+
+        close_btn = QPushButton("关闭")
+        close_btn.clicked.connect(dialog.accept)
+        layout.addWidget(close_btn)
+
+        dialog.exec()
 
     # ==================== 窗口事件 ====================
 

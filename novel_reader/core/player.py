@@ -547,6 +547,68 @@ def set_volume_realtime(volume: float) -> None:
 def check_mpv_installed() -> bool:
     """
     检查 mpv 是否已安装
+    """
+    import shutil
+    return shutil.which(MPV_BIN) is not None
+
+
+def pause_mpv() -> bool:
+    """
+    通过 IPC 暂停 mpv 播放
+
+    Returns:
+        bool: 是否成功暂停
+    """
+    if _playback_state["current_process"] and os.path.exists(_ipc_socket):
+        import socket
+        try:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.settimeout(0.5)
+            sock.connect(_ipc_socket)
+
+            # 发送暂停命令
+            command = '{"command": ["set_property", "pause", true]}\n'
+            sock.sendall(command.encode())
+
+            sock.close()
+            print("⏸ mpv 已暂停")
+            return True
+        except Exception as e:
+            print(f"暂停 mpv 失败: {e}")
+            return False
+    return False
+
+
+def resume_mpv() -> bool:
+    """
+    通过 IPC 恢复 mpv 播放
+
+    Returns:
+        bool: 是否成功恢复
+    """
+    if _playback_state["current_process"] and os.path.exists(_ipc_socket):
+        import socket
+        try:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.settimeout(0.5)
+            sock.connect(_ipc_socket)
+
+            # 发送恢复命令
+            command = '{"command": ["set_property", "pause", false]}\n'
+            sock.sendall(command.encode())
+
+            sock.close()
+            print("▶️ mpv 已恢复")
+            return True
+        except Exception as e:
+            print(f"恢复 mpv 失败: {e}")
+            return False
+    return False
+
+
+def check_mpv_installed() -> bool:
+    """
+    检查 mpv 是否已安装
 
     Returns:
         True 如果 mpv 可用，否则 False

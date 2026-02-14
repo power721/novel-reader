@@ -97,12 +97,13 @@ class PlayerWidget(QWidget):
 
         self.play_btn = QPushButton("▶ 播放")
         self.play_btn.setStyleSheet("padding: 8px 16px;")
-        self.play_btn.clicked.connect(self._on_play_clicked)
+        self.play_btn.clicked.connect(self._on_play_pause_clicked)  # 改为统一的播放/暂停处理
 
         self.pause_btn = QPushButton("⏸ 暂停")
         self.pause_btn.setStyleSheet("padding: 8px 16px;")
         self.pause_btn.clicked.connect(self._on_pause_clicked)
         self.pause_btn.setEnabled(False)  # 初始禁用
+        self.pause_btn.setVisible(False)  # 隐藏暂停按钮，使用播放按钮统一控制
 
         self.stop_btn = QPushButton("⏹ 停止")
         self.stop_btn.setStyleSheet("padding: 8px 16px;")
@@ -115,7 +116,7 @@ class PlayerWidget(QWidget):
 
         control_layout.addWidget(self.prev_chapter_btn)
         control_layout.addWidget(self.play_btn)
-        # control_layout.addWidget(self.pause_btn)
+        # control_layout.addWidget(self.pause_btn)  # 暂停按钮已隐藏
         control_layout.addWidget(self.stop_btn)
         control_layout.addWidget(self.next_chapter_btn)
         control_layout.addStretch()
@@ -254,6 +255,22 @@ class PlayerWidget(QWidget):
 
         player_group.setLayout(player_layout)
         layout.addWidget(player_group)
+
+    def _on_play_pause_clicked(self):
+        """播放/暂停按钮点击事件（统一处理）"""
+        if self.current_book_id is None:
+            QMessageBox.warning(self, "警告", "请先选择一本书")
+            return
+
+        if self.is_playing:
+            # 正在播放，点击暂停
+            self.pause_requested.emit()
+        elif self.is_paused:
+            # 已暂停，点击恢复
+            self.resume_requested.emit()
+        else:
+            # 未播放，点击播放
+            self.play_requested.emit(self.current_book_id)
 
     def _on_play_clicked(self):
         """播放按钮点击事件"""
@@ -409,16 +426,16 @@ class PlayerWidget(QWidget):
     def set_playing_state(self, is_playing: bool):
         """设置播放状态"""
         self.is_playing = is_playing
-        self.play_btn.setEnabled(not is_playing)  # 播放时禁用播放按钮
-        self.pause_btn.setEnabled(is_playing)  # 播放时启用暂停按钮
+        self.is_paused = False  # 重置暂停状态
+        self.play_btn.setEnabled(True)  # 播放按钮始终可用
+        self.pause_btn.setEnabled(is_playing)  # 暂停按钮（已隐藏）
         self.stop_btn.setEnabled(is_playing)  # 播放时启用停止按钮
 
         if is_playing:
-            self.play_btn.setText("▶ 播放")
+            self.play_btn.setText("⏸ 暂停")  # 播放时显示暂停
             self.pause_btn.setText("⏸ 暂停")
         else:
-            self.is_paused = False
-            self.play_btn.setText("▶ 播放")
+            self.play_btn.setText("▶ 播放")  # 停止时显示播放
             self.play_btn.setEnabled(True)
             self.pause_btn.setText("⏸ 暂停")
             self.pause_btn.setEnabled(False)
@@ -437,12 +454,14 @@ class PlayerWidget(QWidget):
         self.is_paused = is_paused
         self.is_playing = not is_paused
 
-        self.play_btn.setEnabled(is_paused)  # 暂停时可以点击播放来恢复
+        self.play_btn.setEnabled(True)  # 始终启用播放按钮
 
         if is_paused:
+            self.play_btn.setText("▶ 播放")  # 暂停时显示继续
             self.pause_btn.setText("▶ 继续")
-            self.play_btn.setEnabled(False)
+            self.pause_btn.setEnabled(False)
         else:
+            self.play_btn.setText("⏸ 暂停")  # 恢复时显示暂停
             self.pause_btn.setText("⏸ 暂停")
 
     def set_progress(self, current: int, total: int):

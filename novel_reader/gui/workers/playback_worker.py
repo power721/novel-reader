@@ -260,6 +260,7 @@ class PlaybackWorker(QThread):
                         print(f"⏭ [Chunk {chunk_id}] 等待{max_wait}秒后仍未就绪，跳过")
                         skipped_count += 1
 
+                # 更新进度到下一个chunk
                 self.progress_updated.emit(chunk_id + 1, total_chunks)
 
                 # 清理旧的音频文件
@@ -298,16 +299,25 @@ class PlaybackWorker(QThread):
         """暂停播放"""
         if self._is_running and not self._is_paused:
             self._is_paused = True
-            print("⏸ 播放已暂停")
-            # 停止当前的音频播放
-            from novel_reader.core.player import stop_playback
-            stop_playback()
+            # 使用 mpv 的原生暂停功能
+            from novel_reader.core.player import pause_mpv
+            success = pause_mpv()
+            if not success:
+                # 如果 IPC 失败，回退到停止方式
+                print("⚠️ IPC暂停失败，使用停止方式")
+                from novel_reader.core.player import stop_playback
+                stop_playback()
 
     def resume(self):
         """恢复播放"""
         if self._is_paused:
             self._is_paused = False
-            print("▶️ 恢复播放")
+            # 使用 mpv 的原生恢复功能
+            from novel_reader.core.player import resume_mpv
+            success = resume_mpv()
+            if not success:
+                # 如果 IPC 失败，记录警告
+                print("⚠️ IPC恢复失败，音频可能已停止")
 
     def _cleanup_old_chunks(self, current_chunk: int, book_audio_dir: Path):
         """清理旧的音频文件"""
