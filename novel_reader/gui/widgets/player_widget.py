@@ -99,12 +99,6 @@ class PlayerWidget(QWidget):
         self.play_btn.setStyleSheet("padding: 8px 16px;")
         self.play_btn.clicked.connect(self._on_play_pause_clicked)  # 改为统一的播放/暂停处理
 
-        self.pause_btn = QPushButton("⏸ 暂停")
-        self.pause_btn.setStyleSheet("padding: 8px 16px;")
-        self.pause_btn.clicked.connect(self._on_pause_clicked)
-        self.pause_btn.setEnabled(False)  # 初始禁用
-        self.pause_btn.setVisible(False)  # 隐藏暂停按钮，使用播放按钮统一控制
-
         self.stop_btn = QPushButton("⏹ 停止")
         self.stop_btn.setStyleSheet("padding: 8px 16px;")
         self.stop_btn.clicked.connect(self._on_stop_clicked)
@@ -428,17 +422,13 @@ class PlayerWidget(QWidget):
         self.is_playing = is_playing
         self.is_paused = False  # 重置暂停状态
         self.play_btn.setEnabled(True)  # 播放按钮始终可用
-        self.pause_btn.setEnabled(is_playing)  # 暂停按钮（已隐藏）
         self.stop_btn.setEnabled(is_playing)  # 播放时启用停止按钮
 
         if is_playing:
             self.play_btn.setText("⏸ 暂停")  # 播放时显示暂停
-            self.pause_btn.setText("⏸ 暂停")
         else:
             self.play_btn.setText("▶ 播放")  # 停止时显示播放
             self.play_btn.setEnabled(True)
-            self.pause_btn.setText("⏸ 暂停")
-            self.pause_btn.setEnabled(False)
             self.stop_btn.setEnabled(False)
             # 停止时保留进度显示，不重置
             # self.chapter_progress_status_label.setText("未播放")
@@ -458,11 +448,8 @@ class PlayerWidget(QWidget):
 
         if is_paused:
             self.play_btn.setText("▶ 播放")  # 暂停时显示继续
-            self.pause_btn.setText("▶ 继续")
-            self.pause_btn.setEnabled(False)
         else:
             self.play_btn.setText("⏸ 暂停")  # 恢复时显示暂停
-            self.pause_btn.setText("⏸ 暂停")
 
     def set_progress(self, current: int, total: int):
         """设置播放进度（保留兼容性）"""
@@ -501,8 +488,6 @@ class PlayerWidget(QWidget):
         self.is_paused = False
         self.play_btn.setText("▶ 播放")
         self.play_btn.setEnabled(True)
-        self.pause_btn.setText("⏸ 暂停")
-        self.pause_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
         self.chapter_progress.setValue(0)
         self.chapter_progress_status_label.setText("未播放")
