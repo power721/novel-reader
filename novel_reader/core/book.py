@@ -139,6 +139,7 @@ def get_book(book_id: int) -> Optional[Dict]:
                           current_chunk,
                           current_chapter,
                           last_played_at,
+                          reading_position,
                           created_at,
                           updated_at
                    FROM book
@@ -158,8 +159,9 @@ def get_book(book_id: int) -> Optional[Dict]:
             "current_chunk": row[5],
             "current_chapter": row[6],
             "last_played_at": row[7],
-            "created_at": row[8],
-            "updated_at": row[9]
+            "reading_position": row[8] if len(row) > 8 else 0,
+            "created_at": row[9] if len(row) > 9 else row[8],
+            "updated_at": row[10] if len(row) > 10 else row[9]
         }
     return None
 
@@ -361,6 +363,53 @@ def update_book_title(book_id: int, new_title: str) -> bool:
     except Exception as e:
         conn.close()
         print(f"✗ 更新书名失败: {e}")
+        return False
+
+
+def update_book_reading_position(book_id: int, position: int) -> bool:
+    """
+    更新阅读位置（用于阅读模式）
+
+    Args:
+        book_id: 书籍 ID
+        position: 阅读位置（字符偏移量）
+
+    Returns:
+        是否更新成功
+    """
+    if position < 0:
+        print("✗ 阅读位置不能为负数")
+        return False
+
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    try:
+        # 检查书籍是否存在
+        cursor.execute("SELECT title FROM book WHERE id = ?", (book_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            conn.close()
+            print(f"✗ 书籍不存在 (ID: {book_id})")
+            return False
+
+        # 更新阅读位置
+        cursor.execute("""
+                       UPDATE book
+                       SET reading_position = ?,
+                           updated_at      = ?
+                       WHERE id = ?
+                       """, (position, datetime.now().isoformat(), book_id))
+
+        conn.commit()
+        conn.close()
+
+        return True
+
+    except Exception as e:
+        conn.close()
+        print(f"✗ 更新阅读位置失败: {e}")
         return False
 
 

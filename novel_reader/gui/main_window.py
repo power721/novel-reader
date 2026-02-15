@@ -14,7 +14,8 @@ from .widgets import (
     ChapterListWidget,
     PlayTextWidget,
     PlayerWidget,
-    TTSWidget
+    TTSWidget,
+    ReaderWidget
 )
 from .workers import PlaybackWorker, TTSWorker
 from .dialogs import AboutDialog
@@ -36,6 +37,10 @@ class MainWindow(QMainWindow):
         self._is_creating_worker: bool = False  # 防止竞态条件的标志
         self._is_processing_auto_next: bool = False  # 防止自动播放下一本书时的重复触发
 
+        # 模式切换：False = 音频模式, True = 阅读模式
+        self._reading_mode: bool = False
+        self._was_playing_before_reading_mode: bool = False  # 记录进入阅读模式前的播放状态
+
         # 初始化界面
         self._init_ui()
         self._connect_signals()
@@ -54,6 +59,9 @@ class MainWindow(QMainWindow):
         # 创建菜单栏
         self._create_menu_bar()
 
+        # 创建模式切换按钮
+        self._create_mode_toggle()
+
         # 创建中央部件
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -63,26 +71,37 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(10, 10, 10, 10)
 
         # ==================== 三栏列表区域 ====================
-        lists_splitter = QSplitter(Qt.Horizontal)
+        self.lists_splitter = QSplitter(Qt.Horizontal)
+
+        # 设置分割器的最小高度，避免占用过多空间
+        self.lists_splitter.setMinimumHeight(180)
+        self.lists_splitter.setMaximumHeight(250)
 
         # 左侧：书籍列表
         self.book_list_widget = BookListWidget()
-        lists_splitter.addWidget(self.book_list_widget)
+        self.lists_splitter.addWidget(self.book_list_widget)
 
         # 中间：章节列表
         self.chapter_list_widget = ChapterListWidget()
-        lists_splitter.addWidget(self.chapter_list_widget)
+        self.lists_splitter.addWidget(self.chapter_list_widget)
 
         # 右侧：当前播放文本
         self.play_text_widget = PlayTextWidget()
-        lists_splitter.addWidget(self.play_text_widget)
+        self.lists_splitter.addWidget(self.play_text_widget)
 
         # 设置拉伸比例
-        lists_splitter.setStretchFactor(0, 1)
-        lists_splitter.setStretchFactor(1, 1)
-        lists_splitter.setStretchFactor(2, 1)
+        self.lists_splitter.setStretchFactor(0, 1)
+        self.lists_splitter.setStretchFactor(1, 1)
+        self.lists_splitter.setStretchFactor(2, 1)
 
-        main_layout.addWidget(lists_splitter)
+        main_layout.addWidget(self.lists_splitter)
+
+        # ==================== 阅读模式组件 ====================
+        self.reader_widget = ReaderWidget()
+        self.reader_widget.setVisible(False)  # 默认隐藏
+
+        # 使用 addWidget 的 stretch 版本，让阅读器能够占据更多垂直空间
+        main_layout.addWidget(self.reader_widget, 1)  # stretch factor = 1
 
         # ==================== 底部控制区域 ====================
         bottom_splitter = QSplitter(Qt.Horizontal)
@@ -106,6 +125,92 @@ class MainWindow(QMainWindow):
 
         # ==================== 设置快捷键 ====================
         self._setup_shortcuts()
+
+    def _create_mode_toggle(self):
+        """创建模式切换按钮"""
+        # 在菜单栏添加切换选项
+        menubar = self.menuBar()
+
+        # 视图菜单
+        view_menu = menubar.addMenu("视图(&V)")
+
+        # 阅读模式切换
+        self.reading_mode_action = QAction("阅读模式(&R)", self)
+        self.reading_mode_action.setCheckable(True)
+        self.reading_mode_action.setShortcut("Ctrl+R")
+        self.reading_mode_action.triggered.connect(self._toggle_reading_mode)
+        view_menu.addAction(self.reading_mode_action)
+
+    def _toggle_reading_mode(self):
+        """切换阅读模式"""
+        self._reading_mode = self.reading_mode_action.isChecked()
+
+        # 更新界面显示
+        if self._reading_mode:
+            # 切换到阅读模式
+            # 检查是否有正在播放的音频，如果有则暂停
+            if self.playback_worker and self.playback_worker.isRunning():
+                # 检查是否正在播放（非暂停状态）
+                if self.player_widget.is_playing and not self.player_widget.is_paused:
+                    # 保存播放状态
+                    self._was_playing_before_reading_mode = True
+                    self._pause_playback()
+                    self.statusBar().showMessage("已切换到阅读模式（音频已暂停）", 3000)
+                else:
+                    self._was_playing_before_reading_mode = False
+                    self.statusBar().showMessage("已切换到阅读模式", 3000)
+            else:
+                self._was_playing_before_reading_mode = False
+                self.statusBar().showMessage("已切换到阅读模式", 3000)
+
+            # 保存当前阅读位置（如果在音频模式）
+            if self.current_book_id:
+                self.reader_widget.save_reading_position()
+            self._update_ui_for_mode()
+        else:
+            # 切换到音频模式
+            if self._was_playing_before_reading_mode:
+                self.statusBar().showMessage("已切换到音频模式（音频已暂停，按空格键继续）", 5000)
+            else:
+                self.statusBar().showMessage("已切换到音频模式", 3000)
+            self._update_ui_for_mode()
+
+    def _update_ui_for_mode(self):
+        """根据当前模式更新界面显示"""
+        # 获取主布局中的各个组件
+        central_widget = self.centralWidget()
+        main_layout = central_widget.layout()
+
+        # 根据模式显示/隐藏相关组件
+        if self._reading_mode:
+            # 阅读模式：显示阅读器，隐藏所有音频模式组件
+            self.player_widget.setVisible(False)
+            self.tts_widget.setVisible(False)
+            self.book_list_widget.setVisible(False)
+            self.chapter_list_widget.setVisible(False)
+            self.play_text_widget.setVisible(False)
+            self.lists_splitter.setVisible(False)  # 关键：隐藏 ListsSplitter 本身
+            if hasattr(self, 'reader_widget'):
+                self.reader_widget.setVisible(True)
+        else:
+            # 音频模式：显示所有音频模式组件，隐藏阅读器
+            self.player_widget.setVisible(True)
+            self.tts_widget.setVisible(True)
+            self.book_list_widget.setVisible(True)
+            self.chapter_list_widget.setVisible(True)
+            self.play_text_widget.setVisible(True)
+            self.lists_splitter.setVisible(True)  # 恢复显示 ListsSplitter
+            if hasattr(self, 'reader_widget'):
+                self.reader_widget.setVisible(False)
+
+        # 如果有选中的书籍，加载到相应模式
+        if self.current_book_id:
+            if self._reading_mode:
+                # 获取当前播放的chunk，用于同步章节
+                current_chunk = self._get_current_playing_chunk(self.current_book_id)
+                self.reader_widget.load_book(self.current_book_id, current_chunk)
+            else:
+                self.play_text_widget.load_content(self.current_book_id)
 
     def _setup_shortcuts(self):
         """设置全局快捷键"""
@@ -466,7 +571,14 @@ class MainWindow(QMainWindow):
         # 更新子组件状态
         current_chunk = self._get_current_playing_chunk(book_id)
         self.chapter_list_widget.load_chapters(book_id, current_chunk)
-        self.play_text_widget.load_content(book_id)
+
+        # 根据当前模式加载书籍
+        if self._reading_mode:
+            # 在阅读模式下，使用当前播放的chunk来同步章节
+            self.reader_widget.load_book(book_id, current_chunk)
+        else:
+            self.play_text_widget.load_content(book_id)
+
         self.player_widget.set_book(book_id)
         self.tts_widget.set_book(book_id)
 

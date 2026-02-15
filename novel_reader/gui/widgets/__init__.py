@@ -9,6 +9,7 @@ from .chapter_list_widget import ChapterListWidget
 from .play_text_widget import PlayTextWidget
 from .player_widget import PlayerWidget
 from .tts_widget import TTSWidget
+from .reader_widget import ReaderWidget
 
 __all__ = [
     "BookListWidget",
@@ -16,4 +17,5 @@ __all__ = [
     "PlayTextWidget",
     "PlayerWidget",
     "TTSWidget",
+    "ReaderWidget",
 ]
