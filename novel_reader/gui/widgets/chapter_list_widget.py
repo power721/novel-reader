@@ -15,6 +15,7 @@ class ChapterListWidget(QWidget):
     # 信号定义
     chapter_selected = Signal(int)  # 章节被选中，参数：start_chunk
     chapter_double_clicked = Signal(int)  # 章节被双击，参数：start_chunk
+    play_chapter_requested = Signal(int)  # 请求播放章节，参数：start_chunk
     convert_chapter_requested = Signal(int, int)  # 请求转换章节，参数：start_chunk, end_chunk
 
     def __init__(self, parent=None):
@@ -113,13 +114,21 @@ class ChapterListWidget(QWidget):
         # 创建右键菜单
         menu = QMenu(self)
 
+        # 播放章节
+        play_action = menu.addAction("▶️ 播放本章节")
+        play_action.setToolTip(f"播放《{chapter_data['title']}》")
+
+        # 转换章节
         convert_action = menu.addAction("🔄 转换本章节 TTS")
         convert_action.setToolTip(f"转换《{chapter_data['title']}》的所有 {chapter_data['chunk_count']} 个分段")
 
         # 显示菜单并获取用户选择
         action = menu.exec_(self.chapters_tree.mapToGlobal(pos))
 
-        if action == convert_action:
+        if action == play_action:
+            # 发射播放章节信号
+            self.play_chapter_requested.emit(chapter_data['start_chunk'])
+        elif action == convert_action:
             # 发射转换章节信号
             self.convert_chapter_requested.emit(chapter_data['start_chunk'], chapter_data['end_chunk'])
 

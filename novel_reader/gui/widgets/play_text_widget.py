@@ -91,7 +91,7 @@ class PlayTextWidget(QWidget):
                 if chunk_id - offset >= 0:
                     prev_texts.insert(0, chunks[chunk_id - offset])
                     count += len(chunks[chunk_id - offset])
-                    if count >= 120:
+                    if count >= 100:
                         break
 
             current_text = chunks[chunk_id]

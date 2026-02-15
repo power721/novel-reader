@@ -263,6 +263,7 @@ class MainWindow(QMainWindow):
         # 章节列表信号
         # self.chapter_list_widget.chapter_selected.connect(self._on_chapter_selected)
         self.chapter_list_widget.chapter_double_clicked.connect(self._on_chapter_double_clicked)
+        self.chapter_list_widget.play_chapter_requested.connect(self._on_chapter_double_clicked)
         self.chapter_list_widget.convert_chapter_requested.connect(self._convert_chapter)
 
         # 当前播放文本信号
