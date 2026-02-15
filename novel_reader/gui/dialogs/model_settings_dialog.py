@@ -580,7 +580,8 @@ class ModelSettingsDialog(QDialog):
 
         # 如果当前设置的语音ID无效或不在列表中，使用默认值
         if current_zh_voice not in valid_voice_ids:
-            print(f"[ModelSettingsDialog] WARNING: Current setting '{current_zh_voice}' is invalid, using xiaoxiao as default")
+            print(
+                f"[ModelSettingsDialog] WARNING: Current setting '{current_zh_voice}' is invalid, using xiaoxiao as default")
             current_zh_voice = "xiaoxiao"
             # 更新设置文件
             set_setting("edge_chinese_voice_id", current_zh_voice)
@@ -596,7 +597,8 @@ class ModelSettingsDialog(QDialog):
 
         # 同样处理英文语音
         if current_en_voice not in valid_voice_ids:
-            print(f"[ModelSettingsDialog] WARNING: Current English voice '{current_en_voice}' is invalid, using jenny as default")
+            print(
+                f"[ModelSettingsDialog] WARNING: Current English voice '{current_en_voice}' is invalid, using jenny as default")
             current_en_voice = "jenny"
             # 更新设置文件
             set_setting("edge_english_voice_id", current_en_voice)

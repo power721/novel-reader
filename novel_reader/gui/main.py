@@ -78,7 +78,8 @@ class NovelReaderGUI:
         middle_frame = ttk.LabelFrame(lists_frame, text="📖 章节列表", padding="5")
         middle_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2)
 
-        self.chapters_tree = ttk.Treeview(middle_frame, columns=("ID", "章节标题", "Chunk"), show="headings", selectmode="browse")
+        self.chapters_tree = ttk.Treeview(middle_frame, columns=("ID", "章节标题", "Chunk"), show="headings",
+                                          selectmode="browse")
         self.chapters_tree.heading("ID", text="ID")
         self.chapters_tree.heading("章节标题", text="章节标题")
         self.chapters_tree.heading("Chunk", text="Chunk")
@@ -97,7 +98,8 @@ class NovelReaderGUI:
         right_frame = ttk.LabelFrame(lists_frame, text="🔖 书签列表", padding="5")
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2)
 
-        self.bookmarks_tree = ttk.Treeview(right_frame, columns=("ID", "位置", "笔记"), show="headings", selectmode="browse")
+        self.bookmarks_tree = ttk.Treeview(right_frame, columns=("ID", "位置", "笔记"), show="headings",
+                                           selectmode="browse")
         self.bookmarks_tree.heading("ID", text="ID")
         self.bookmarks_tree.heading("位置", text="位置")
         self.bookmarks_tree.heading("笔记", text="笔记")
@@ -128,7 +130,8 @@ class NovelReaderGUI:
         tts_control_frame.pack(fill=tk.X)
 
         ttk.Button(tts_control_frame, text="转换整本书", command=self.convert_whole_book).pack(side=tk.LEFT, padx=2)
-        ttk.Button(tts_control_frame, text="转换选中章节", command=self.convert_selected_chapter).pack(side=tk.LEFT, padx=2)
+        ttk.Button(tts_control_frame, text="转换选中章节", command=self.convert_selected_chapter).pack(side=tk.LEFT,
+                                                                                                       padx=2)
 
         # TTS 进度
         self.tts_progress = ttk.Progressbar(tts_frame, mode="determinate")
@@ -455,14 +458,14 @@ class NovelReaderGUI:
 
                 # 检查是否已存在
                 if os.path.exists(audio_path):
-                    self.tts_log_message(f"[{i+1}/{total}] 跳过（已存在）")
+                    self.tts_log_message(f"[{i + 1}/{total}] 跳过（已存在）")
                 else:
-                    self.tts_log_message(f"[{i+1}/{total}] 正在转换...")
+                    self.tts_log_message(f"[{i + 1}/{total}] 正在转换...")
                     try:
                         convert_chunk(chunk, book_id, i)
                         converted += 1
                     except Exception as e:
-                        self.tts_log_message(f"[{i+1}/{total}] 转换失败: {e}")
+                        self.tts_log_message(f"[{i + 1}/{total}] 转换失败: {e}")
 
                 # 更新进度
                 progress = (i + 1) / total * 100
@@ -532,12 +535,14 @@ def run_gui():
 if __name__ == "__main__":
     # 初始化数据库
     from novel_reader.models import init_db
+
     init_db()
 
     # 创建测试数据
     print("正在准备测试数据...")
 
     from novel_reader.core import import_book
+
     test_file = "/tmp/gui_test_novel.txt"
     with open(test_file, 'w', encoding='utf-8') as f:
         f.write("""

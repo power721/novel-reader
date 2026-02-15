@@ -22,9 +22,9 @@ def add_bookmark(book_id: int, chunk: int, note: str = "") -> int:
 
     try:
         cursor.execute("""
-            INSERT INTO bookmark (book_id, chunk, note)
-            VALUES (?, ?, ?)
-        """, (book_id, chunk, note))
+                       INSERT INTO bookmark (book_id, chunk, note)
+                       VALUES (?, ?, ?)
+                       """, (book_id, chunk, note))
 
         conn.commit()
         return cursor.lastrowid
@@ -48,11 +48,11 @@ def get_bookmarks(book_id: int) -> List[Dict]:
 
     try:
         cursor.execute("""
-            SELECT id, book_id, chunk, note, created_at
-            FROM bookmark
-            WHERE book_id = ?
-            ORDER BY chunk
-        """, (book_id,))
+                       SELECT id, book_id, chunk, note, created_at
+                       FROM bookmark
+                       WHERE book_id = ?
+                       ORDER BY chunk
+                       """, (book_id,))
 
         rows = cursor.fetchall()
 
@@ -109,10 +109,10 @@ def update_bookmark(bookmark_id: int, note: str) -> bool:
 
     try:
         cursor.execute("""
-            UPDATE bookmark
-            SET note = ?
-            WHERE id = ?
-        """, (note, bookmark_id))
+                       UPDATE bookmark
+                       SET note = ?
+                       WHERE id = ?
+                       """, (note, bookmark_id))
 
         conn.commit()
         return cursor.rowcount > 0

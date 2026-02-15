@@ -46,7 +46,8 @@ class TTSWorker(QThread):
     def run(self):
         """执行 TTS 转换任务"""
         try:
-            self.log.emit(f"[DEBUG] TTS Worker started: book_id={self.book_id}, start_chunk={self.start_chunk}, chapter_mode={self.chapter_mode}")
+            self.log.emit(
+                f"[DEBUG] TTS Worker started: book_id={self.book_id}, start_chunk={self.start_chunk}, chapter_mode={self.chapter_mode}")
 
             from novel_reader.core import get_book, get_book_chapters, get_setting
             from novel_reader.utils import load_txt_file, parse_txt
@@ -150,7 +151,8 @@ class TTSWorker(QThread):
                     self.log.emit(f"[DEBUG] Chapter not found for chunk {start_pos}, converting all chunks")
 
             if self.chapter_mode:
-                self.log.emit(f"开始转换当前章节 (chunk {start_pos} - {current_chapter_end - 1 if current_chapter_end else total})")
+                self.log.emit(
+                    f"开始转换当前章节 (chunk {start_pos} - {current_chapter_end - 1 if current_chapter_end else total})")
 
             # 第一阶段：转换到当前章节结束
             first_phase_end = current_chapter_end if self.chapter_mode else total
@@ -168,16 +170,16 @@ class TTSWorker(QThread):
 
                 # 检查是否已存在
                 if os.path.exists(audio_path) and os.path.getsize(audio_path) > MIN_SIZE:
-                    self.log.emit(f"[{i+1}/{total}] 跳过 分段 {i}（已存在）")
+                    self.log.emit(f"[{i + 1}/{total}] 跳过 分段 {i}（已存在）")
                     skipped += 1
                 else:
                     chunk_text = chunks[i].strip()
-                    self.log.emit(f"[{i+1}/{total}] 正在转换 分段 {i}... (文本长度: {len(chunk_text)} 字符)")
+                    self.log.emit(f"[{i + 1}/{total}] 正在转换 分段 {i}... (文本长度: {len(chunk_text)} 字符)")
 
                     try:
                         convert_chunk(chunks[i], self.book_id, i, engine=tts_engine)
                         converted += 1
-                        self.log.emit(f"[{i+1}/{total}] 转换完成")
+                        self.log.emit(f"[{i + 1}/{total}] 转换完成")
 
                         # 第一个chunk转换完成，发出信号
                         if not first_chunk_converted:
@@ -198,13 +200,14 @@ class TTSWorker(QThread):
                             if file_ready:
                                 first_chunk_converted = True
                                 self.first_chunk_ready.emit(start_pos)
-                                self.log.emit(f"✓ 第一个音频已就绪 ({os.path.getsize(audio_path)/1024:.1f} KB)，可以开始播放")
+                                self.log.emit(
+                                    f"✓ 第一个音频已就绪 ({os.path.getsize(audio_path) / 1024:.1f} KB)，可以开始播放")
                             else:
                                 self.log.emit(f"⚠ 警告: 第一个音频文件未就绪，将稍后重试")
                     except ValueError as e:
                         # 文本为空的情况
-                        self.log.emit(f"[{i+1}/{total}] ⚠ {e}")
-                        self.log.emit(f"[{i+1}/{total}] 跳过（空文本）")
+                        self.log.emit(f"[{i + 1}/{total}] ⚠ {e}")
+                        self.log.emit(f"[{i + 1}/{total}] 跳过（空文本）")
                         # 为空文本创建一个静音文件，避免播放卡住
                         try:
                             import wave
@@ -216,14 +219,14 @@ class TTSWorker(QThread):
                                 wav_file.setframerate(22050)
                                 # 写入0.1秒的静音
                                 wav_file.writeframes(b'\x00\x00' * 2205)
-                            self.log.emit(f"[{i+1}/{total}] 已创建静音文件")
+                            self.log.emit(f"[{i + 1}/{total}] 已创建静音文件")
                             converted += 1
                         except Exception as create_error:
-                            self.log.emit(f"[{i+1}/{total}] 创建静音文件失败: {create_error}")
+                            self.log.emit(f"[{i + 1}/{total}] 创建静音文件失败: {create_error}")
                     except Exception as e:
-                        self.log.emit(f"[{i+1}/{total}] ❌ 转换失败: {e}")
+                        self.log.emit(f"[{i + 1}/{total}] ❌ 转换失败: {e}")
                         import traceback
-                        self.log.emit(f"[{i+1}/{total}] 详细错误:\n{traceback.format_exc()}")
+                        self.log.emit(f"[{i + 1}/{total}] 详细错误:\n{traceback.format_exc()}")
 
                 # 更新进度
                 self.progress.emit(i + 1, total)
@@ -269,7 +272,8 @@ class TTSWorker(QThread):
                     else:
                         preview_end_chunk = total  # 到文件末尾
 
-                    self.log.emit(f"继续预转换后续 {self.max_preview_chapters} 章 (chunk {first_phase_end} - {preview_end_chunk})...")
+                    self.log.emit(
+                        f"继续预转换后续 {self.max_preview_chapters} 章 (chunk {first_phase_end} - {preview_end_chunk})...")
                 else:
                     self.log.emit(f"不预转换后续章节")
 
@@ -286,12 +290,12 @@ class TTSWorker(QThread):
                     if os.path.exists(audio_path):
                         skipped += 1
                     else:
-                        self.log.emit(f"[{i+1}/{total}] 后台转换...")
+                        self.log.emit(f"[{i + 1}/{total}] 后台转换...")
                         try:
                             convert_chunk(chunks[i], self.book_id, i, engine=tts_engine)
                             converted += 1
                         except Exception as e:
-                            self.log.emit(f"[{i+1}/{total}] 转换失败: {e}")
+                            self.log.emit(f"[{i + 1}/{total}] 转换失败: {e}")
 
                     # 更新进度
                     self.progress.emit(i + 1, total)

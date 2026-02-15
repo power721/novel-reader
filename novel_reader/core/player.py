@@ -10,7 +10,6 @@ from typing import Optional
 from novel_reader.models import get_conn
 from novel_reader.utils import load_txt_file, parse_txt
 
-
 # ==================== 配置区 ====================
 
 # mpv 可执行文件路径
@@ -135,7 +134,7 @@ def play_book(book_id: int, start_chunk: Optional[int] = None) -> None:
                 continue
 
             # 播放 chunk
-            print(f"▶ [Chunk {chunk_id}/{len(chunks)-1}] 正在播放...")
+            print(f"▶ [Chunk {chunk_id}/{len(chunks) - 1}] 正在播放...")
             try:
                 play_audio(str(audio_path), should_stop_check_fn=lambda: _playback_state["should_stop"])
                 played_count += 1
@@ -375,13 +374,13 @@ def update_progress(book_id: int, chunk_id: int) -> None:
 
         # 更新进度、章节和最后播放时间
         cursor.execute("""
-            UPDATE book
-            SET current_chunk = ?,
-                current_chapter = ?,
-                last_played_at = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (chunk_id, current_chapter_id, datetime.now().isoformat(), book_id))
+                       UPDATE book
+                       SET current_chunk   = ?,
+                           current_chapter = ?,
+                           last_played_at  = ?,
+                           updated_at      = CURRENT_TIMESTAMP
+                       WHERE id = ?
+                       """, (chunk_id, current_chapter_id, datetime.now().isoformat(), book_id))
 
         conn.commit()
 
@@ -492,7 +491,7 @@ def set_playback_speed_realtime(speed: float) -> None:
     """
     global _playback_speed
     _playback_speed = max(0.5, min(2.0, speed))
-    
+
     # 如果 mpv 正在运行，通过 IPC 实时调整播放速度
     if _playback_state["current_process"] and os.path.exists(_ipc_socket):
         import socket
@@ -500,11 +499,11 @@ def set_playback_speed_realtime(speed: float) -> None:
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             sock.settimeout(0.5)
             sock.connect(_ipc_socket)
-            
+
             # 发送设置播放速度命令
             command = f'{{"command": ["set_property", "speed", {_playback_speed:.2f}]}}\n'
             sock.sendall(command.encode())
-            
+
             sock.close()
             print(f"实时播放速度调整: {_playback_speed:.2f}x")
         except Exception as e:
@@ -522,7 +521,7 @@ def set_volume_realtime(volume: float) -> None:
     """
     global _volume
     _volume = max(0.0, min(1.0, volume))
-    
+
     # 如果 mpv 正在运行，通过 IPC 实时调整音量
     if _playback_state["current_process"] and os.path.exists(_ipc_socket):
         import socket
@@ -530,12 +529,12 @@ def set_volume_realtime(volume: float) -> None:
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             sock.settimeout(0.5)
             sock.connect(_ipc_socket)
-            
+
             # 发送设置音量命令
             volume_percent = int(_volume * 100)
             command = f'{{"command": ["set_property", "volume", {volume_percent}]}}\n'
             sock.sendall(command.encode())
-            
+
             sock.close()
             print(f"实时音量调整: {volume_percent}%")
         except Exception as e:
@@ -705,15 +704,15 @@ def print_diagnosis(diagnosis: dict) -> None:
         print(f"❌ 错误: {diagnosis['error']}")
         return
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"📖 书籍: {diagnosis['book_title']}")
     print(f"📚 总chunk数: {diagnosis['total_chunks']}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"✅ 存在: {diagnosis['existing']}")
     print(f"❌ 缺失: {diagnosis['missing']}")
     print(f"⚠ 空文件: {diagnosis['empty']}")
     print(f"⚠ 过小: {diagnosis['too_small']}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"📊 问题统计: {diagnosis['problematic']} / {diagnosis['total_chunks']}")
 
     if diagnosis['problematic'] > 0:
@@ -726,7 +725,8 @@ def print_diagnosis(diagnosis: dict) -> None:
                     'too_small': '⚠'
                 }.get(detail['status'], '❓')
                 size_kb = detail['size'] / 1024 if detail['size'] > 0 else 0
-                print(f"  {status_icon} Chunk {detail['chunk_id']:3d}: {detail['status']:15s} (大小: {size_kb:8.2f} KB)")
+                print(
+                    f"  {status_icon} Chunk {detail['chunk_id']:3d}: {detail['status']:15s} (大小: {size_kb:8.2f} KB)")
 
 
 def delete_corrupted_audio(book_id: int, diagnosis: dict = None) -> int:
@@ -786,6 +786,7 @@ if __name__ == "__main__":
 
     # 初始化数据库
     from novel_reader.models import init_db
+
     init_db()
 
     # 创建测试书籍
@@ -817,6 +818,7 @@ if __name__ == "__main__":
 
     # 导入书籍
     from novel_reader.core import import_book
+
     book_id = import_book(test_file)
 
     # 测试进度更新

@@ -12,11 +12,11 @@ import time
 
 class ChunkStatus(Enum):
     """Chunk状态"""
-    PENDING = "pending"     # 未处理
-    TTS = "tts"            # 合成中
-    READY = "ready"        # 音频已就绪
-    PLAYING = "playing"    # 播放中
-    DONE = "done"          # 已播放完成
+    PENDING = "pending"  # 未处理
+    TTS = "tts"  # 合成中
+    READY = "ready"  # 音频已就绪
+    PLAYING = "playing"  # 播放中
+    DONE = "done"  # 已播放完成
 
 
 class PlaybackState(Enum):

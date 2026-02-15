@@ -28,7 +28,7 @@ def import_book(file_path: str) -> int:
         is_ebook_file,
         get_file_format
     )
-    
+
     # 验证文件存在
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"文件不存在: {file_path}")
@@ -36,12 +36,12 @@ def import_book(file_path: str) -> int:
     file_path_obj = Path(file_path)
     original_filename = file_path_obj.name
     file_format = get_file_format(file_path_obj)
-    
+
     # 如果是电子书格式，转换为 TXT
     if is_ebook_file(file_path) and file_path_obj.suffix.lower() != '.txt':
         print(f"检测到电子书格式: {file_format}")
         print(f"正在转换为 TXT...")
-        
+
         # 转换为 TXT 文件
         txt_path, book_title = convert_ebook_to_txt(file_path)
 
@@ -50,11 +50,11 @@ def import_book(file_path: str) -> int:
         final_txt_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(txt_path, final_txt_path)
         file_path = str(final_txt_path.resolve())  # 存储绝对路径
-        
+
         print(f"✓ 转换完成: {final_txt_path.name}")
     else:
         book_title = None
-    
+
     # 读取文件（自动 UTF-8）
     text = load_txt_file(file_path)
 
@@ -80,25 +80,28 @@ def import_book(file_path: str) -> int:
             book_id = existing[0]
             cursor.execute("DELETE FROM chapter WHERE book_id = ?", (book_id,))
             cursor.execute("""
-                UPDATE book 
-                SET title = ?, updated_at = ?, original_filename = ?, file_format = ?
-                WHERE id = ?
-            """, (title, datetime.now().isoformat(), original_filename, file_format, book_id))
+                           UPDATE book
+                           SET title             = ?,
+                               updated_at        = ?,
+                               original_filename = ?,
+                               file_format       = ?
+                           WHERE id = ?
+                           """, (title, datetime.now().isoformat(), original_filename, file_format, book_id))
         else:
             # 创建新书记录
             cursor.execute("""
-                INSERT INTO book (title, file_path, original_filename, file_format, current_chunk)
-                VALUES (?, ?, ?, ?, 0)
-            """, (title, file_path, original_filename, file_format))
+                           INSERT INTO book (title, file_path, original_filename, file_format, current_chunk)
+                           VALUES (?, ?, ?, ?, 0)
+                           """, (title, file_path, original_filename, file_format))
             book_id = cursor.lastrowid
 
         # 插入章节信息
         chapter_records = []
         for chapter_title, start_chunk in chapters:
             cursor.execute("""
-                INSERT INTO chapter (book_id, title, start_chunk)
-                VALUES (?, ?, ?)
-            """, (book_id, chapter_title, start_chunk))
+                           INSERT INTO chapter (book_id, title, start_chunk)
+                           VALUES (?, ?, ?)
+                           """, (book_id, chapter_title, start_chunk))
             chapter_records.append((cursor.lastrowid, chapter_title, start_chunk))
 
         conn.commit()
@@ -128,9 +131,19 @@ def get_book(book_id: int) -> Optional[Dict]:
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT id, title, file_path, original_filename, file_format, current_chunk, current_chapter, last_played_at, created_at, updated_at
-        FROM book WHERE id = ?
-    """, (book_id,))
+                   SELECT id,
+                          title,
+                          file_path,
+                          original_filename,
+                          file_format,
+                          current_chunk,
+                          current_chapter,
+                          last_played_at,
+                          created_at,
+                          updated_at
+                   FROM book
+                   WHERE id = ?
+                   """, (book_id,))
 
     row = cursor.fetchone()
     conn.close()
@@ -165,11 +178,11 @@ def get_book_chapters(book_id: int) -> List[Dict]:
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT id, title, start_chunk
-        FROM chapter
-        WHERE book_id = ?
-        ORDER BY start_chunk
-    """, (book_id,))
+                   SELECT id, title, start_chunk
+                   FROM chapter
+                   WHERE book_id = ?
+                   ORDER BY start_chunk
+                   """, (book_id,))
 
     rows = cursor.fetchall()
     conn.close()
@@ -195,10 +208,19 @@ def list_books() -> List[Dict]:
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT id, title, file_path, original_filename, file_format, current_chunk, current_chapter, last_played_at, created_at, updated_at
-        FROM book
-        ORDER BY created_at DESC
-    """)
+                   SELECT id,
+                          title,
+                          file_path,
+                          original_filename,
+                          file_format,
+                          current_chunk,
+                          current_chapter,
+                          last_played_at,
+                          created_at,
+                          updated_at
+                   FROM book
+                   ORDER BY created_at DESC
+                   """)
 
     rows = cursor.fetchall()
     conn.close()
@@ -324,10 +346,11 @@ def update_book_title(book_id: int, new_title: str) -> bool:
 
         # 更新书名
         cursor.execute("""
-            UPDATE book
-            SET title = ?, updated_at = ?
-            WHERE id = ?
-        """, (new_title, datetime.now().isoformat(), book_id))
+                       UPDATE book
+                       SET title      = ?,
+                           updated_at = ?
+                       WHERE id = ?
+                       """, (new_title, datetime.now().isoformat(), book_id))
 
         conn.commit()
         conn.close()
@@ -344,6 +367,7 @@ def update_book_title(book_id: int, new_title: str) -> bool:
 if __name__ == "__main__":
     # 初始化数据库
     from novel_reader.models import init_db
+
     init_db()
 
     # 创建测试文件

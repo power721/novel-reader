@@ -89,7 +89,7 @@ class BookListWidget(QWidget):
 
                 # 支持电子书格式
                 from novel_reader.utils.ebook_converter import is_ebook_file
-                
+
                 file_suffix = Path(file_path).suffix.lower()
                 if file_suffix != '.txt' and not is_ebook_file(file_path):
                     failed_files.append((file_path, "不支持的文件格式"))
@@ -606,7 +606,6 @@ class BookListWidget(QWidget):
                     abs_dir = os.path.abspath(book_dir)
                     os.system(f'xdg-open "{abs_dir}"')
 
-
     def _open_book_file(self, book_id: int):
         """打开书籍的原始文件"""
         from novel_reader.core import get_book
@@ -651,6 +650,7 @@ class BookListWidget(QWidget):
                     book_dir = os.path.dirname(file_path)
                     abs_dir = os.path.abspath(book_dir)
                     os.system(f'xdg-open "{abs_dir}"')
+
     def _open_audio_directory(self, book_id: int):
         """打开书籍的音频目录"""
         from novel_reader.core import get_book

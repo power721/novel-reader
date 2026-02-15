@@ -4,7 +4,6 @@
 import sqlite3
 from pathlib import Path
 
-
 # 数据库文件路径
 DB_DIR = Path("data")
 DB_PATH = DB_DIR / "library.db"
@@ -40,19 +39,46 @@ def init_db() -> None:
 
     # 创建 book 表
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS book (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            file_path TEXT NOT NULL UNIQUE,
-            original_filename TEXT,
-            file_format TEXT,
-            current_chunk INTEGER DEFAULT 0,
-            current_chapter INTEGER DEFAULT 0,
-            last_played_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+                   CREATE TABLE IF NOT EXISTS book
+                   (
+                       id
+                       INTEGER
+                       PRIMARY
+                       KEY
+                       AUTOINCREMENT,
+                       title
+                       TEXT
+                       NOT
+                       NULL,
+                       file_path
+                       TEXT
+                       NOT
+                       NULL
+                       UNIQUE,
+                       original_filename
+                       TEXT,
+                       file_format
+                       TEXT,
+                       current_chunk
+                       INTEGER
+                       DEFAULT
+                       0,
+                       current_chapter
+                       INTEGER
+                       DEFAULT
+                       0,
+                       last_played_at
+                       TIMESTAMP,
+                       created_at
+                       TIMESTAMP
+                       DEFAULT
+                       CURRENT_TIMESTAMP,
+                       updated_at
+                       TIMESTAMP
+                       DEFAULT
+                       CURRENT_TIMESTAMP
+                   )
+                   """)
 
     # 检查并添加新字段（用于升级现有数据库）
     try:
@@ -81,37 +107,80 @@ def init_db() -> None:
 
     # 创建 chapter 表
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS chapter (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            book_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            start_chunk INTEGER NOT NULL,
-            FOREIGN KEY (book_id) REFERENCES book(id) ON DELETE CASCADE
-        )
-    """)
+                   CREATE TABLE IF NOT EXISTS chapter
+                   (
+                       id
+                       INTEGER
+                       PRIMARY
+                       KEY
+                       AUTOINCREMENT,
+                       book_id
+                       INTEGER
+                       NOT
+                       NULL,
+                       title
+                       TEXT
+                       NOT
+                       NULL,
+                       start_chunk
+                       INTEGER
+                       NOT
+                       NULL,
+                       FOREIGN
+                       KEY
+                   (
+                       book_id
+                   ) REFERENCES book
+                   (
+                       id
+                   ) ON DELETE CASCADE
+                       )
+                   """)
 
     # 创建 bookmark 表
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS bookmark (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            book_id INTEGER NOT NULL,
-            chunk INTEGER NOT NULL,
-            note TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (book_id) REFERENCES book(id) ON DELETE CASCADE
-        )
-    """)
+                   CREATE TABLE IF NOT EXISTS bookmark
+                   (
+                       id
+                       INTEGER
+                       PRIMARY
+                       KEY
+                       AUTOINCREMENT,
+                       book_id
+                       INTEGER
+                       NOT
+                       NULL,
+                       chunk
+                       INTEGER
+                       NOT
+                       NULL,
+                       note
+                       TEXT,
+                       created_at
+                       TIMESTAMP
+                       DEFAULT
+                       CURRENT_TIMESTAMP,
+                       FOREIGN
+                       KEY
+                   (
+                       book_id
+                   ) REFERENCES book
+                   (
+                       id
+                   ) ON DELETE CASCADE
+                       )
+                   """)
 
     # 创建索引以提高查询性能
     cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_chapter_book_id
-        ON chapter(book_id)
-    """)
+                   CREATE INDEX IF NOT EXISTS idx_chapter_book_id
+                       ON chapter(book_id)
+                   """)
 
     cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_bookmark_book_id
-        ON bookmark(book_id)
-    """)
+                   CREATE INDEX IF NOT EXISTS idx_bookmark_book_id
+                       ON bookmark(book_id)
+                   """)
 
     conn.commit()
     conn.close()

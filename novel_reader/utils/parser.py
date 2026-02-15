@@ -120,10 +120,10 @@ def parse_txt(
 
     # === 优先检查 EPUB 章节标记 ===
     epub_matches = list(EPUB_CHAPTER_PATTERN.finditer(text))
-    
+
     # === 如果没有 EPUB 标记，检查传统章节 ===
     chapter_matches = list(CHAPTER_PATTERN.finditer(text))
-    
+
     # 确定使用哪种章节识别
     matches = epub_matches if epub_matches else chapter_matches
 
@@ -221,7 +221,8 @@ if __name__ == "__main__":
     print("文本解析测试")
     print("=" * 60)
 
-    print(split_by_sentence("清晨的雾气像一层薄纱笼罩着城市，街道的轮廓在灰白中若隐若现。“林舟站在阳台上，手里捧着一杯已经凉掉的咖啡。”他隐约觉得，这一天和以往不同。远处的钟声响起，低沉而缓慢，仿佛在提醒什么即将到来。"))
+    print(split_by_sentence(
+        "清晨的雾气像一层薄纱笼罩着城市，街道的轮廓在灰白中若隐若现。“林舟站在阳台上，手里捧着一杯已经凉掉的咖啡。”他隐约觉得，这一天和以往不同。远处的钟声响起，低沉而缓慢，仿佛在提醒什么即将到来。"))
 
     chunks, chapters = parse_txt(sample_text, chunk_size=60)
 

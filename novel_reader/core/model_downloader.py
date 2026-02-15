@@ -11,7 +11,6 @@ import hashlib
 
 from .model_config import PiperModel, get_model
 
-
 # ==================== 配置 ====================
 
 # 模型搜索路径
@@ -196,7 +195,7 @@ class ModelDownloader:
         return True
 
     def _download_file(self, url: str, dest_path: Path,
-                      progress_callback: Optional[Callable[[str, int, int], None]] = None) -> bool:
+                       progress_callback: Optional[Callable[[str, int, int], None]] = None) -> bool:
         """
         下载单个文件
 
@@ -341,7 +340,7 @@ def get_model_status(model_id: str) -> dict:
 
 
 def download_model(model_id: str,
-                  progress_callback: Optional[Callable[[str, int, int], None]] = None) -> bool:
+                   progress_callback: Optional[Callable[[str, int, int], None]] = None) -> bool:
     """
     下载指定模型
 

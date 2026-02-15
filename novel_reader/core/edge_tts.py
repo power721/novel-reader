@@ -144,7 +144,8 @@ async def _text_to_speech_async(
     Returns:
         Path to generated audio file
     """
-    print(f"[edge_tts._text_to_speech_async] DEBUG: text={len(text)} voice={voice_name} rate={rate}, pitch={pitch}, volume={volume}")
+    print(
+        f"[edge_tts._text_to_speech_async] DEBUG: text={len(text)} voice={voice_name} rate={rate}, pitch={pitch}, volume={volume}")
 
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -260,7 +261,7 @@ def text_to_speech(
     # Split text by language first (before normalization)
     # We use a simple split without normalization to determine language segments
     # sentences = split_text_for_tts(text)
-    sentences = [(text, "zh")] # TODO: detect language
+    sentences = [(text, "zh")]  # TODO: detect language
 
     # Filter out empty or punctuation-only segments
     filtered_sentences = []

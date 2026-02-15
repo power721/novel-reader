@@ -14,11 +14,11 @@ from enum import Enum, auto
 
 class SentenceStatus(Enum):
     """句子状态"""
-    PENDING = auto()      # 等待转换
-    CONVERTING = auto()   # 转换中
-    READY = auto()        # 已就绪
-    PLAYING = auto()      # 播放中
-    DONE = auto()         # 已完成
+    PENDING = auto()  # 等待转换
+    CONVERTING = auto()  # 转换中
+    READY = auto()  # 已就绪
+    PLAYING = auto()  # 播放中
+    DONE = auto()  # 已完成
 
 
 @dataclass
@@ -299,7 +299,7 @@ class BatchBuilder:
     MIN_SENTENCES = 2  # 最少句子数
     MAX_SENTENCES = 4  # 最多句子数
     TARGET_SIZE = 150  # 目标字符数
-    MAX_SIZE = 300     # 最大字符数
+    MAX_SIZE = 300  # 最大字符数
 
     def build_batches(self, sentences: List[Sentence]) -> List[TTSBatch]:
         """
@@ -329,10 +329,10 @@ class BatchBuilder:
 
             # 检查是否应该开始新批次
             should_start_new = (
-                len(current_batch) >= self.MAX_SENTENCES or  # 已达最大句子数
-                (current_size > 0 and current_size + sentence_size > self.MAX_SIZE) or  # 超过最大字符数
-                (len(current_batch) >= self.MIN_SENTENCES and
-                 current_size + sentence_size > self.TARGET_SIZE)  # 达到目标大小
+                    len(current_batch) >= self.MAX_SENTENCES or  # 已达最大句子数
+                    (current_size > 0 and current_size + sentence_size > self.MAX_SIZE) or  # 超过最大字符数
+                    (len(current_batch) >= self.MIN_SENTENCES and
+                     current_size + sentence_size > self.TARGET_SIZE)  # 达到目标大小
             )
 
             if should_start_new and current_batch:

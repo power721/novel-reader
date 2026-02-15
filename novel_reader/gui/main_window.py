@@ -964,7 +964,8 @@ class MainWindow(QMainWindow):
             for i, book in enumerate(books):
                 if book['id'] == self.current_book_id:
                     current_index = i
-                    print(f"[DEBUG _on_playback_finished] Found current book: id={self.current_book_id}, index={i}, title={book['title'][:20]}")
+                    print(
+                        f"[DEBUG _on_playback_finished] Found current book: id={self.current_book_id}, index={i}, title={book['title'][:20]}")
                     break
 
             # 如果找到下一本书，自动播放

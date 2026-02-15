@@ -78,9 +78,9 @@ class AudioPlayer:
             self.sd = None
 
     def play(self, audio_path: str,
-            start_offset_ms: int = 0,
-            on_finished: Optional[Callable] = None,
-            on_progress: Optional[Callable[[int, int], None]] = None):
+             start_offset_ms: int = 0,
+             on_finished: Optional[Callable] = None,
+             on_progress: Optional[Callable[[int, int], None]] = None):
         """
         播放音频
 
@@ -168,7 +168,7 @@ class AudioPlayer:
                             time.sleep(0.1)
 
                         # 播放音频块
-                        chunk = audio_data[i:i+chunk_size]
+                        chunk = audio_data[i:i + chunk_size]
                         self._stream.write(chunk)
 
                         # 更新进度
@@ -226,7 +226,7 @@ class AudioPlayer:
             self.stop()
             # 重新播放
             self.play(self.current_file, offset_ms,
-                     self.on_finished, self.on_progress)
+                      self.on_finished, self.on_progress)
 
     @property
     def is_playing(self) -> bool:

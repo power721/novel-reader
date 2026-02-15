@@ -26,10 +26,10 @@ class TTSEngine:
         self.engine_type = engine_type
 
     def text_to_speech(
-        self,
-        text: str,
-        output_path: str,
-        **kwargs
+            self,
+            text: str,
+            output_path: str,
+            **kwargs
     ) -> str:
         """
         Convert text to speech
@@ -80,12 +80,12 @@ class PiperTTSEngine(TTSEngine):
             return False
 
     def text_to_speech(
-        self,
-        text: str,
-        output_path: str,
-        chinese_model_id: Optional[str] = None,
-        english_model_id: Optional[str] = None,
-        **kwargs
+            self,
+            text: str,
+            output_path: str,
+            chinese_model_id: Optional[str] = None,
+            english_model_id: Optional[str] = None,
+            **kwargs
     ) -> str:
         """
         Convert text to speech using Piper TTS
@@ -148,15 +148,15 @@ class EdgeTTSEngine(TTSEngine):
         return True
 
     def text_to_speech(
-        self,
-        text: str,
-        output_path: str,
-        chinese_voice_id: Optional[str] = None,
-        english_voice_id: Optional[str] = None,
-        rate: Optional[str] = None,
-        pitch: Optional[str] = None,
-        volume: Optional[str] = None,
-        **kwargs
+            self,
+            text: str,
+            output_path: str,
+            chinese_voice_id: Optional[str] = None,
+            english_voice_id: Optional[str] = None,
+            rate: Optional[str] = None,
+            pitch: Optional[str] = None,
+            volume: Optional[str] = None,
+            **kwargs
     ) -> str:
         """
         Convert text to speech using Edge TTS
@@ -288,10 +288,10 @@ def warmup_current_engine() -> bool:
 
 
 def text_to_speech(
-    text: str,
-    output_path: str,
-    engine: Optional[str] = None,
-    **kwargs
+        text: str,
+        output_path: str,
+        engine: Optional[str] = None,
+        **kwargs
 ) -> str:
     """
     Unified text-to-speech interface
@@ -327,10 +327,10 @@ def text_to_speech(
 
 
 def chunk_to_audio_path(
-    book_id: int,
-    chunk_id: int,
-    voice_id: Optional[str] = None,
-    engine: Optional[str] = None
+        book_id: int,
+        chunk_id: int,
+        voice_id: Optional[str] = None,
+        engine: Optional[str] = None
 ) -> str:
     """
     Get audio file path for a chunk
@@ -355,11 +355,11 @@ def chunk_to_audio_path(
 
 
 def convert_chunk(
-    text: str,
-    book_id: int,
-    chunk_id: int,
-    engine: Optional[str] = None,
-    **kwargs
+        text: str,
+        book_id: int,
+        chunk_id: int,
+        engine: Optional[str] = None,
+        **kwargs
 ) -> str:
     """
     Convert a text chunk to audio
