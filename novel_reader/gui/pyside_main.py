@@ -4,6 +4,8 @@ PySide6 GUI 界面 - 有声书阅读器
 主入口文件，启动 PySide6 GUI 应用程序
 """
 import sys
+
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 from pathlib import Path
@@ -96,6 +98,7 @@ def run_gui(create_test: bool = False):
 
     # 创建应用程序实例
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon("icon.png"))
 
     # 设置应用程序信息
     app.setApplicationName("Novel Reader")
