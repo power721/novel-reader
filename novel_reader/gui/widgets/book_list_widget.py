@@ -718,10 +718,11 @@ class BookListWidget(QWidget):
         file_count = 0
         from pathlib import Path
 
-        audio_files = list(Path(audio_dir).rglob("*.wav"))
-        for audio_file in audio_files:
-            total_size += audio_file.stat().st_size
-            file_count += 1
+        audio_path = Path(audio_dir)
+        for audio_file in audio_path.rglob("*"):
+            if audio_file.suffix.lower() in {".wav", ".mp3"}:
+                total_size += audio_file.stat().st_size
+                file_count += 1
 
         # 格式化大小
         if total_size < 1024:
@@ -783,7 +784,11 @@ class BookListWidget(QWidget):
         try:
             # 统计文件数量
             from pathlib import Path
-            file_count = len(list(Path(audio_dir).rglob("*.wav")))
+            file_count = 0
+            audio_path = Path(audio_dir)
+            for audio_file in audio_path.rglob("*"):
+                if audio_file.suffix.lower() in {".wav", ".mp3"}:
+                    file_count += 1
 
             # 删除音频目录
             shutil.rmtree(audio_dir)

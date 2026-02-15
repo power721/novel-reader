@@ -153,7 +153,7 @@ class PlayerWidget(QWidget):
         self.forward_10_btn.setToolTip("前进10个分段")
         self.forward_10_btn.clicked.connect(lambda: self._on_forward_chunks_clicked(10))
 
-        chunk_nav_layout.addStretch()
+        # chunk_nav_layout.addStretch()
         chunk_nav_layout.addWidget(self.backward_10_btn)
         chunk_nav_layout.addWidget(self.backward_5_btn)
         chunk_nav_layout.addWidget(self.prev_chunk_btn)

@@ -22,7 +22,7 @@ EPUB_CHAPTER_PATTERN = re.compile(
 
 # 传统章节模式（支持：章、节、卷、回）
 CHAPTER_PATTERN = re.compile(
-    r'^\s*第\s*[一二三四五六七八九十百千0-9]{1,9}\s*[章节卷回].*?$',
+    r'^\s*(☆、)?第\s*[一二三四五六七八九十百千0-9]{1,9}\s*[章节卷回].*?$',
     re.MULTILINE
 )
 

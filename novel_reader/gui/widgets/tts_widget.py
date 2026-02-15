@@ -53,7 +53,7 @@ class TTSWidget(QWidget):
         control_layout.addWidget(self.convert_chapter_btn)
         control_layout.addStretch()
 
-        tts_layout.addLayout(control_layout)
+        # tts_layout.addLayout(control_layout)
 
         # 进度条
         self.progress = QProgressBar()
