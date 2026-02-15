@@ -120,16 +120,17 @@ def extract_epub_text(epub_path: Path) -> Tuple[str, str]:
 
             chapter_text = _extract_text_from_html(doc_item.get_content())
 
-            if chapter_text:
-                # 获取章节标题（优先使用 TOC 标题，其次使用 HTML 标题）
-                chapter_title = chapter_titles.get(file_name, '')
-                if not chapter_title:
-                    chapter_title = _extract_title_from_html(doc_item.get_content())
+            # 获取章节标题（优先使用 TOC 标题，其次使用 HTML 标题）
+            chapter_title = chapter_titles.get(file_name, '')
+            if not chapter_title:
+                chapter_title = _extract_title_from_html(doc_item.get_content())
 
-                # 如果还是没有标题，使用文件名
-                if not chapter_title:
-                    chapter_title = Path(file_name).stem
+            # 如果还是没有标题，使用文件名
+            if not chapter_title:
+                chapter_title = Path(file_name).stem
 
+            # 如果有内容或者至少有标题，都视为有效章节
+            if chapter_text or chapter_title:
                 # 跳过书名作为章节标题
                 if chapter_title == title:
                     all_text_parts.append(chapter_text)
@@ -152,14 +153,17 @@ def extract_epub_text(epub_path: Path) -> Tuple[str, str]:
         if file_name not in processed_files:
             chapter_text = _extract_text_from_html(item.get_content())
 
-            if chapter_text:
-                chapter_title = chapter_titles.get(file_name, '')
-                if not chapter_title:
-                    chapter_title = _extract_title_from_html(item.get_content())
+            # 获取章节标题（优先使用 TOC 标题，其次使用 HTML 标题）
+            chapter_title = chapter_titles.get(file_name, '')
+            if not chapter_title:
+                chapter_title = _extract_title_from_html(item.get_content())
 
-                if not chapter_title:
-                    chapter_title = Path(file_name).stem
+            # 如果还是没有标题，使用文件名
+            if not chapter_title:
+                chapter_title = Path(file_name).stem
 
+            # 如果有内容或者至少有标题，都视为有效章节
+            if chapter_text or chapter_title:
                 # 跳过书名作为章节标题
                 if chapter_title == title:
                     all_text_parts.append(chapter_text)
