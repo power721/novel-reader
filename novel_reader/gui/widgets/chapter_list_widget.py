@@ -1,6 +1,7 @@
 """
 章节列表组件 - 显示书籍的章节列表
 """
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QLabel, QMenu
 )
@@ -188,7 +189,7 @@ class ChapterListWidget(QWidget):
 
         # 如果提供了当前chunk，高亮对应的章节
         if current_chunk is not None:
-            self.highlight_current_chapter(current_chunk)
+            self.highlight_current_chapter(current_chunk, book_id == self.get_playing_book_id())
 
     def clear(self):
         """清空列表"""
@@ -196,7 +197,23 @@ class ChapterListWidget(QWidget):
         self.current_book_id = None
         self.chapters = []
 
-    def highlight_current_chapter(self, current_chunk: int):
+    def get_playing_book_id(self) -> Optional[int]:
+        """
+        获取当前正在播放的书籍ID
+
+        Returns:
+            正在播放的书籍ID，如果没有正在播放则返回None
+        """
+        # 通过parent层级查找MainWindow
+        parent = self.parent()
+        while parent is not None:
+            if hasattr(parent, 'playback_worker') and parent.playback_worker is not None:
+                if parent.playback_worker.isRunning():
+                    return parent.playback_worker.book_id
+            parent = parent.parent()
+        return None
+
+    def highlight_current_chapter(self, current_chunk: int, playing: bool = True):
         """
         高亮当前播放的章节
 
@@ -221,12 +238,25 @@ class ChapterListWidget(QWidget):
             item = self.chapters_tree.topLevelItem(i)
             # 移除自定义的高亮属性
             item.setData(0, Qt.UserRole + 1, None)
+            for col in range(item.columnCount()):
+                item.setData(col, Qt.BackgroundRole, None)
+                item.setData(col, Qt.ForegroundRole, None)
+            title = item.text(0)
+            if title.startswith("▶️ "):
+                item.setText(0, title[2:].strip())
 
         # 高亮目标章节
         target_item = self.chapters_tree.topLevelItem(target_index)
         if target_item:
             # 设置自定义的高亮属性
             target_item.setData(0, Qt.UserRole + 1, "current-chapter")
+            for col in range(target_item.columnCount()):
+                target_item.setBackground(col, QColor("#e8f5e9"))
+                if col == 0:  # 书名列使用深绿色文字
+                    target_item.setForeground(col, QColor("#1b5e20"))
+            if playing:
+                title = target_item.text(0)
+                target_item.setText(0, f"▶️ {title}")
             # 重新绘制以应用样式
             self.chapters_tree.viewport().update()
 

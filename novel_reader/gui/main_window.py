@@ -261,7 +261,7 @@ class MainWindow(QMainWindow):
         self.book_list_widget.book_imported.connect(self._on_book_imported)
 
         # 章节列表信号
-        self.chapter_list_widget.chapter_selected.connect(self._on_chapter_selected)
+        # self.chapter_list_widget.chapter_selected.connect(self._on_chapter_selected)
         self.chapter_list_widget.chapter_double_clicked.connect(self._on_chapter_double_clicked)
         self.chapter_list_widget.convert_chapter_requested.connect(self._convert_chapter)
 

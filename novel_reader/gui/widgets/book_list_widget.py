@@ -557,7 +557,7 @@ class BookListWidget(QWidget):
                     # 移除播放图标
                     title = item.text(1)
                     if title.startswith("▶️ "):
-                        item.setText(1, title[2:])
+                        item.setText(1, title[2:].strip())
 
     def _open_book_directory(self, book_id: int):
         """打开书籍的原始文件目录"""
