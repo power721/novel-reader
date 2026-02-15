@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QSplitter, QSizePolicy
 )
 from PySide6.QtCore import Signal, Slot, Qt
-from PySide6.QtGui import QFont, QTextCursor
+from PySide6.QtGui import QFont, QTextCursor, QTextBlockFormat
 from typing import Optional
 
 
@@ -22,9 +22,15 @@ class ReaderWidget(QWidget):
         super().__init__(parent)
 
         self.current_book_id: Optional[int] = None
+        self.current_book_title: str = ""  # 当前书籍标题
         self.current_chapter_index: int = -1  # 当前章节索引
         self.chapters = []  # 章节列表
         self.chapter_texts = []  # 章节文本列表
+
+        # 从配置加载阅读模式设置
+        from novel_reader.core import settings as settings_module
+        self.font_size = settings_module.get_setting("reader_font_size", 14)
+        self.line_spacing = settings_module.get_setting("reader_line_spacing", 100)
 
         # 设置扩展策略，让组件能够占据全部可用空间
         self.setSizePolicy(
@@ -65,7 +71,7 @@ class ReaderWidget(QWidget):
         toolbar_layout.addStretch()
 
         # 显示/隐藏章节列表按钮
-        self.toggle_chapter_list_btn = QPushButton("📋 目录")
+        self.toggle_chapter_list_btn = QPushButton("📋 显示目录")
         self.toggle_chapter_list_btn.setStyleSheet("""
             QPushButton {
                 padding: 3px 8px;
@@ -99,7 +105,7 @@ class ReaderWidget(QWidget):
 
         self.font_spinbox = QSpinBox()
         self.font_spinbox.setRange(12, 32)
-        self.font_spinbox.setValue(16)
+        self.font_spinbox.setValue(self.font_size)
         self.font_spinbox.setSuffix(" px")
         self.font_spinbox.setStyleSheet("width: 80px;")
         self.font_spinbox.valueChanged.connect(self._on_font_size_changed)
@@ -112,7 +118,7 @@ class ReaderWidget(QWidget):
 
         self.line_spacing_spinbox = QSpinBox()
         self.line_spacing_spinbox.setRange(100, 250)
-        self.line_spacing_spinbox.setValue(180)
+        self.line_spacing_spinbox.setValue(self.line_spacing)
         self.line_spacing_spinbox.setSuffix("%")
         self.line_spacing_spinbox.setStyleSheet("width: 80px;")
         self.line_spacing_spinbox.valueChanged.connect(self._on_line_spacing_changed)
@@ -150,12 +156,12 @@ class ReaderWidget(QWidget):
                 color: white;
             }
         """)
-        self.chapter_list.setMaximumWidth(250)
-        self.chapter_list.setMinimumWidth(150)
+        self.chapter_list.setMaximumWidth(400)
+        self.chapter_list.setMinimumWidth(250)
         self.chapter_list.currentRowChanged.connect(self._on_chapter_selected)
 
         # 默认隐藏章节列表，让文本占据全部空间
-        self.chapter_list.setVisible(False)
+        # self.chapter_list.setVisible(False)
         content_splitter.addWidget(self.chapter_list)
 
         # ==================== 右侧：文本显示区域 ====================
@@ -241,7 +247,7 @@ class ReaderWidget(QWidget):
             QSizePolicy.Preferred,
             QSizePolicy.Fixed
         )
-        navbar.setMaximumHeight(45)  # 固定最大高度
+        navbar.setMaximumHeight(35)  # 固定最大高度
 
         text_layout.addWidget(navbar)
 
@@ -256,18 +262,33 @@ class ReaderWidget(QWidget):
     def _update_text_style(self):
         """更新文本样式"""
         font_size = self.font_spinbox.value()
-        line_spacing = self.line_spacing_spinbox.value() / 100.0
+        line_spacing_percent = self.line_spacing_spinbox.value()
 
-        self.text_display.setStyleSheet(f"""
-            QTextEdit {{
+        # 使用 QFont 设置字号
+        font = self.text_display.font()
+        font.setPointSize(font_size)
+        font.setFamily('Microsoft YaHei UI, SimHei, sans-serif')
+        self.text_display.setFont(font)
+
+        # 使用 QTextBlockFormat 设置行距
+        cursor = self.text_display.textCursor()
+        format = QTextBlockFormat()
+        # 使用 ProportionalSpacing (值 = 1)
+        format.setLineHeight(line_spacing_percent, 1)
+
+        # 应用到整个文档
+        cursor.select(QTextCursor.Document)
+        cursor.mergeBlockFormat(format)
+        cursor.clearSelection()
+
+        # 设置样式表（仅用于颜色和背景）
+        self.text_display.setStyleSheet("""
+            QTextEdit {
                 background-color: #ffffff;
                 border: none;
-                padding: 15px;  # 减小内边距，增大显示区域
-                font-family: 'Microsoft YaHei UI', 'SimHei', sans-serif;
-                font-size: {font_size}px;
-                line-height: {line_spacing};
+                padding: 15px;
                 color: #212529;
-            }}
+            }
         """)
 
     def load_book(self, book_id: int, current_chunk: Optional[int] = None):
@@ -294,6 +315,9 @@ class ReaderWidget(QWidget):
                 self.text_display.setPlainText("书籍不存在")
                 self._clear_chapters()
                 return
+
+            # 保存书籍标题
+            self.current_book_title = book['title']
 
             # 使用数据库中的章节信息（包含正确的 TTS chunk 范围）
             db_chapters = get_book_chapters(book_id)
@@ -346,6 +370,7 @@ class ReaderWidget(QWidget):
 
     def _clear_chapters(self):
         """清空章节信息"""
+        self.current_book_title = ""
         self.chapters = []
         self.chapter_texts = []
         self.current_chapter_index = -1
@@ -385,11 +410,17 @@ class ReaderWidget(QWidget):
         self.current_chapter_index = chapter_index
         chapter = self.chapters[chapter_index]
 
-        # 更新标题
-        self.chapter_title_label.setText(f"第 {chapter_index + 1} 章：{chapter['title']}")
+        # 更新标题（书籍标题 - 章节标题）
+        if self.current_book_title:
+            self.chapter_title_label.setText(f"{self.current_book_title} - 第 {chapter_index + 1} 章：{chapter['title']}")
+        else:
+            self.chapter_title_label.setText(f"第 {chapter_index + 1} 章：{chapter['title']}")
 
         # 显示文本
         self.text_display.setPlainText(self.chapter_texts[chapter_index])
+
+        # 重新应用文本样式（字号、行距等）
+        self._update_text_style()
 
         # 滚动到顶部
         self.text_display.verticalScrollBar().setValue(0)
@@ -485,7 +516,7 @@ class ReaderWidget(QWidget):
         if is_visible:
             self.toggle_chapter_list_btn.setText("📋 隐藏目录")
         else:
-            self.toggle_chapter_list_btn.setText("📋 目录")
+            self.toggle_chapter_list_btn.setText("📋 显示目录")
 
         # 更新分割器大小，让文本占据全部空间
         # 需要获取父级分割器
@@ -500,11 +531,19 @@ class ReaderWidget(QWidget):
 
     def _on_font_size_changed(self, value: int):
         """字体大小改变"""
+        self.font_size = value
         self._update_text_style()
+        # 保存到配置
+        from novel_reader.core import settings as settings_module
+        settings_module.set_setting("reader_font_size", value)
 
     def _on_line_spacing_changed(self, value: int):
         """行间距改变"""
+        self.line_spacing = value
         self._update_text_style()
+        # 保存到配置
+        from novel_reader.core import settings as settings_module
+        settings_module.set_setting("reader_line_spacing", value)
 
     def save_reading_position(self):
         """保存当前阅读位置（供外部调用）"""

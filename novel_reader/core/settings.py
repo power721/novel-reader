@@ -19,6 +19,9 @@ DEFAULT_SETTINGS = {
     "cleanup_old_chunk_threshold": 50,  # 清理N之前的音频文件
     "volume": 1.0,  # 音量 (0.0 - 1.0)
     "playback_speed": 100,  # 播放速度 (X100存储，50-200，对应0.5x-2.0x)
+    # 阅读模式设置
+    "reader_font_size": 14,  # 阅读模式字号 (px)
+    "reader_line_spacing": 100,  # 阅读模式行距 (百分比)
     # TTS 引擎设置
     "tts_engine": "edge",  # TTS 引擎: "piper" 或 "edge"
     # Piper TTS 模型设置

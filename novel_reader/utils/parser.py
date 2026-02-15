@@ -221,8 +221,11 @@ def parse_txt_preserve_format(
         start = match.start()
         end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
 
-        # 提取章节完整内容（包含章节标题）
-        chapter_text = text[start:end].strip()
+        # 提取章节完整内容
+        # EPUB 标记：从 match.end() 开始（跳过 ### CHAPTER ### 标记行）
+        # 传统格式：从 start 开始（包含章节标题）
+        content_start = match.end() if epub_matches else start
+        chapter_text = text[content_start:end].strip()
 
         # 保存章节信息
         chapter_info.append((title, len(chapter_texts)))
