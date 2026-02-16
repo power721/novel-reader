@@ -22,7 +22,8 @@ DEFAULT_SETTINGS = {
     # 阅读模式设置
     "reader_font_size": 14,  # 阅读模式字号 (px)
     "reader_line_spacing": 100,  # 阅读模式行距 (百分比)
-    "reader_theme": "light",  # 阅读模式主题: "light" 或 "dark"
+    "reader_theme": "light",  # 阅读模式主题: "light", "dark", "eye_protection"
+    "last_mode": "audio",  # 上次使用的模式: "audio" 或 "reading"
     # TTS 引擎设置
     "tts_engine": "edge",  # TTS 引擎: "piper" 或 "edge"
     # Piper TTS 模型设置

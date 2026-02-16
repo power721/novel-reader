@@ -4,7 +4,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QTextEdit, QScrollBar, QPushButton, QSpinBox, QFrame,
-    QListWidget, QListWidgetItem, QSplitter, QSizePolicy
+    QListWidget, QListWidgetItem, QSplitter, QSizePolicy, QComboBox
 )
 from PySide6.QtCore import Signal, Slot, Qt
 from PySide6.QtGui import QFont, QTextCursor, QTextBlockFormat
@@ -45,7 +45,29 @@ class ReaderWidget(QWidget):
             "list_item_hover": "#3a3a3a",
             "list_item_selected": "#2a82da",
             "list_item_selected_text": "white",
+        },
+        "eye_protection": {
+            "bg_color": "#f4ecd8",
+            "border_color": "#d4c9b0",
+            "text_bg": "#faf8f3",
+            "text_color": "#5c4033",
+            "title_color": "#8b6914",
+            "subtitle_color": "#9a8b7a",
+            "button_bg": "#e8dcc8",
+            "button_hover": "#d9cbb5",
+            "button_border": "#c9bba0",
+            "list_bg": "#f0e6d0",
+            "list_item_hover": "#e8dcc8",
+            "list_item_selected": "#c9a227",
+            "list_item_selected_text": "#5c4033",
         }
+    }
+
+    # 主题显示名称
+    THEME_NAMES = {
+        "light": "☀️ 日间模式",
+        "dark": "🌙 夜间模式",
+        "eye_protection": "🌿 护眼模式"
     }
 
     # 信号定义
@@ -164,25 +186,22 @@ class ReaderWidget(QWidget):
 
         toolbar_layout.addSpacing(20)
 
-        # 主题切换按钮
-        theme_btn_text = "☀️ 日间模式" if self.theme == "dark" else "🌙 夜间模式"
-        self.theme_toggle_btn = QPushButton(theme_btn_text)
-        self.theme_toggle_btn.setStyleSheet("""
-            QPushButton {
-                padding: 3px 8px;
-                background-color: #e9ecef;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #dee2e6;
-            }
-        """)
-        self.theme_toggle_btn.setCheckable(True)
-        self.theme_toggle_btn.setChecked(self.theme == "dark")
-        self.theme_toggle_btn.clicked.connect(self._toggle_theme)
-        toolbar_layout.addWidget(self.theme_toggle_btn)
+        # 主题选择下拉菜单
+        theme_label = QLabel("主题:")
+        theme_label.setStyleSheet("color: #6c757d;")
+        toolbar_layout.addWidget(theme_label)
+
+        self.theme_combo = QComboBox()
+        self.theme_combo.setStyleSheet("width: 120px; font-size: 12px;")
+        # 添加主题选项
+        for theme_key in ["light", "eye_protection", "dark"]:
+            self.theme_combo.addItem(self.THEME_NAMES[theme_key], theme_key)
+        # 设置当前主题
+        index = self.theme_combo.findData(self.theme)
+        if index >= 0:
+            self.theme_combo.setCurrentIndex(index)
+        self.theme_combo.currentIndexChanged.connect(self._on_theme_changed)
+        toolbar_layout.addWidget(self.theme_combo)
 
         layout.addWidget(self.toolbar)
 
@@ -621,22 +640,17 @@ class ReaderWidget(QWidget):
         from novel_reader.core import settings as settings_module
         settings_module.set_setting("reader_line_spacing", value)
 
-    def _toggle_theme(self):
-        """切换主题"""
-        is_dark = self.theme_toggle_btn.isChecked()
-        self.theme = "dark" if is_dark else "light"
-
-        # 更新按钮文本和图标
-        if is_dark:
-            self.theme_toggle_btn.setText("☀️ 日间模式")
-        else:
-            self.theme_toggle_btn.setText("🌙 夜间模式")
-
-        # 应用新主题
-        self._apply_theme()
-        # 保存到配置
-        from novel_reader.core import settings as settings_module
-        settings_module.set_setting("reader_theme", self.theme)
+    def _on_theme_changed(self, index: int):
+        """主题选择改变事件"""
+        theme_key = self.theme_combo.itemData(index)
+        if theme_key and theme_key in self.THEMES:
+            self.theme = theme_key
+            # 应用新主题
+            self._apply_theme()
+            # 保存到配置
+            from novel_reader.core import settings as settings_module
+            settings_module.set_setting("reader_theme", self.theme)
+            print(f"[INFO] 主题已切换到: {self.THEME_NAMES[theme_key]}")
 
     def _apply_theme(self):
         """应用主题到整个界面"""
@@ -675,7 +689,51 @@ class ReaderWidget(QWidget):
         self.prev_chapter_btn.setStyleSheet(button_style)
         self.next_chapter_btn.setStyleSheet(button_style)
         self.toggle_chapter_list_btn.setStyleSheet(button_style)
-        self.theme_toggle_btn.setStyleSheet(button_style)
+
+        # 更新下拉菜单和输入框样式
+        combo_style = f"""
+            QComboBox {{
+                padding: 3px 8px;
+                background-color: {theme['text_bg']};
+                border: 1px solid {theme['button_border']};
+                border-radius: 4px;
+                font-size: 12px;
+                color: {theme['text_color']};
+            }}
+            QComboBox:hover {{
+                border: 1px solid {theme['button_hover']};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+            }}
+            QComboBox::down-arrow {{
+                width: 12px;
+                height: 12px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {theme['text_bg']};
+                border: 1px solid {theme['button_border']};
+                selection-background-color: {theme['list_item_selected']};
+                selection-color: {theme['list_item_selected_text']};
+                color: {theme['text_color']};
+            }}
+        """
+        self.theme_combo.setStyleSheet(combo_style)
+
+        spinbox_style = f"""
+            QSpinBox {{
+                background-color: {theme['text_bg']};
+                border: 1px solid {theme['button_border']};
+                border-radius: 4px;
+                padding: 3px;
+                color: {theme['text_color']};
+            }}
+            QSpinBox:focus {{
+                border: 1px solid {theme['list_item_selected']};
+            }}
+        """
+        self.font_spinbox.setStyleSheet(spinbox_style)
+        self.line_spacing_spinbox.setStyleSheet(spinbox_style)
 
         # 更新标签颜色
         self.chapter_title_label.setStyleSheet(f"font-size: 12px; color: {theme['subtitle_color']};")
