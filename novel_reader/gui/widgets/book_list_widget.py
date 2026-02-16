@@ -460,7 +460,7 @@ class BookListWidget(QWidget):
 
         layout.addRow("文件大小：", QLabel(file_size))
         layout.addRow("字符数：", QLabel(char_count))
-        layout.addRow("Chunk 数量：", QLabel(chunk_count))
+        layout.addRow("分段数量：", QLabel(chunk_count))
 
         # 原始文件信息
         if book['original_filename']:
@@ -475,7 +475,7 @@ class BookListWidget(QWidget):
         current_chapter = book.get('current_chapter', 0)
         current_chunk = book.get('current_chunk', 0)
         layout.addRow("当前章节：", QLabel(str(current_chapter)))
-        layout.addRow("当前 Chunk：", QLabel(str(current_chunk)))
+        layout.addRow("当前分段：", QLabel(str(current_chunk)))
 
         # 时间信息
         created_at = book.get('created_at', '')

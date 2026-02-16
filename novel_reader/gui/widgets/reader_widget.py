@@ -14,6 +14,40 @@ from typing import Optional
 class ReaderWidget(QWidget):
     """阅读模式组件 - 纯文本阅读"""
 
+    # 主题样式定义
+    THEMES = {
+        "light": {
+            "bg_color": "#f8f9fa",
+            "border_color": "#dee2e6",
+            "text_bg": "#ffffff",
+            "text_color": "#212529",
+            "title_color": "#495057",
+            "subtitle_color": "#6c757d",
+            "button_bg": "#e9ecef",
+            "button_hover": "#dee2e6",
+            "button_border": "#ced4da",
+            "list_bg": "#f8f9fa",
+            "list_item_hover": "#e9ecef",
+            "list_item_selected": "#007bff",
+            "list_item_selected_text": "white",
+        },
+        "dark": {
+            "bg_color": "#1e1e1e",
+            "border_color": "#3a3a3a",
+            "text_bg": "#2b2b2b",
+            "text_color": "#e0e0e0",
+            "title_color": "#c0c0c0",
+            "subtitle_color": "#a0a0a0",
+            "button_bg": "#3a3a3a",
+            "button_hover": "#4a4a4a",
+            "button_border": "#4a4a4a",
+            "list_bg": "#252525",
+            "list_item_hover": "#3a3a3a",
+            "list_item_selected": "#2a82da",
+            "list_item_selected_text": "white",
+        }
+    }
+
     # 信号定义
     progress_changed = Signal(int, int)  # (current_position, total_length)
     chapter_changed = Signal(int)  # 章节改变信号
@@ -31,6 +65,7 @@ class ReaderWidget(QWidget):
         from novel_reader.core import settings as settings_module
         self.font_size = settings_module.get_setting("reader_font_size", 14)
         self.line_spacing = settings_module.get_setting("reader_line_spacing", 100)
+        self.theme = settings_module.get_setting("reader_theme", "light")  # 当前主题
 
         # 设置扩展策略，让组件能够占据全部可用空间
         self.setSizePolicy(
@@ -40,6 +75,9 @@ class ReaderWidget(QWidget):
 
         self._setup_ui()
 
+        # 应用初始主题
+        self._apply_theme()
+
     def _setup_ui(self):
         """设置界面"""
         layout = QVBoxLayout(self)
@@ -47,21 +85,21 @@ class ReaderWidget(QWidget):
         layout.setSpacing(0)
 
         # ==================== 顶部工具栏 ====================
-        toolbar = QFrame()
-        toolbar.setStyleSheet("""
+        self.toolbar = QFrame()
+        self.toolbar.setStyleSheet("""
             QFrame {
                 background-color: #f8f9fa;
                 border-bottom: 1px solid #dee2e6;
                 padding: 5px;
             }
         """)
-        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout = QHBoxLayout(self.toolbar)
         toolbar_layout.setContentsMargins(10, 3, 10, 3)  # 减小边距
 
         # 标题
-        title_label = QLabel("📖 阅读模式")
-        title_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #495057;")
-        toolbar_layout.addWidget(title_label)
+        self.title_label = QLabel("📖 阅读模式")
+        self.title_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #495057;")
+        toolbar_layout.addWidget(self.title_label)
 
         # 当前章节标题
         self.chapter_title_label = QLabel("未选择书籍")
@@ -92,11 +130,11 @@ class ReaderWidget(QWidget):
         toolbar_layout.addStretch()
 
         # 设置 toolbar 为固定高度
-        toolbar.setSizePolicy(
+        self.toolbar.setSizePolicy(
             QSizePolicy.Preferred,
             QSizePolicy.Fixed
         )
-        toolbar.setMaximumHeight(40)  # 固定最大高度
+        self.toolbar.setMaximumHeight(40)  # 固定最大高度
 
         # 字体大小控制
         font_label = QLabel("字号:")
@@ -124,7 +162,29 @@ class ReaderWidget(QWidget):
         self.line_spacing_spinbox.valueChanged.connect(self._on_line_spacing_changed)
         toolbar_layout.addWidget(self.line_spacing_spinbox)
 
-        layout.addWidget(toolbar)
+        toolbar_layout.addSpacing(20)
+
+        # 主题切换按钮
+        theme_btn_text = "☀️ 日间模式" if self.theme == "dark" else "🌙 夜间模式"
+        self.theme_toggle_btn = QPushButton(theme_btn_text)
+        self.theme_toggle_btn.setStyleSheet("""
+            QPushButton {
+                padding: 3px 8px;
+                background-color: #e9ecef;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #dee2e6;
+            }
+        """)
+        self.theme_toggle_btn.setCheckable(True)
+        self.theme_toggle_btn.setChecked(self.theme == "dark")
+        self.theme_toggle_btn.clicked.connect(self._toggle_theme)
+        toolbar_layout.addWidget(self.theme_toggle_btn)
+
+        layout.addWidget(self.toolbar)
 
         # ==================== 主内容区域（分割器） ====================
         content_splitter = QSplitter(Qt.Horizontal)
@@ -183,15 +243,15 @@ class ReaderWidget(QWidget):
         text_layout.addWidget(self.text_display)
 
         # ==================== 底部导航栏 ====================
-        navbar = QFrame()
-        navbar.setStyleSheet("""
+        self.navbar = QFrame()
+        self.navbar.setStyleSheet("""
             QFrame {
                 background-color: #f8f9fa;
                 border-top: 1px solid #dee2e6;
                 padding: 3px;
             }
         """)
-        navbar_layout = QHBoxLayout(navbar)
+        navbar_layout = QHBoxLayout(self.navbar)
         navbar_layout.setContentsMargins(10, 3, 10, 3)  # 减小边距
 
         # 章节导航按钮
@@ -243,13 +303,13 @@ class ReaderWidget(QWidget):
         navbar_layout.addWidget(self.next_chapter_btn)
 
         # 设置 navbar 为固定高度
-        navbar.setSizePolicy(
+        self.navbar.setSizePolicy(
             QSizePolicy.Preferred,
             QSizePolicy.Fixed
         )
-        navbar.setMaximumHeight(35)  # 固定最大高度
+        self.navbar.setMaximumHeight(35)  # 固定最大高度
 
-        text_layout.addWidget(navbar)
+        text_layout.addWidget(self.navbar)
 
         content_splitter.addWidget(text_container)
 
@@ -263,6 +323,7 @@ class ReaderWidget(QWidget):
         """更新文本样式"""
         font_size = self.font_spinbox.value()
         line_spacing_percent = self.line_spacing_spinbox.value()
+        theme = self.THEMES[self.theme]
 
         # 使用 QFont 设置字号
         font = self.text_display.font()
@@ -281,14 +342,29 @@ class ReaderWidget(QWidget):
         cursor.mergeBlockFormat(format)
         cursor.clearSelection()
 
-        # 设置样式表（仅用于颜色和背景）
-        self.text_display.setStyleSheet("""
-            QTextEdit {
-                background-color: #ffffff;
+        # 设置样式表（使用主题颜色）
+        self.text_display.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {theme['text_bg']};
                 border: none;
                 padding: 15px;
-                color: #212529;
-            }
+                color: {theme['text_color']};
+            }}
+            QScrollBar:vertical {{
+                background-color: {theme['bg_color']};
+                width: 12px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {theme['button_border']};
+                border-radius: 6px;
+                min-height: 30px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {theme['button_hover']};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
         """)
 
     def load_book(self, book_id: int, current_chunk: Optional[int] = None):
@@ -544,6 +620,100 @@ class ReaderWidget(QWidget):
         # 保存到配置
         from novel_reader.core import settings as settings_module
         settings_module.set_setting("reader_line_spacing", value)
+
+    def _toggle_theme(self):
+        """切换主题"""
+        is_dark = self.theme_toggle_btn.isChecked()
+        self.theme = "dark" if is_dark else "light"
+
+        # 更新按钮文本和图标
+        if is_dark:
+            self.theme_toggle_btn.setText("☀️ 日间模式")
+        else:
+            self.theme_toggle_btn.setText("🌙 夜间模式")
+
+        # 应用新主题
+        self._apply_theme()
+        # 保存到配置
+        from novel_reader.core import settings as settings_module
+        settings_module.set_setting("reader_theme", self.theme)
+
+    def _apply_theme(self):
+        """应用主题到整个界面"""
+        theme = self.THEMES[self.theme]
+
+        # 更新工具栏样式
+        self.toolbar.setStyleSheet(f"""
+            QFrame {{
+                background-color: {theme['bg_color']};
+                border-bottom: 1px solid {theme['border_color']};
+                padding: 5px;
+            }}
+        """)
+
+        # 更新标题标签颜色
+        self.title_label.setStyleSheet(f"font-weight: bold; font-size: 14px; color: {theme['title_color']};")
+
+        # 更新按钮样式
+        button_style = f"""
+            QPushButton {{
+                padding: 3px 8px;
+                background-color: {theme['button_bg']};
+                border: 1px solid {theme['button_border']};
+                border-radius: 4px;
+                font-size: 12px;
+                color: {theme['text_color']};
+            }}
+            QPushButton:hover {{
+                background-color: {theme['button_hover']};
+            }}
+            QPushButton:disabled {{
+                background-color: {theme['bg_color']};
+                color: {theme['subtitle_color']};
+            }}
+        """
+        self.prev_chapter_btn.setStyleSheet(button_style)
+        self.next_chapter_btn.setStyleSheet(button_style)
+        self.toggle_chapter_list_btn.setStyleSheet(button_style)
+        self.theme_toggle_btn.setStyleSheet(button_style)
+
+        # 更新标签颜色
+        self.chapter_title_label.setStyleSheet(f"font-size: 12px; color: {theme['subtitle_color']};")
+        self.chapter_progress_label.setStyleSheet(f"color: {theme['subtitle_color']}; font-size: 11px;")
+
+        # 更新章节列表样式
+        self.chapter_list.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {theme['list_bg']};
+                border: none;
+                border-right: 1px solid {theme['border_color']};
+                padding: 5px;
+                color: {theme['text_color']};
+            }}
+            QListWidget::item {{
+                padding: 8px;
+                border-radius: 4px;
+            }}
+            QListWidget::item:hover {{
+                background-color: {theme['list_item_hover']};
+            }}
+            QListWidget::item:selected {{
+                background-color: {theme['list_item_selected']};
+                color: {theme['list_item_selected_text']};
+            }}
+        """)
+
+        # 更新导航栏样式
+        self.navbar.setStyleSheet(f"""
+            QFrame {{
+                background-color: {theme['bg_color']};
+                border-top: 1px solid {theme['border_color']};
+                padding: 3px;
+            }}
+        """)
+
+        # 更新文本显示区域样式
+        self._update_text_style()
 
     def save_reading_position(self):
         """保存当前阅读位置（供外部调用）"""

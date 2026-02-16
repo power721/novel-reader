@@ -40,6 +40,7 @@ class MainWindow(QMainWindow):
         # 模式切换：False = 音频模式, True = 阅读模式
         self._reading_mode: bool = False
         self._was_playing_before_reading_mode: bool = False  # 记录进入阅读模式前的播放状态
+        self._audio_shortcuts = []  # 音频播放相关快捷键列表
 
         # 初始化界面
         self._init_ui()
@@ -192,6 +193,9 @@ class MainWindow(QMainWindow):
             self.lists_splitter.setVisible(False)  # 关键：隐藏 ListsSplitter 本身
             if hasattr(self, 'reader_widget'):
                 self.reader_widget.setVisible(True)
+
+            # 禁用音频快捷键，防止阅读时误触发
+            self._set_audio_shortcuts_enabled(False)
         else:
             # 音频模式：显示所有音频模式组件，隐藏阅读器
             self.player_widget.setVisible(True)
@@ -202,6 +206,9 @@ class MainWindow(QMainWindow):
             self.lists_splitter.setVisible(True)  # 恢复显示 ListsSplitter
             if hasattr(self, 'reader_widget'):
                 self.reader_widget.setVisible(False)
+
+            # 启用音频快捷键
+            self._set_audio_shortcuts_enabled(True)
 
         # 如果有选中的书籍，加载到相应模式
         if self.current_book_id:
@@ -221,41 +228,49 @@ class MainWindow(QMainWindow):
         shortcut_play_pause = QShortcut(QKeySequence("Space"), self)
         shortcut_play_pause.setObjectName("shortcut_play_pause")
         shortcut_play_pause.activated.connect(self._on_play_pause_shortcut)
+        self._audio_shortcuts.append(shortcut_play_pause)
 
         # Escape：停止播放
         shortcut_stop = QShortcut(QKeySequence("Escape"), self)
         shortcut_stop.setObjectName("shortcut_stop")
         shortcut_stop.activated.connect(self._on_stop_shortcut)
+        self._audio_shortcuts.append(shortcut_stop)
 
         # 左箭头：后退一个分段
         shortcut_prev_chunk = QShortcut(QKeySequence("Left"), self)
         shortcut_prev_chunk.setObjectName("shortcut_prev_chunk")
         shortcut_prev_chunk.activated.connect(self._on_prev_chunk_shortcut)
+        self._audio_shortcuts.append(shortcut_prev_chunk)
 
         # 右箭头：前进一个分段
         shortcut_next_chunk = QShortcut(QKeySequence("Right"), self)
         shortcut_next_chunk.setObjectName("shortcut_next_chunk")
         shortcut_next_chunk.activated.connect(self._on_next_chunk_shortcut)
+        self._audio_shortcuts.append(shortcut_next_chunk)
 
         # PageUp：上一章
         shortcut_prev_chapter = QShortcut(QKeySequence("PageUp"), self)
         shortcut_prev_chapter.setObjectName("shortcut_prev_chapter")
         shortcut_prev_chapter.activated.connect(self._on_prev_chapter_shortcut)
+        self._audio_shortcuts.append(shortcut_prev_chapter)
 
         # PageDown：下一章
         shortcut_next_chapter = QShortcut(QKeySequence("PageDown"), self)
         shortcut_next_chapter.setObjectName("shortcut_next_chapter")
         shortcut_next_chapter.activated.connect(self._on_next_chapter_shortcut)
+        self._audio_shortcuts.append(shortcut_next_chapter)
 
         # 上箭头：增加音量
         shortcut_volume_up = QShortcut(QKeySequence("Up"), self)
         shortcut_volume_up.setObjectName("shortcut_volume_up")
         shortcut_volume_up.activated.connect(self._on_volume_up_shortcut)
+        self._audio_shortcuts.append(shortcut_volume_up)
 
         # 下箭头：减少音量
         shortcut_volume_down = QShortcut(QKeySequence("Down"), self)
         shortcut_volume_down.setObjectName("shortcut_volume_down")
         shortcut_volume_down.activated.connect(self._on_volume_down_shortcut)
+        self._audio_shortcuts.append(shortcut_volume_down)
 
     def _create_menu_bar(self):
         """创建菜单栏"""
@@ -2329,6 +2344,15 @@ class MainWindow(QMainWindow):
         self.player_widget.set_volume(new_volume)
         self.player_widget.volume_changed.emit(new_volume)
         self.statusBar().showMessage(f"音量: {int(new_volume * 100)}%", 1000)
+
+    def _set_audio_shortcuts_enabled(self, enabled: bool):
+        """启用或禁用音频播放快捷键
+
+        Args:
+            enabled: True 启用快捷键, False 禁用快捷键
+        """
+        for shortcut in self._audio_shortcuts:
+            shortcut.setEnabled(enabled)
 
     def _show_shortcuts(self):
         """显示快捷键帮助"""
