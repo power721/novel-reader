@@ -192,7 +192,8 @@ class ReaderWidget(QWidget):
         toolbar_layout.addWidget(theme_label)
 
         self.theme_combo = QComboBox()
-        self.theme_combo.setStyleSheet("width: 120px; font-size: 12px;")
+        self.theme_combo.setMinimumWidth(96)
+        self.theme_combo.setStyleSheet("font-size: 12px;")
         # 添加主题选项
         for theme_key in ["light", "eye_protection", "dark"]:
             self.theme_combo.addItem(self.THEME_NAMES[theme_key], theme_key)
@@ -386,14 +387,20 @@ class ReaderWidget(QWidget):
             }}
         """)
 
-    def load_book(self, book_id: int, current_chunk: Optional[int] = None):
+    def load_book(self, book_id: int, current_chunk: Optional[int] = None, preserve_position: bool = False):
         """
         加载书籍进行阅读
 
         Args:
             book_id: 书籍ID
             current_chunk: 当前播放的chunk（可选，用于同步播放位置）
+            preserve_position: 是否保持当前阅读位置（True=不重新定位章节）
         """
+        # 如果是同一本书且要求保持位置，只更新书籍ID，不重新加载
+        if preserve_position and book_id == self.current_book_id and self.chapters:
+            print(f"[INFO] 阅读模式：保持当前阅读位置（章节 {self.current_chapter_index + 1}）")
+            return
+
         self.current_book_id = book_id
 
         if book_id is None:
@@ -440,16 +447,17 @@ class ReaderWidget(QWidget):
                 }]
                 print(f"[INFO] 阅读模式：数据库无章节信息，使用虚拟章节")
 
-            # 根据当前播放chunk找到对应章节
-            if current_chunk is not None:
-                # 使用传入的当前播放chunk
-                self._find_chapter_by_chunk(current_chunk)
-                print(f"[INFO] 阅读模式：根据播放位置 chunk {current_chunk} 加载章节 {self.current_chapter_index + 1}")
-            else:
-                # 使用书籍的当前chunk（从数据库读取）
-                book_current_chunk = book.get('current_chunk', 0)
-                self._find_chapter_by_chunk(book_current_chunk)
-                print(f"[INFO] 阅读模式：根据数据库位置 chunk {book_current_chunk} 加载章节 {self.current_chapter_index + 1}")
+            # 根据当前播放chunk找到对应章节（如果不要求保持位置）
+            if not preserve_position:
+                if current_chunk is not None:
+                    # 使用传入的当前播放chunk
+                    self._find_chapter_by_chunk(current_chunk)
+                    print(f"[INFO] 阅读模式：根据播放位置 chunk {current_chunk} 加载章节 {self.current_chapter_index + 1}")
+                else:
+                    # 使用书籍的当前chunk（从数据库读取）
+                    book_current_chunk = book.get('current_chunk', 0)
+                    self._find_chapter_by_chunk(book_current_chunk)
+                    print(f"[INFO] 阅读模式：根据数据库位置 chunk {book_current_chunk} 加载章节 {self.current_chapter_index + 1}")
 
             # 更新章节列表
             self._update_chapter_list()

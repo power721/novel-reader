@@ -49,8 +49,16 @@ class MainWindow(QMainWindow):
         # 检查模型可用性
         self._check_models_on_startup()
 
-        # 加载数据
-        self._load_data()
+        # 检查上次使用的模式，决定是否自动播放
+        from novel_reader.core import settings as settings_module
+        last_mode = settings_module.get_setting("last_mode", "audio")
+        should_auto_play = (last_mode != "reading")  # 阅读模式下不自动播放
+
+        # 加载数据（根据模式决定是否自动播放）
+        self._load_data(auto_play=should_auto_play)
+
+        # 恢复上次的模式
+        self._restore_last_mode()
 
     def _init_ui(self):
         """初始化界面"""
@@ -146,6 +154,11 @@ class MainWindow(QMainWindow):
         """切换阅读模式"""
         self._reading_mode = self.reading_mode_action.isChecked()
 
+        # 保存当前模式到配置
+        from novel_reader.core import settings as settings_module
+        mode_to_save = "reading" if self._reading_mode else "audio"
+        settings_module.set_setting("last_mode", mode_to_save)
+
         # 更新界面显示
         if self._reading_mode:
             # 切换到阅读模式
@@ -175,6 +188,32 @@ class MainWindow(QMainWindow):
             else:
                 self.statusBar().showMessage("已切换到音频模式", 3000)
             self._update_ui_for_mode()
+
+    def _restore_last_mode(self):
+        """恢复上次使用的模式"""
+        from novel_reader.core import settings as settings_module
+
+        # 获取上次保存的模式
+        last_mode = settings_module.get_setting("last_mode", "audio")
+
+        # 如果上次是阅读模式，自动切换到阅读模式
+        if last_mode == "reading":
+            self.reading_mode_action.setChecked(True)
+            self._reading_mode = True
+
+            # 如果音频正在播放，暂停它
+            if self.playback_worker and self.playback_worker.isRunning():
+                if self.player_widget.is_playing and not self.player_widget.is_paused:
+                    self._pause_playback()
+                    print(f"[INFO] 恢复阅读模式：暂停音频播放")
+
+            self._update_ui_for_mode()
+            print(f"[INFO] 恢复上次模式: 阅读模式")
+        else:
+            # 默认保持音频模式
+            self.reading_mode_action.setChecked(False)
+            self._reading_mode = False
+            print(f"[INFO] 恢复上次模式: 音频模式")
 
     def _update_ui_for_mode(self):
         """根据当前模式更新界面显示"""
@@ -213,9 +252,16 @@ class MainWindow(QMainWindow):
         # 如果有选中的书籍，加载到相应模式
         if self.current_book_id:
             if self._reading_mode:
-                # 获取当前播放的chunk，用于同步章节
-                current_chunk = self._get_current_playing_chunk(self.current_book_id)
-                self.reader_widget.load_book(self.current_book_id, current_chunk)
+                # 阅读模式：保持当前阅读位置，不重新根据音频位置定位章节
+                # 只有当书籍改变时才需要重新定位
+                current_book_in_reader = self.reader_widget.current_book_id
+                if current_book_in_reader != self.current_book_id:
+                    # 书籍切换，需要根据音频位置同步章节
+                    current_chunk = self._get_current_playing_chunk(self.current_book_id)
+                    self.reader_widget.load_book(self.current_book_id, current_chunk, preserve_position=False)
+                else:
+                    # 同一本书，保持阅读位置
+                    self.reader_widget.load_book(self.current_book_id, preserve_position=True)
             else:
                 self.play_text_widget.load_content(self.current_book_id)
 
