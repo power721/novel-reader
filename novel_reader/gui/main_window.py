@@ -232,6 +232,9 @@ class MainWindow(QMainWindow):
             self.lists_splitter.setVisible(False)  # 关键：隐藏 ListsSplitter 本身
             if hasattr(self, 'reader_widget'):
                 self.reader_widget.setVisible(True)
+                # 确保章节列表与按钮状态一致（默认显示目录）
+                if self.reader_widget.toggle_chapter_list_btn.isChecked():
+                    self.reader_widget.chapter_list.setVisible(True)
 
             # 禁用音频快捷键，防止阅读时误触发
             self._set_audio_shortcuts_enabled(False)

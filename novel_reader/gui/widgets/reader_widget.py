@@ -88,6 +88,7 @@ class ReaderWidget(QWidget):
         self.font_size = settings_module.get_setting("reader_font_size", 14)
         self.line_spacing = settings_module.get_setting("reader_line_spacing", 100)
         self.theme = settings_module.get_setting("reader_theme", "light")  # 当前主题
+        self.show_chapter_list = settings_module.get_setting("reader_show_chapter_list", True)  # 是否显示目录
 
         # 设置扩展策略，让组件能够占据全部可用空间
         self.setSizePolicy(
@@ -99,6 +100,9 @@ class ReaderWidget(QWidget):
 
         # 应用初始主题
         self._apply_theme()
+
+        # 根据配置设置目录显示状态
+        self.chapter_list.setVisible(self.show_chapter_list)
 
     def _setup_ui(self):
         """设置界面"""
@@ -131,7 +135,9 @@ class ReaderWidget(QWidget):
         toolbar_layout.addStretch()
 
         # 显示/隐藏章节列表按钮
-        self.toggle_chapter_list_btn = QPushButton("📋 显示目录")
+        # 根据配置设置按钮初始状态
+        btn_text = "📋 隐藏目录" if self.show_chapter_list else "📋 显示目录"
+        self.toggle_chapter_list_btn = QPushButton(btn_text)
         self.toggle_chapter_list_btn.setStyleSheet("""
             QPushButton {
                 padding: 3px 8px;
@@ -145,7 +151,7 @@ class ReaderWidget(QWidget):
             }
         """)
         self.toggle_chapter_list_btn.setCheckable(True)
-        self.toggle_chapter_list_btn.setChecked(False)
+        self.toggle_chapter_list_btn.setChecked(self.show_chapter_list)  # 根据配置设置
         self.toggle_chapter_list_btn.clicked.connect(self._toggle_chapter_list)
         toolbar_layout.addWidget(self.toggle_chapter_list_btn)
 
@@ -177,7 +183,7 @@ class ReaderWidget(QWidget):
         toolbar_layout.addWidget(line_spacing_label)
 
         self.line_spacing_spinbox = QSpinBox()
-        self.line_spacing_spinbox.setRange(100, 250)
+        self.line_spacing_spinbox.setRange(50, 250)
         self.line_spacing_spinbox.setValue(self.line_spacing)
         self.line_spacing_spinbox.setSuffix("%")
         self.line_spacing_spinbox.setStyleSheet("width: 80px;")
@@ -336,6 +342,9 @@ class ReaderWidget(QWidget):
         # 设置拉伸比例
         content_splitter.setStretchFactor(0, 0)  # 章节列表不拉伸
         content_splitter.setStretchFactor(1, 1)  # 文本区域拉伸
+
+        # 设置初始大小：章节列表默认显示（250px），文本区域占据剩余空间
+        content_splitter.setSizes([250, 550])
 
         layout.addWidget(content_splitter)
 
@@ -613,6 +622,7 @@ class ReaderWidget(QWidget):
     def _toggle_chapter_list(self):
         """切换章节列表显示/隐藏"""
         is_visible = self.toggle_chapter_list_btn.isChecked()
+        self.show_chapter_list = is_visible
         self.chapter_list.setVisible(is_visible)
 
         # 更新按钮文本
@@ -631,6 +641,10 @@ class ReaderWidget(QWidget):
             else:
                 # 隐藏章节列表，文本占据全部空间
                 parent.setSizes([0, parent.width()])
+
+        # 保存到配置
+        from novel_reader.core import settings as settings_module
+        settings_module.set_setting("reader_show_chapter_list", is_visible)
 
     def _on_font_size_changed(self, value: int):
         """字体大小改变"""
