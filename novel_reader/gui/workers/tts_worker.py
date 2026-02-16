@@ -50,7 +50,7 @@ class TTSWorker(QThread):
                 f"[DEBUG] TTS Worker started: book_id={self.book_id}, start_chunk={self.start_chunk}, chapter_mode={self.chapter_mode}")
 
             from novel_reader.core import get_book, get_book_chapters, get_setting
-            from novel_reader.utils import load_txt_file, parse_txt
+            from novel_reader.utils import parse_txt_cached
             from novel_reader.core.tts_engine import convert_chunk, chunk_to_audio_path
             from novel_reader.core.models_v2 import TTSConfig
 
@@ -90,8 +90,8 @@ class TTSWorker(QThread):
 
             # 读取并解析文本
             # self.log.emit(f"[DEBUG] Loading and parsing text file: {book['file_path']}")
-            text = load_txt_file(book['file_path'])
-            chunks, chapters = parse_txt(text)
+            # 使用缓存版本，避免重复解析（传入 book 避免重复查询数据库）
+            chunks, chapters = parse_txt_cached(self.book_id, book=book)
             self.log.emit(f"[DEBUG] Text parsed: {len(chunks)} chunks, {len(chapters)} chapters")
 
             # 获取章节列表
@@ -152,7 +152,7 @@ class TTSWorker(QThread):
 
             if self.chapter_mode:
                 self.log.emit(
-                    f"开始转换当前章节 (chunk {start_pos} - {current_chapter_end - 1 if current_chapter_end else total})")
+                    f"开始转换当前章节 (分段 {start_pos} - {current_chapter_end - 1 if current_chapter_end else total})")
 
             # 第一阶段：转换到当前章节结束
             first_phase_end = current_chapter_end if self.chapter_mode else total
@@ -170,11 +170,11 @@ class TTSWorker(QThread):
 
                 # 检查是否已存在
                 if os.path.exists(audio_path) and os.path.getsize(audio_path) > MIN_SIZE:
-                    self.log.emit(f"[{i + 1}/{total}] 跳过 分段 {i}（已存在）")
+                    self.log.emit(f"[{i + 1}/{total}] 跳过分段 {i}（已存在）")
                     skipped += 1
                 else:
                     chunk_text = chunks[i].strip()
-                    self.log.emit(f"[{i + 1}/{total}] 正在转换 分段 {i}... (文本长度: {len(chunk_text)} 字符)")
+                    self.log.emit(f"[{i + 1}/{total}] 正在转换分段 {i}... (文本长度: {len(chunk_text)} 字符)")
 
                     try:
                         convert_chunk(chunks[i], self.book_id, i, engine=tts_engine)
@@ -273,7 +273,7 @@ class TTSWorker(QThread):
                         preview_end_chunk = total  # 到文件末尾
 
                     self.log.emit(
-                        f"继续预转换后续 {self.max_preview_chapters} 章 (chunk {first_phase_end} - {preview_end_chunk})...")
+                        f"继续预转换后续 {self.max_preview_chapters} 章 (分段 {first_phase_end} - {preview_end_chunk})...")
                 else:
                     self.log.emit(f"不预转换后续章节")
 

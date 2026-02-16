@@ -5,6 +5,9 @@ import re
 import os
 from typing import List, Tuple, Dict, Optional
 
+# 内存缓存：{book_id: (chunks, chapters, mtime)}
+_parse_cache: Dict[int, Tuple[List[str], List[Tuple[str, int]], float]] = {}
+
 
 # 跳过的章节标题（非正文内容）
 SKIP_CHAPTER_TITLES = {
@@ -170,6 +173,52 @@ def parse_txt(
 def load_txt_file(file_path: str) -> str:
     with open(file_path, 'r', encoding='utf-8') as f:
         return f.read()
+
+
+def parse_txt_cached(book_id: int, book: dict) -> Tuple[List[str], List[Tuple[str, int]]]:
+    """
+    带内存缓存的文本解析
+
+    Args:
+        book_id: 书籍 ID
+        book: 书籍信息字典（必须提供）
+
+    Returns:
+        (chunks, chapters) - 分段列表和章节信息
+    """
+    file_path = book['file_path']
+
+    # 获取文件修改时间
+    mtime = os.path.getmtime(file_path)
+
+    # 检查缓存
+    if book_id in _parse_cache:
+        chunks, chapters, cached_mtime = _parse_cache[book_id]
+        if cached_mtime == mtime:
+            # 缓存命中
+            return chunks, chapters
+
+    # 缓存未命中或文件已修改，重新解析
+    text = load_txt_file(file_path)
+    chunks, chapters = parse_txt(text)
+
+    # 更新缓存
+    _parse_cache[book_id] = (chunks, chapters, mtime)
+
+    return chunks, chapters
+
+
+def clear_parse_cache(book_id: Optional[int] = None) -> None:
+    """
+    清理解析缓存
+
+    Args:
+        book_id: 指定书籍 ID，则只清除该书籍的缓存；否则清除全部缓存
+    """
+    if book_id:
+        _parse_cache.pop(book_id, None)
+    else:
+        _parse_cache.clear()
 
 
 def parse_txt_preserve_format(
