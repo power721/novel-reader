@@ -458,14 +458,25 @@ class ReaderWidget(QWidget):
 
             # 根据当前播放chunk找到对应章节（如果不要求保持位置）
             if not preserve_position:
-                if current_chunk is not None:
-                    # 使用传入的当前播放chunk
+                # 优先使用阅读模式的独立章节记录
+                reading_chapter = book.get('reading_chapter', -1)
+
+                if reading_chapter >= 0:
+                    # 使用阅读模式的章节记录
+                    self.current_chapter_index = reading_chapter
+                    print(f"[INFO] 阅读模式：加载上次阅读章节 {self.current_chapter_index + 1}")
+                elif current_chunk is not None:
+                    # 首次进入阅读模式，使用音频位置同步一次
                     self._find_chapter_by_chunk(current_chunk)
-                    print(f"[INFO] 阅读模式：根据播放位置 chunk {current_chunk} 加载章节 {self.current_chapter_index + 1}")
+                    # 保存同步的章节作为阅读模式的初始章节
+                    self._save_chapter_position()
+                    print(f"[INFO] 阅读模式：首次加载，根据播放位置 chunk {current_chunk} 加载章节 {self.current_chapter_index + 1}")
                 else:
                     # 使用书籍的当前chunk（从数据库读取）
                     book_current_chunk = book.get('current_chunk', 0)
                     self._find_chapter_by_chunk(book_current_chunk)
+                    # 保存作为阅读模式的初始章节
+                    self._save_chapter_position()
                     print(f"[INFO] 阅读模式：根据数据库位置 chunk {book_current_chunk} 加载章节 {self.current_chapter_index + 1}")
 
             # 更新章节列表
@@ -552,12 +563,12 @@ class ReaderWidget(QWidget):
             return
 
         try:
-            from novel_reader.core import update_book_reading_position
-            # 保存当前章节的起始位置
-            chapter = self.chapters[self.current_chapter_index]
-            update_book_reading_position(self.current_book_id, chapter['start_chunk'])
+            from novel_reader.core import update_book_reading_chapter
+            # 保存阅读模式的章节索引（独立于音频模式）
+            update_book_reading_chapter(self.current_book_id, self.current_chapter_index)
+            print(f"[INFO] 阅读模式：保存章节位置 {self.current_chapter_index + 1}")
         except Exception as e:
-            print(f"[ERROR] Failed to save reading position: {e}")
+            print(f"[ERROR] Failed to save reading chapter: {e}")
 
     def _find_chapter_by_chunk(self, chunk: int):
         """根据 chunk 索引查找对应的章节

@@ -138,6 +138,7 @@ def get_book(book_id: int) -> Optional[Dict]:
                           file_format,
                           current_chunk,
                           current_chapter,
+                          reading_chapter,
                           last_played_at,
                           reading_position,
                           created_at,
@@ -158,10 +159,11 @@ def get_book(book_id: int) -> Optional[Dict]:
             "file_format": row[4],
             "current_chunk": row[5],
             "current_chapter": row[6],
-            "last_played_at": row[7],
-            "reading_position": row[8] if len(row) > 8 else 0,
-            "created_at": row[9] if len(row) > 9 else row[8],
-            "updated_at": row[10] if len(row) > 10 else row[9]
+            "reading_chapter": row[7],
+            "last_played_at": row[8],
+            "reading_position": row[9] if len(row) > 9 else 0,
+            "created_at": row[10] if len(row) > 10 else row[9],
+            "updated_at": row[11] if len(row) > 11 else row[10]
         }
     return None
 
@@ -410,6 +412,53 @@ def update_book_reading_position(book_id: int, position: int) -> bool:
     except Exception as e:
         conn.close()
         print(f"✗ 更新阅读位置失败: {e}")
+        return False
+
+
+def update_book_reading_chapter(book_id: int, chapter_index: int) -> bool:
+    """
+    更新阅读模式的章节位置（独立于音频播放位置）
+
+    Args:
+        book_id: 书籍 ID
+        chapter_index: 章节索引（从0开始）
+
+    Returns:
+        是否更新成功
+    """
+    if chapter_index < 0:
+        print("✗ 章节索引不能为负数")
+        return False
+
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    try:
+        # 检查书籍是否存在
+        cursor.execute("SELECT title FROM book WHERE id = ?", (book_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            conn.close()
+            print(f"✗ 书籍不存在 (ID: {book_id})")
+            return False
+
+        # 更新阅读模式章节位置
+        cursor.execute("""
+                       UPDATE book
+                       SET reading_chapter = ?,
+                           updated_at      = ?
+                       WHERE id = ?
+                       """, (chapter_index, datetime.now().isoformat(), book_id))
+
+        conn.commit()
+        conn.close()
+
+        return True
+
+    except Exception as e:
+        conn.close()
+        print(f"✗ 更新阅读章节失败: {e}")
         return False
 
 

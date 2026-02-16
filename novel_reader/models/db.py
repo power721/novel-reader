@@ -112,6 +112,13 @@ def init_db() -> None:
         cursor.execute("ALTER TABLE book ADD COLUMN reading_position INTEGER DEFAULT 0")
         print("Added column: book.reading_position")
 
+    # 添加阅读模式章节索引字段（独立于音频模式）
+    try:
+        cursor.execute("SELECT reading_chapter FROM book LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE book ADD COLUMN reading_chapter INTEGER DEFAULT -1")
+        print("Added column: book.reading_chapter")
+
     # 创建 chapter 表
     cursor.execute("""
                    CREATE TABLE IF NOT EXISTS chapter
