@@ -259,7 +259,9 @@ def play_audio(file_path: str, should_stop_check_fn=None) -> None:
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
-                break
+                # 正常退出，不检查返回码
+                _playback_state["current_process"] = None
+                return
 
             # 检查进程是否已结束
             if process.poll() is not None:
@@ -269,10 +271,16 @@ def play_audio(file_path: str, should_stop_check_fn=None) -> None:
             time.sleep(check_interval)
             waited += check_interval
 
-        # 如果是正常结束（非被停止），检查返回码
+        # 检查返回码（只有在非停止请求结束时才检查）
         if process.poll() is not None and process.returncode != 0:
+            # 检查是否是因为停止请求而结束的
+            if should_stop_check_fn and should_stop_check_fn():
+                # 是停止请求导致的结束，不报错
+                _playback_state["current_process"] = None
+                return
+
             # 获取错误输出
-            _, stderr = process.communicate()
+            _, stderr = process.communicate(timeout=1)
             error_msg = stderr.decode('utf-8', errors='ignore').strip()
 
             print(f"  ⚠ 播放失败 (返回码: {process.returncode})")
@@ -309,32 +317,34 @@ def stop_playback() -> None:
     """停止当前播放"""
     global _playback_state
 
+    # 首先设置停止标志，让 play_audio() 能检测到
+    _playback_state["should_stop"] = True
+
     if _playback_state["current_process"]:
-        # print(f"[player.stop_playback] DEBUG: Terminating current process")
         process = _playback_state["current_process"]
 
         # 先尝试优雅终止
         process.terminate()
 
-        # 等待最多0.5秒，如果还没退出则强制终止
+        # 等待最多1秒，如果还没退出则强制终止
         try:
-            process.wait(timeout=0.5)
+            process.wait(timeout=1.0)
         except subprocess.TimeoutExpired:
-            print(f"[player.stop_playback] DEBUG: Process didn't terminate, killing...")
+            print(f"[player.stop_playback] Process didn't terminate, killing...")
             process.kill()
-            process.wait(timeout=0.5)
+            try:
+                process.wait(timeout=0.5)
+            except:
+                pass  # Already killed
 
-        print("播放已停止")
     else:
-        print(f"[player.stop_playback] DEBUG: No current process to stop")
-
-    _playback_state["should_stop"] = True
+        print(f"[player.stop_playback] No current process to stop")
 
     # 清理 IPC socket 文件
     try:
         if os.path.exists(_ipc_socket):
             os.remove(_ipc_socket)
-            # print(f"[player.stop_playback] DEBUG: Removed IPC socket: {_ipc_socket}")
+            # print(f"[player.stop_playback] Removed IPC socket: {_ipc_socket}")
     except:
         pass
 

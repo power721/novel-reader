@@ -293,7 +293,12 @@ class PlaybackWorker(QThread):
         self._is_paused = False  # 重置暂停状态
         from novel_reader.core.player import stop_playback
         stop_playback()
-        self.terminate()
+        # Don't use terminate() - it forcefully kills the thread
+        # The thread will exit gracefully when _is_running is False
+        if not self.wait(3000):  # Wait up to 3 seconds for graceful shutdown
+            print("[PlaybackWorker] Warning: Thread did not stop gracefully, forcing termination")
+            self.terminate()
+            self.wait()
 
     def pause(self):
         """暂停播放"""
