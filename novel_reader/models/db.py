@@ -126,6 +126,13 @@ def init_db() -> None:
         cursor.execute("ALTER TABLE book ADD COLUMN chunk_count INTEGER DEFAULT 0")
         print("Added column: book.chunk_count")
 
+    # 添加阅读时长字段（秒）
+    try:
+        cursor.execute("SELECT reading_time FROM book LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE book ADD COLUMN reading_time INTEGER DEFAULT 0")
+        print("Added column: book.reading_time")
+
     # 创建 chapter 表
     cursor.execute("""
                    CREATE TABLE IF NOT EXISTS chapter

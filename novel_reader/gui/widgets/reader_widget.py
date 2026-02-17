@@ -4,9 +4,9 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QTextEdit, QScrollBar, QPushButton, QSpinBox, QFrame,
-    QListWidget, QListWidgetItem, QSplitter, QSizePolicy, QComboBox, QMenu
+    QListWidget, QListWidgetItem, QSplitter, QSizePolicy, QComboBox, QMenu, QDialog
 )
-from PySide6.QtCore import Signal, Slot, Qt, QPoint
+from PySide6.QtCore import Signal, Slot, Qt, QPoint, QTimer
 from PySide6.QtGui import QFont, QTextCursor, QTextBlockFormat
 from typing import Optional
 
@@ -84,6 +84,14 @@ class ReaderWidget(QWidget):
         self.current_chapter_index: int = -1  # 当前章节索引
         self.chapters = []  # 章节列表
         self.chapter_texts = []  # 章节文本列表
+
+        # 阅读计时相关
+        self._reading_timer = QTimer(self)
+        self._reading_timer.timeout.connect(self._on_reading_timer_tick)
+        self._session_reading_seconds = 0  # 本次会话阅读时长（秒）
+        self._total_reading_seconds = 0  # 总阅读时长（秒）
+        self._unsaved_seconds = 0  # 未保存到数据库的秒数
+        self._is_timer_running = False
 
         # 从配置加载阅读模式设置
         from novel_reader.core import settings as settings_module
@@ -173,6 +181,24 @@ class ReaderWidget(QWidget):
         """)
         self.exit_reading_mode_btn.clicked.connect(self._exit_reading_mode)
         toolbar_layout.addWidget(self.exit_reading_mode_btn)
+
+        # 阅读统计按钮
+        self.stats_btn = QPushButton("📊 统计")
+        self.stats_btn.setStyleSheet("""
+            QPushButton {
+                padding: 3px 8px;
+                background-color: #e9ecef;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #dee2e6;
+            }
+        """)
+        self.stats_btn.setCheckable(False)
+        self.stats_btn.clicked.connect(self._show_stats_dialog)
+        toolbar_layout.addWidget(self.stats_btn)
 
         toolbar_layout.addStretch()
 
@@ -324,10 +350,15 @@ class ReaderWidget(QWidget):
         self.prev_chapter_btn.clicked.connect(self._prev_chapter)
         navbar_layout.addWidget(self.prev_chapter_btn)
 
-        # 章节进度信息
-        self.chapter_progress_label = QLabel("0 / 0 章")
+        # 章节进度信息（包含百分比）
+        self.chapter_progress_label = QLabel("0 / 0 章 (0%)")
         self.chapter_progress_label.setStyleSheet("color: #6c757d; font-size: 11px;")  # 减小字体
         navbar_layout.addWidget(self.chapter_progress_label)
+
+        # 本次阅读时长
+        self.session_time_label = QLabel("本次阅读: 0分钟")
+        self.session_time_label.setStyleSheet("color: #6c757d; font-size: 11px;")
+        navbar_layout.addWidget(self.session_time_label)
 
         navbar_layout.addStretch()
 
@@ -581,6 +612,9 @@ class ReaderWidget(QWidget):
         # 保存阅读位置
         self._save_chapter_position()
 
+        # 启动阅读计时器
+        self._start_reading_timer()
+
         # 发射信号
         self.chapter_changed.emit(chapter_index)
 
@@ -676,15 +710,20 @@ class ReaderWidget(QWidget):
         self.prev_chapter_btn.setEnabled(self.current_chapter_index > 0)
         self.next_chapter_btn.setEnabled(self.current_chapter_index < len(self.chapters) - 1)
 
-        # 更新进度标签（使用实际章节数量）
+        # 更新进度标签（包含百分比）
         if len(self.chapter_texts) > 0:
             # 确保 current_chapter_index 在有效范围内
             display_index = min(self.current_chapter_index, len(self.chapter_texts) - 1)
+            total = len(self.chapter_texts)
+
+            # 计算百分比
+            percent = int((display_index + 1) / total * 100)
+
             self.chapter_progress_label.setText(
-                f"{display_index + 1} / {len(self.chapter_texts)} 章"
+                f"{display_index + 1} / {total} 章 ({percent}%)"
             )
         else:
-            self.chapter_progress_label.setText("0 / 0 章")
+            self.chapter_progress_label.setText("0 / 0 章 (0%)")
 
     def _toggle_chapter_list(self):
         """切换章节列表显示/隐藏"""
@@ -784,6 +823,7 @@ class ReaderWidget(QWidget):
         self.next_chapter_btn.setStyleSheet(button_style)
         self.toggle_chapter_list_btn.setStyleSheet(button_style)
         self.exit_reading_mode_btn.setStyleSheet(button_style)
+        self.stats_btn.setStyleSheet(button_style)
 
         # 更新下拉菜单和输入框样式
         combo_style = f"""
@@ -872,6 +912,10 @@ class ReaderWidget(QWidget):
         """保存当前阅读位置（供外部调用）"""
         self._save_chapter_position()
 
+    def stop_reading_timer(self):
+        """停止阅读计时器（供外部调用）"""
+        self._stop_reading_timer()
+
     def jump_to_chapter(self, chapter_index: int):
         """
         跳转到指定章节
@@ -951,3 +995,244 @@ class ReaderWidget(QWidget):
         self.text_display.setPlainText("请选择一本书开始阅读")
         self._clear_chapters()
         self.current_book_id = None
+        # 停止计时器
+        self._stop_reading_timer()
+
+    # ==================== 阅读计时相关 ====================
+
+    def _start_reading_timer(self):
+        """启动阅读计时器"""
+        if not self._is_timer_running:
+            self._reading_timer.start(1000)  # 每秒触发一次
+            self._is_timer_running = True
+            # 重置本次会话时长
+            self._session_reading_seconds = 0
+            self._unsaved_seconds = 0
+            print(f"[INFO] 阅读计时器已启动 (书籍ID: {self.current_book_id})")
+            # 立即更新一次显示
+            self._update_session_time_display()
+
+    def _stop_reading_timer(self):
+        """停止阅读计时器并保存时长"""
+        if self._is_timer_running:
+            self._reading_timer.stop()
+            self._is_timer_running = False
+
+            # 保存剩余的未保存时长到数据库
+            if self.current_book_id and self._unsaved_seconds > 0:
+                from novel_reader.core.book import update_book_reading_time
+                update_book_reading_time(self.current_book_id, self._unsaved_seconds)
+                print(f"[INFO] 已保存剩余阅读时长: {self._unsaved_seconds} 秒")
+
+            print("[INFO] 阅读计时器已停止")
+
+    def _on_reading_timer_tick(self):
+        """计时器每秒触发"""
+        self._session_reading_seconds += 1
+        self._total_reading_seconds += 1
+        self._unsaved_seconds += 1
+
+        # 更新显示（每10秒更新一次显示，避免频繁刷新）
+        if self._session_reading_seconds % 10 == 0:
+            self._update_session_time_display()
+
+        # 每60秒保存一次到数据库（防止数据丢失）
+        if self._unsaved_seconds >= 60 and self.current_book_id:
+            from novel_reader.core.book import update_book_reading_time
+            # 保存60秒
+            update_book_reading_time(self.current_book_id, 60)
+            print(f"[INFO] 自动保存阅读时长: +60 秒 (本次会话总计: {self._session_reading_seconds} 秒)")
+            # 重置未保存计数，而不是重置会话计数
+            self._unsaved_seconds = 0
+
+    def _update_session_time_display(self):
+        """更新本次阅读时长显示"""
+        minutes = self._session_reading_seconds // 60
+        seconds = self._session_reading_seconds % 60
+        if minutes > 0:
+            self.session_time_label.setText(f"本次阅读: {minutes}分{seconds}秒")
+        else:
+            self.session_time_label.setText(f"本次阅读: {seconds}秒")
+
+    def _load_reading_time(self):
+        """从数据库加载总阅读时长"""
+        if not self.current_book_id:
+            self._total_reading_seconds = 0
+            return
+
+        from novel_reader.core.book import get_book_reading_stats
+        stats = get_book_reading_stats(self.current_book_id)
+        if stats:
+            self._total_reading_seconds = stats['reading_time_seconds']
+        else:
+            self._total_reading_seconds = 0
+
+    def _show_stats_dialog(self):
+        """显示阅读统计对话框"""
+        if not self.current_book_id:
+            return
+
+        dialog = ReadingStatsDialog(self.current_book_id, self)
+        dialog.exec()
+
+
+# ==================== 阅读统计对话框 ====================
+
+class ReadingStatsDialog(QDialog):
+    """阅读统计对话框"""
+
+    def __init__(self, book_id: int, parent=None):
+        super().__init__(parent)
+        self.book_id = book_id
+        self._setup_ui()
+
+    def _setup_ui(self):
+        """设置界面"""
+        from novel_reader.core import get_book, get_book_chapters
+        from novel_reader.core.book import get_book_reading_stats
+
+        book = get_book(self.book_id)
+        if not book:
+            return
+
+        stats = get_book_reading_stats(self.book_id)
+        if not stats:
+            return
+
+        # 获取章节列表
+        chapters = get_book_chapters(self.book_id)
+        total_chapters = len(chapters) if chapters else 1
+
+        self.setWindowTitle("📊 阅读统计")
+        self.setMinimumWidth(400)
+        self.setMaximumWidth(500)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(15)
+
+        # 标题
+        title_label = QLabel(f"📖 {book['title']}")
+        title_label.setStyleSheet("font-weight: bold; font-size: 16px; color: #212529;")
+        title_label.setWordWrap(True)
+        layout.addWidget(title_label)
+
+        # 分隔线
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(line)
+
+        # 计算统计信息
+        current_chapter = stats.get('reading_chapter', 0) + 1
+        total_reading_seconds = stats.get('reading_time_seconds', 0)
+        chunk_count = stats.get('chunk_count', 0)
+
+        # 阅读进度
+        progress_percent = 0
+        if total_chapters > 0:
+            progress_percent = int((current_chapter / total_chapters) * 100)
+
+        # 阅读时长格式化
+        hours = total_reading_seconds // 3600
+        minutes = (total_reading_seconds % 3600) // 60
+        if hours > 0:
+            time_str = f"{hours}小时{minutes}分钟"
+        elif minutes > 0:
+            time_str = f"{minutes}分钟"
+        else:
+            time_str = "少于1分钟"
+
+        # 统计信息
+        stats_grid = QVBoxLayout()
+
+        # 进度
+        progress_item = self._create_stat_item(
+            "📚 阅读进度",
+            f"{current_chapter} / {total_chapters} 章",
+            f"{progress_percent}%"
+        )
+        stats_grid.addLayout(progress_item)
+
+        # 阅读时长
+        time_item = self._create_stat_item(
+            "⏱ 累计阅读",
+            time_str,
+            f"{total_reading_seconds:,} 秒"
+        )
+        stats_grid.addLayout(time_item)
+
+        # 总段数
+        chunks_item = self._create_stat_item(
+            "📄 总段数",
+            f"{chunk_count:,} 段",
+            ""
+        )
+        stats_grid.addLayout(chunks_item)
+
+        # 章节数
+        chapters_item = self._create_stat_item(
+            "📑 章节数",
+            f"{total_chapters} 章",
+            ""
+        )
+        stats_grid.addLayout(chapters_item)
+
+        layout.addLayout(stats_grid)
+
+        # 阅读建议
+        if progress_percent < 10:
+            suggestion = "💡 刚开始阅读，加油！"
+        elif progress_percent < 30:
+            suggestion = "💡 渐入佳境，继续保持！"
+        elif progress_percent < 50:
+            suggestion = "💡 已读近半，精彩继续！"
+        elif progress_percent < 70:
+            suggestion = "💡 已过半程，冲刺阶段！"
+        elif progress_percent < 90:
+            suggestion = "💡 即将完结，最后冲刺！"
+        else:
+            suggestion = "🎉 恭喜！即将读完全书！"
+
+        suggestion_label = QLabel(suggestion)
+        suggestion_label.setStyleSheet("font-size: 14px; color: #495057; padding: 10px; background-color: #e8f4fd; border-radius: 8px;")
+        suggestion_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(suggestion_label)
+
+        # 关闭按钮
+        layout.addStretch()
+        close_btn = QPushButton("关闭")
+        close_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                background-color: #007bff;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
+            }
+        """)
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
+
+    def _create_stat_item(self, title: str, value: str, subtext: str):
+        """创建统计项布局"""
+        item_layout = QVBoxLayout()
+        item_layout.setSpacing(2)
+
+        title_label = QLabel(title)
+        title_label.setStyleSheet("font-size: 12px; color: #6c757d;")
+        item_layout.addWidget(title_label)
+
+        value_label = QLabel(value)
+        value_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #212529;")
+        item_layout.addWidget(value_label)
+
+        if subtext:
+            subtext_label = QLabel(subtext)
+            subtext_label.setStyleSheet("font-size: 11px; color: #adb5bd;")
+            item_layout.addWidget(subtext_label)
+
+        return item_layout

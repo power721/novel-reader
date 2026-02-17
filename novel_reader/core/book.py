@@ -143,6 +143,7 @@ def get_book(book_id: int) -> Optional[Dict]:
                           last_played_at,
                           reading_position,
                           chunk_count,
+                          reading_time,
                           created_at,
                           updated_at
                    FROM book
@@ -165,8 +166,9 @@ def get_book(book_id: int) -> Optional[Dict]:
             "last_played_at": row[8],
             "reading_position": row[9] if len(row) > 9 else 0,
             "chunk_count": row[10] if len(row) > 10 else 0,
-            "created_at": row[11] if len(row) > 11 else row[9],
-            "updated_at": row[12] if len(row) > 12 else row[10]
+            "reading_time": row[11] if len(row) > 11 else 0,
+            "created_at": row[12] if len(row) > 12 else row[10],
+            "updated_at": row[13] if len(row) > 13 else row[11]
         }
     return None
 
@@ -465,6 +467,92 @@ def update_book_reading_chapter(book_id: int, chapter_index: int) -> bool:
         conn.close()
         print(f"✗ 更新阅读章节失败: {e}")
         return False
+
+
+def update_book_reading_time(book_id: int, additional_seconds: int) -> bool:
+    """
+    更新书籍的阅读时长（累加）
+
+    Args:
+        book_id: 书籍 ID
+        additional_seconds: 增加的阅读时长（秒）
+
+    Returns:
+        是否更新成功
+    """
+    if additional_seconds < 0:
+        print("✗ 阅读时长不能为负数")
+        return False
+
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    try:
+        # 检查书籍是否存在
+        cursor.execute("SELECT id FROM book WHERE id = ?", (book_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            conn.close()
+            print(f"✗ 书籍不存在 (ID: {book_id})")
+            return False
+
+        # 更新阅读时长（累加）
+        cursor.execute("""
+                       UPDATE book
+                       SET reading_time = reading_time + ?,
+                           updated_at   = ?
+                       WHERE id = ?
+                       """, (additional_seconds, datetime.now().isoformat(), book_id))
+
+        conn.commit()
+        conn.close()
+
+        return True
+
+    except Exception as e:
+        conn.close()
+        print(f"✗ 更新阅读时长失败: {e}")
+        return False
+
+
+def get_book_reading_stats(book_id: int) -> Optional[Dict]:
+    """
+    获取书籍的阅读统计信息
+
+    Args:
+        book_id: 书籍 ID
+
+    Returns:
+        阅读统计信息字典，如果不存在返回 None
+    """
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+                   SELECT id,
+                          title,
+                          chunk_count,
+                          reading_time,
+                          current_chunk,
+                          reading_chapter
+                   FROM book
+                   WHERE id = ?
+                   """, (book_id,))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        return {
+            "id": row[0],
+            "title": row[1],
+            "chunk_count": row[2] or 0,
+            "reading_time_seconds": row[3] or 0,
+            "current_chunk": row[4] or 0,
+            "reading_chapter": row[5] or 0,
+        }
+    return None
 
 
 if __name__ == "__main__":

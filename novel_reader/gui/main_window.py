@@ -203,9 +203,10 @@ class MainWindow(QMainWindow):
 
     def _exit_reading_mode(self):
         """退出阅读模式（返回音频模式）"""
-        # 保存阅读位置
+        # 保存阅读位置并停止计时器
         if self.current_book_id:
             self.reader_widget.save_reading_position()
+            self.reader_widget.stop_reading_timer()
 
         # 直接切换到音频模式
         if self._reading_mode:
