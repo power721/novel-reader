@@ -60,6 +60,9 @@ class MainWindow(QMainWindow):
         # 恢复上次的模式
         self._restore_last_mode()
 
+        # 窗口居中
+        self._center_window()
+
     def _init_ui(self):
         """初始化界面"""
         self.setWindowTitle("Novel Reader - 有声书阅读器")
@@ -236,6 +239,23 @@ class MainWindow(QMainWindow):
             self.reading_mode_action.setChecked(False)
             self._reading_mode = False
             print(f"[INFO] 恢复上次模式: 音频模式")
+
+    def _center_window(self):
+        """将窗口居中显示在屏幕上"""
+        from PySide6.QtGui import QScreen
+
+        # 获取屏幕几何信息
+        screen = QScreen.availableGeometry(self.screen())
+
+        # 获取窗口几何信息
+        window = self.geometry()
+
+        # 计算居中位置
+        x = int((screen.width() - window.width()) / 2)
+        y = int((screen.height() - window.height()) / 2)
+
+        # 移动窗口到居中位置
+        self.move(x, y)
 
     def _update_ui_for_mode(self):
         """根据当前模式更新界面显示"""
