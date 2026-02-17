@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self._reading_mode: bool = False
         self._was_playing_before_reading_mode: bool = False  # 记录进入阅读模式前的播放状态
         self._audio_shortcuts = []  # 音频播放相关快捷键列表
+        self._reading_shortcuts = []  # 阅读模式相关快捷键列表
 
         # 初始化界面
         self._init_ui()
@@ -281,6 +282,8 @@ class MainWindow(QMainWindow):
 
             # 禁用音频快捷键，防止阅读时误触发
             self._set_audio_shortcuts_enabled(False)
+            # 启用阅读模式快捷键
+            self._set_reading_shortcuts_enabled(True)
         else:
             # 音频模式：显示所有音频模式组件，隐藏阅读器
             self.player_widget.setVisible(True)
@@ -294,6 +297,8 @@ class MainWindow(QMainWindow):
 
             # 启用音频快捷键
             self._set_audio_shortcuts_enabled(True)
+            # 禁用阅读模式快捷键
+            self._set_reading_shortcuts_enabled(False)
 
         # 如果有选中的书籍，加载到相应模式
         if self.current_book_id:
@@ -363,6 +368,24 @@ class MainWindow(QMainWindow):
         shortcut_volume_down.setObjectName("shortcut_volume_down")
         shortcut_volume_down.activated.connect(self._on_volume_down_shortcut)
         self._audio_shortcuts.append(shortcut_volume_down)
+
+    def _setup_reading_shortcuts(self):
+        """设置阅读模式快捷键（仅在阅读模式下有效）"""
+        from PySide6.QtGui import QKeySequence, QShortcut
+
+        # 如果已经设置过，先清除旧的
+        if self._reading_shortcuts:
+            for shortcut in self._reading_shortcuts:
+                shortcut.setEnabled(False)
+                shortcut.disconnect()
+            self._reading_shortcuts.clear()
+
+        # 空格键：阅读模式下切换自动滚动
+        shortcut_auto_scroll = QShortcut(QKeySequence("Space"), self)
+        shortcut_auto_scroll.setObjectName("shortcut_auto_scroll")
+        shortcut_auto_scroll.setEnabled(False)  # 初始禁用，进入阅读模式时启用
+        shortcut_auto_scroll.activated.connect(self._on_reading_auto_scroll_shortcut)
+        self._reading_shortcuts.append(shortcut_auto_scroll)
 
     def _create_menu_bar(self):
         """创建菜单栏"""
@@ -2518,10 +2541,29 @@ class MainWindow(QMainWindow):
         for shortcut in self._audio_shortcuts:
             shortcut.setEnabled(enabled)
 
+    def _set_reading_shortcuts_enabled(self, enabled: bool):
+        """启用或禁用阅读模式快捷键
+
+        Args:
+            enabled: True 启用快捷键, False 禁用快捷键
+        """
+        # 确保阅读快捷键已初始化
+        if not self._reading_shortcuts:
+            self._setup_reading_shortcuts()
+
+        for shortcut in self._reading_shortcuts:
+            shortcut.setEnabled(enabled)
+
+    def _on_reading_auto_scroll_shortcut(self):
+        """阅读模式下：切换自动滚动"""
+        if hasattr(self, 'reader_widget'):
+            self.reader_widget.toggle_auto_scroll_shortcut()
+
     def _show_shortcuts(self):
         """显示快捷键帮助"""
         shortcuts_text = """
         <h2>键盘快捷键</h2>
+        <h3>音频模式</h3>
         <table border="1" cellpadding="8" cellspacing="0">
         <tr><td><b>空格</b></td><td>播放 / 暂停</td></tr>
         <tr><td><b>Escape</b></td><td>停止播放</td></tr>
@@ -2531,10 +2573,21 @@ class MainWindow(QMainWindow):
         <tr><td><b>PageDown</b></td><td>下一章</td></tr>
         <tr><td><b>↑</b></td><td>增加音量</td></tr>
         <tr><td><b>↓</b></td><td>减少音量</td></tr>
+        </table>
+
+        <h3>阅读模式</h3>
+        <table border="1" cellpadding="8" cellspacing="0">
+        <tr><td><b>空格</b></td><td>开始 / 停止自动滚动</td></tr>
+        <tr><td><b>Ctrl + R</b></td><td>返回音频模式</td></tr>
+        </table>
+
+        <h3>通用快捷键</h3>
+        <table border="1" cellpadding="8" cellspacing="0">
         <tr><td><b>Ctrl + R</b></td><td>切换阅读模式</td></tr>
         <tr><td><b>Ctrl + I</b></td><td>导入书籍</td></tr>
         <tr><td><b>F5</b></td><td>刷新列表</td></tr>
         <tr><td><b>F1</b></td><td>显示此帮助</td></tr>
+        <tr><td><b>Ctrl + Q</b></td><td>退出程序</td></tr>
         </table>
         """
 
@@ -2542,7 +2595,7 @@ class MainWindow(QMainWindow):
 
         dialog = QDialog(self)
         dialog.setWindowTitle("快捷键")
-        dialog.setMinimumSize(450, 515)  # 设置最小宽度和高度
+        dialog.setMinimumSize(500, 600)  # 设置最小宽度和高度
 
         layout = QVBoxLayout(dialog)
 

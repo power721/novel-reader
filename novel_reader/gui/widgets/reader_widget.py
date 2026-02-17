@@ -93,8 +93,16 @@ class ReaderWidget(QWidget):
         self._unsaved_seconds = 0  # 未保存到数据库的秒数
         self._is_timer_running = False
 
+        # 自动滚动相关
+        self._auto_scroll_timer = QTimer(self)
+        self._auto_scroll_timer.timeout.connect(self._on_auto_scroll_tick)
+        self._is_auto_scrolling = False  # 是否正在自动滚动
+        self._scroll_speed = 1000  # 滚动间隔（毫秒），默认1秒
+        self._scroll_lines_per_tick = 1  # 每次滚动的行数
+
         # 从配置加载阅读模式设置
         from novel_reader.core import settings as settings_module
+        self._from_settings_scroll_speed = settings_module.get_setting("reader_auto_scroll_speed", 1000)  # 从配置读取
         self.font_size = settings_module.get_setting("reader_font_size", 14)
         self.line_spacing = settings_module.get_setting("reader_line_spacing", 100)
         self.theme = settings_module.get_setting("reader_theme", "light")  # 当前主题
@@ -199,6 +207,47 @@ class ReaderWidget(QWidget):
         self.stats_btn.setCheckable(False)
         self.stats_btn.clicked.connect(self._show_stats_dialog)
         toolbar_layout.addWidget(self.stats_btn)
+
+        toolbar_layout.addSpacing(20)
+
+        # 自动滚动控制组
+        # 开始/停止自动滚动按钮
+        self.auto_scroll_btn = QPushButton("📜 自动滚动")
+        self.auto_scroll_btn.setStyleSheet("""
+            QPushButton {
+                padding: 3px 8px;
+                background-color: #e9ecef;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #dee2e6;
+            }
+            QPushButton:checked {
+                background-color: #28a745;
+                color: white;
+                border: 1px solid #218838;
+            }
+        """)
+        self.auto_scroll_btn.setCheckable(True)
+        self.auto_scroll_btn.clicked.connect(self._toggle_auto_scroll)
+        toolbar_layout.addWidget(self.auto_scroll_btn)
+
+        # 滚动速度控制
+        scroll_speed_label = QLabel("速度:")
+        scroll_speed_label.setStyleSheet("color: #6c757d;")
+        toolbar_layout.addWidget(scroll_speed_label)
+
+        self.scroll_speed_slider = QSpinBox()
+        self.scroll_speed_slider.setRange(100, 3000)
+        self.scroll_speed_slider.setValue(self._from_settings_scroll_speed)
+        self.scroll_speed_slider.setSuffix(" ms")
+        self.scroll_speed_slider.setSingleStep(100)
+        self.scroll_speed_slider.setStyleSheet("width: 50px;")
+        self.scroll_speed_slider.setToolTip("滚动间隔（毫秒），越小越快")
+        self.scroll_speed_slider.valueChanged.connect(self._on_scroll_speed_changed)
+        toolbar_layout.addWidget(self.scroll_speed_slider)
 
         toolbar_layout.addStretch()
 
@@ -601,6 +650,9 @@ class ReaderWidget(QWidget):
 
         # 滚动到顶部
         self.text_display.verticalScrollBar().setValue(0)
+
+        # 停止自动滚动（切换章节时）
+        self.stop_auto_scroll()
 
         # 更新按钮状态
         self._update_chapter_buttons()
@@ -1074,6 +1126,74 @@ class ReaderWidget(QWidget):
 
         dialog = ReadingStatsDialog(self.current_book_id, self)
         dialog.exec()
+
+    # ==================== 自动滚动相关 ====================
+
+    def _toggle_auto_scroll(self):
+        """切换自动滚动开关"""
+        self._is_auto_scrolling = self.auto_scroll_btn.isChecked()
+
+        if self._is_auto_scrolling:
+            # 启动自动滚动
+            self._scroll_speed = self.scroll_speed_slider.value()
+            self._auto_scroll_timer.start(self._scroll_speed)
+            self.auto_scroll_btn.setText("⏸ 停止滚动")
+            print(f"[INFO] 自动滚动已启动，间隔: {self._scroll_speed}ms")
+        else:
+            # 停止自动滚动
+            self._auto_scroll_timer.stop()
+            self.auto_scroll_btn.setText("📜 自动滚动")
+            print("[INFO] 自动滚动已停止")
+
+    def _on_auto_scroll_tick(self):
+        """自动滚动定时器触发"""
+        if not self._is_auto_scrolling:
+            return
+
+        # 获取当前滚动条
+        scrollbar = self.text_display.verticalScrollBar()
+
+        # 计算要滚动的像素值（基于字体大小）
+        font_metrics = self.text_display.fontMetrics()
+        line_height = font_metrics.lineSpacing()
+        scroll_pixels = line_height * self._scroll_lines_per_tick
+
+        # 向下滚动
+        new_value = scrollbar.value() + scroll_pixels
+        scrollbar.setValue(new_value)
+
+        # 检查是否已滚动到底部
+        if scrollbar.value() >= scrollbar.maximum():
+            # 到达底部，停止自动滚动
+            self._auto_scroll_timer.stop()
+            self._is_auto_scrolling = False
+            self.auto_scroll_btn.setChecked(False)
+            self.auto_scroll_btn.setText("📜 自动滚动")
+            print("[INFO] 已滚动到底部，自动滚动停止")
+
+    def _on_scroll_speed_changed(self, value: int):
+        """滚动速度改变"""
+        self._scroll_speed = value
+
+        # 如果正在自动滚动，需要重启定时器以应用新速度
+        if self._is_auto_scrolling:
+            self._auto_scroll_timer.setInterval(value)
+
+        # 保存到配置
+        from novel_reader.core import settings as settings_module
+        settings_module.set_setting("reader_auto_scroll_speed", value)
+
+    def toggle_auto_scroll_shortcut(self):
+        """通过快捷键切换自动滚动"""
+        self.auto_scroll_btn.click()
+
+    def stop_auto_scroll(self):
+        """停止自动滚动（供外部调用）"""
+        if self._is_auto_scrolling:
+            self._auto_scroll_timer.stop()
+            self._is_auto_scrolling = False
+            self.auto_scroll_btn.setChecked(False)
+            self.auto_scroll_btn.setText("📜 自动滚动")
 
 
 # ==================== 阅读统计对话框 ====================
