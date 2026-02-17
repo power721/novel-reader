@@ -740,14 +740,14 @@ def debug_chunk_content(book_id: int, chunk_id: int) -> dict:
         调试信息字典
     """
     from novel_reader.core import get_book
-    from novel_reader.utils import load_txt_file, parse_txt
+    from novel_reader.utils import parse_txt_cached
 
     book = get_book(book_id)
     if not book:
         return {"error": "书籍不存在"}
 
-    text = load_txt_file(book['file_path'])
-    chunks, chapters = parse_txt(text)
+    # 使用带缓存的解析方法
+    chunks, chapters = parse_txt_cached(book_id, book)
 
     if chunk_id >= len(chunks):
         return {"error": f"Chunk {chunk_id} 超出范围 (总共 {len(chunks)} 个)"}

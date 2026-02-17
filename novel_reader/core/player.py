@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Optional
 
 from novel_reader.models import get_conn
-from novel_reader.utils import load_txt_file, parse_txt
 
 # ==================== 配置区 ====================
 
@@ -68,9 +67,9 @@ def play_book(book_id: int, start_chunk: Optional[int] = None) -> None:
     # 使用指定的起始 chunk 或数据库中的 current_chunk
     start_chunk = start_chunk if start_chunk is not None else current_chunk
 
-    # 读取并解析文本
-    text = load_txt_file(file_path)
-    chunks, chapters = parse_txt(text)
+    # 读取并解析文本（使用缓存）
+    from novel_reader.utils import parse_txt_cached
+    chunks, chapters = parse_txt_cached(book_id, {'file_path': file_path})
 
     if start_chunk >= len(chunks):
         print(f"起始 chunk {start_chunk} 超出范围 (总共 {len(chunks)} 个)")
@@ -642,14 +641,14 @@ def diagnose_audio_files(book_id: int) -> dict:
         诊断结果字典
     """
     from novel_reader.core import get_book
-    from novel_reader.utils import load_txt_file, parse_txt
+    from novel_reader.utils import parse_txt_cached
 
     book = get_book(book_id)
     if not book:
         return {"error": "书籍不存在"}
 
-    text = load_txt_file(book['file_path'])
-    chunks, _ = parse_txt(text)
+    # 使用带缓存的解析方法
+    chunks, _ = parse_txt_cached(book_id, book)
     total_chunks = len(chunks)
 
     book_audio_dir = AUDIO_DIR / str(book_id)

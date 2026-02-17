@@ -151,7 +151,6 @@ class ChapterListWidget(QWidget):
             current_chunk: 当前播放的chunk（用于高亮）
         """
         from novel_reader.core import get_book_chapters, get_book
-        from novel_reader.utils import load_txt_file, parse_txt
 
         self.current_book_id = book_id
         self.chapters_tree.clear()
@@ -171,8 +170,9 @@ class ChapterListWidget(QWidget):
         if not book:
             return
 
-        text = load_txt_file(book['file_path'])
-        chunks, _ = parse_txt(text)
+        # 使用带缓存的解析方法
+        from novel_reader.utils import parse_txt_cached
+        chunks, _ = parse_txt_cached(book_id, book)
         total_chunks = len(chunks)
 
         # 保存章节数据并创建树项

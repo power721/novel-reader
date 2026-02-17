@@ -1322,7 +1322,7 @@ class MainWindow(QMainWindow):
         if self.playback_worker:
             playing_book_id = self.playback_worker.book_id
             from novel_reader.core import get_book, get_book_chapters
-            from novel_reader.utils import load_txt_file, parse_txt
+            from novel_reader.utils import parse_txt_cached
 
             book = get_book(playing_book_id)
             if book:
@@ -1343,8 +1343,7 @@ class MainWindow(QMainWindow):
                                 chapter_end = chapters[i + 1]['start_chunk']
                             else:
                                 # 最后一章，获取总chunk数
-                                text = load_txt_file(book['file_path'])
-                                chunks, _ = parse_txt(text)
+                                chunks, _ = parse_txt_cached(playing_book_id, book)
                                 chapter_end = len(chunks)
                         else:
                             break
@@ -1790,7 +1789,6 @@ class MainWindow(QMainWindow):
             return
 
         from novel_reader.core import get_book_chapters
-        from novel_reader.utils import load_txt_file, parse_txt
 
         # 在停止播放前，先获取实时章节位置（如果正在播放）
         real_chapter_idx = None
@@ -1873,7 +1871,7 @@ class MainWindow(QMainWindow):
         self._stop_tts_worker_safely()
 
         from novel_reader.core import get_book
-        from novel_reader.utils import load_txt_file, parse_txt
+        from novel_reader.utils import parse_txt_cached
 
         book = get_book(target_book_id)
         if not book:
@@ -1883,8 +1881,7 @@ class MainWindow(QMainWindow):
         current_chunk = book['current_chunk']
 
         # 获取总chunk数
-        text = load_txt_file(book['file_path'])
-        chunks, _ = parse_txt(text)
+        chunks, _ = parse_txt_cached(target_book_id, book)
         total_chunks = len(chunks)
 
         # 计算下一个chunk
@@ -1927,7 +1924,7 @@ class MainWindow(QMainWindow):
         self._stop_tts_worker_safely()
 
         from novel_reader.core import get_book
-        from novel_reader.utils import load_txt_file, parse_txt
+        from novel_reader.utils import parse_txt_cached
 
         book = get_book(target_book_id)
         if not book:
@@ -1937,8 +1934,7 @@ class MainWindow(QMainWindow):
         current_chunk = book['current_chunk']
 
         # 获取总chunk数
-        text = load_txt_file(book['file_path'])
-        chunks, _ = parse_txt(text)
+        chunks, _ = parse_txt_cached(target_book_id, book)
         total_chunks = len(chunks)
 
         # 计算目标chunk
@@ -1981,7 +1977,6 @@ class MainWindow(QMainWindow):
         self._stop_tts_worker_safely()
 
         from novel_reader.core import get_book
-        from novel_reader.utils import load_txt_file, parse_txt
 
         book = get_book(target_book_id)
         if not book:

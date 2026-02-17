@@ -64,7 +64,7 @@ class PlayTextWidget(QWidget):
 
         try:
             from novel_reader.core import get_book
-            from novel_reader.utils import load_txt_file, parse_txt
+            from novel_reader.utils import parse_txt_cached
 
             book = get_book(book_id)
             if book is None:
@@ -75,9 +75,8 @@ class PlayTextWidget(QWidget):
                 self.text_display.setPlainText(f"错误: book类型为 {type(book)}")
                 return
 
-            # 加载文本
-            text = load_txt_file(book['file_path'])
-            chunks, chapters = parse_txt(text)
+            # 使用带缓存的解析方法
+            chunks, chapters = parse_txt_cached(book_id, book)
 
             if chunk_id < 0 or chunk_id >= len(chunks):
                 self.text_display.setPlainText(f"Chunk {chunk_id} 超出范围")

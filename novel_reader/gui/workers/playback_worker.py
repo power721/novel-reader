@@ -36,7 +36,7 @@ class PlaybackWorker(QThread):
 
         try:
             from novel_reader.core.player import play_audio, stop_playback
-            from novel_reader.utils import load_txt_file, parse_txt
+            from novel_reader.utils import parse_txt_cached
             from novel_reader.core import get_book, get_book_chapters
             from novel_reader.core.tts import AUDIO_DIR
             from pathlib import Path
@@ -48,8 +48,8 @@ class PlaybackWorker(QThread):
             if not book:
                 raise ValueError(f"书籍不存在: book_id={self.book_id}")
 
-            text = load_txt_file(book['file_path'])
-            chunks, _ = parse_txt(text)
+            # 使用带缓存的解析方法
+            chunks, _ = parse_txt_cached(self.book_id, book)
             total_chunks = len(chunks)
             chapters = get_book_chapters(self.book_id)
 
