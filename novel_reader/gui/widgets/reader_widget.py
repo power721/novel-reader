@@ -4,7 +4,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QTextEdit, QScrollBar, QPushButton, QSpinBox, QFrame,
-    QListWidget, QListWidgetItem, QSplitter, QSizePolicy, QComboBox, QMenu, QDialog
+    QListWidget, QListWidgetItem, QSplitter, QSizePolicy, QComboBox, QMenu, QDialog, QCheckBox
 )
 from PySide6.QtCore import Signal, Slot, Qt, QPoint, QTimer
 from PySide6.QtGui import QFont, QTextCursor, QTextBlockFormat
@@ -99,10 +99,16 @@ class ReaderWidget(QWidget):
         self._is_auto_scrolling = False  # 是否正在自动滚动
         self._scroll_speed = 1000  # 滚动间隔（毫秒），默认1秒
         self._scroll_lines_per_tick = 1  # 每次滚动的行数
+        self._auto_scroll_next_chapter = True  # 是否在滚动到底部时自动切换下一章
+        self._waiting_to_next_chapter = False  # 是否正在等待切换到下一章
+        self._pending_resume_after_chapter = False  # 是否在章节切换后待恢复滚动
 
         # 从配置加载阅读模式设置
         from novel_reader.core import settings as settings_module
-        self._from_settings_scroll_speed = settings_module.get_setting("reader_auto_scroll_speed", 1000)  # 从配置读取
+        self._scroll_speed = settings_module.get_setting("reader_auto_scroll_speed", 1000)  # 从配置读取
+        self._auto_scroll_next_chapter = settings_module.get_setting("reader_auto_scroll_next_chapter", True)  # 从配置读取自动切换下一章设置
+        self._chapter_switch_delay = settings_module.get_setting("reader_chapter_switch_delay", 3000)  # 从配置读取章节切换延迟（底部停留时间）
+        self._chapter_start_delay = settings_module.get_setting("reader_chapter_start_delay", 5000)  # 从配置读取章节开始延迟（新章准备时间）
         self.font_size = settings_module.get_setting("reader_font_size", 14)
         self.line_spacing = settings_module.get_setting("reader_line_spacing", 100)
         self.theme = settings_module.get_setting("reader_theme", "light")  # 当前主题
@@ -234,20 +240,22 @@ class ReaderWidget(QWidget):
         self.auto_scroll_btn.clicked.connect(self._toggle_auto_scroll)
         toolbar_layout.addWidget(self.auto_scroll_btn)
 
-        # 滚动速度控制
-        scroll_speed_label = QLabel("速度:")
-        scroll_speed_label.setStyleSheet("color: #6c757d;")
-        toolbar_layout.addWidget(scroll_speed_label)
-
-        self.scroll_speed_slider = QSpinBox()
-        self.scroll_speed_slider.setRange(100, 3000)
-        self.scroll_speed_slider.setValue(self._from_settings_scroll_speed)
-        self.scroll_speed_slider.setSuffix(" ms")
-        self.scroll_speed_slider.setSingleStep(100)
-        self.scroll_speed_slider.setStyleSheet("width: 50px;")
-        self.scroll_speed_slider.setToolTip("滚动间隔（毫秒），越小越快")
-        self.scroll_speed_slider.valueChanged.connect(self._on_scroll_speed_changed)
-        toolbar_layout.addWidget(self.scroll_speed_slider)
+        # 滚动设置按钮
+        self.scroll_settings_btn = QPushButton("⚙️ 滚动设置")
+        self.scroll_settings_btn.setStyleSheet("""
+            QPushButton {
+                padding: 3px 8px;
+                background-color: #e9ecef;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #dee2e6;
+            }
+        """)
+        self.scroll_settings_btn.clicked.connect(self._show_scroll_settings_dialog)
+        toolbar_layout.addWidget(self.scroll_settings_btn)
 
         toolbar_layout.addStretch()
 
@@ -606,6 +614,12 @@ class ReaderWidget(QWidget):
 
     def _update_chapter_list(self):
         """更新章节列表显示"""
+        # 临时断开信号，防止在更新时触发 _on_chapter_selected
+        try:
+            self.chapter_list.currentRowChanged.disconnect(self._on_chapter_selected)
+        except TypeError:
+            pass  # 如果信号没有连接，忽略错误
+
         self.chapter_list.clear()
 
         for i, chapter in enumerate(self.chapters):
@@ -617,12 +631,16 @@ class ReaderWidget(QWidget):
         if self.current_chapter_index >= 0:
             self.chapter_list.setCurrentRow(self.current_chapter_index)
 
-    def _display_chapter(self, chapter_index: int):
+        # 重新连接信号
+        self.chapter_list.currentRowChanged.connect(self._on_chapter_selected)
+
+    def _display_chapter(self, chapter_index: int, keep_auto_scroll: bool = False):
         """
         显示指定章节
 
         Args:
             chapter_index: 章节索引
+            keep_auto_scroll: 是否保持自动滚动状态（默认 False）
         """
         # 安全检查
         if chapter_index < 0:
@@ -651,15 +669,26 @@ class ReaderWidget(QWidget):
         # 滚动到顶部
         self.text_display.verticalScrollBar().setValue(0)
 
-        # 停止自动滚动（切换章节时）
-        self.stop_auto_scroll()
+        # 停止自动滚动（切换章节时），除非要求保持自动滚动状态
+        if not keep_auto_scroll:
+            self.stop_auto_scroll()
+        else:
+            # 保持自动滚动状态，确保待恢复标志被设置
+            self._pending_resume_after_chapter = True
 
         # 更新按钮状态
         self._update_chapter_buttons()
 
         # 更新章节列表高亮状态
         if self.chapter_list.isVisible():
+            # 临时断开信号，防止触发 _on_chapter_selected
+            try:
+                self.chapter_list.currentRowChanged.disconnect(self._on_chapter_selected)
+            except TypeError:
+                pass
             self.chapter_list.setCurrentRow(self.current_chapter_index)
+            # 重新连接信号
+            self.chapter_list.currentRowChanged.connect(self._on_chapter_selected)
 
         # 保存阅读位置
         self._save_chapter_position()
@@ -752,10 +781,14 @@ class ReaderWidget(QWidget):
         if self.current_chapter_index > 0:
             self._display_chapter(self.current_chapter_index - 1)
 
-    def _next_chapter(self):
-        """下一章"""
+    def _next_chapter(self, keep_auto_scroll: bool = False):
+        """下一章
+
+        Args:
+            keep_auto_scroll: 是否保持自动滚动状态（默认 False）
+        """
         if self.current_chapter_index < len(self.chapters) - 1:
-            self._display_chapter(self.current_chapter_index + 1)
+            self._display_chapter(self.current_chapter_index + 1, keep_auto_scroll=keep_auto_scroll)
 
     def _update_chapter_buttons(self):
         """更新章节导航按钮状态和进度标签"""
@@ -1127,6 +1160,11 @@ class ReaderWidget(QWidget):
         dialog = ReadingStatsDialog(self.current_book_id, self)
         dialog.exec()
 
+    def _show_scroll_settings_dialog(self):
+        """显示自动滚动设置对话框"""
+        dialog = AutoScrollSettingsDialog(self)
+        dialog.exec()
+
     # ==================== 自动滚动相关 ====================
 
     def _toggle_auto_scroll(self):
@@ -1135,19 +1173,24 @@ class ReaderWidget(QWidget):
 
         if self._is_auto_scrolling:
             # 启动自动滚动
-            self._scroll_speed = self.scroll_speed_slider.value()
             self._auto_scroll_timer.start(self._scroll_speed)
             self.auto_scroll_btn.setText("⏸ 停止滚动")
             print(f"[INFO] 自动滚动已启动，间隔: {self._scroll_speed}ms")
         else:
             # 停止自动滚动
             self._auto_scroll_timer.stop()
+            self._waiting_to_next_chapter = False  # 重置等待标志
+            self._pending_resume_after_chapter = False  # 重置待恢复标志
             self.auto_scroll_btn.setText("📜 自动滚动")
             print("[INFO] 自动滚动已停止")
 
     def _on_auto_scroll_tick(self):
         """自动滚动定时器触发"""
         if not self._is_auto_scrolling:
+            return
+
+        # 如果正在等待切换章节，不执行滚动操作
+        if self._waiting_to_next_chapter:
             return
 
         # 获取当前滚动条
@@ -1164,12 +1207,28 @@ class ReaderWidget(QWidget):
 
         # 检查是否已滚动到底部
         if scrollbar.value() >= scrollbar.maximum():
-            # 到达底部，停止自动滚动
-            self._auto_scroll_timer.stop()
-            self._is_auto_scrolling = False
-            self.auto_scroll_btn.setChecked(False)
-            self.auto_scroll_btn.setText("📜 自动滚动")
-            print("[INFO] 已滚动到底部，自动滚动停止")
+            # 到达底部
+            if self._auto_scroll_next_chapter and self.current_chapter_index < len(self.chapters) - 1:
+                # 启用了自动切换且不是最后一章
+                # 设置等待标志，防止重复触发
+                self._waiting_to_next_chapter = True
+
+                # 停止定时器，等待3秒后切换章节
+                self._auto_scroll_timer.stop()
+                print(f"[INFO] 已滚动到底部，{self._chapter_switch_delay/1000:.1f}秒后自动切换到下一章...")
+
+                # 使用 QTimer 延迟切换章节
+                QTimer.singleShot(self._chapter_switch_delay, self._auto_switch_to_next_chapter)
+            else:
+                # 最后一章或未启用自动切换，停止自动滚动
+                self._auto_scroll_timer.stop()
+                self._is_auto_scrolling = False
+                self.auto_scroll_btn.setChecked(False)
+                self.auto_scroll_btn.setText("📜 自动滚动")
+                if self.current_chapter_index >= len(self.chapters) - 1:
+                    print("[INFO] 已滚动到全书末尾，自动滚动停止")
+                else:
+                    print("[INFO] 已滚动到底部，自动滚动停止")
 
     def _on_scroll_speed_changed(self, value: int):
         """滚动速度改变"""
@@ -1183,6 +1242,87 @@ class ReaderWidget(QWidget):
         from novel_reader.core import settings as settings_module
         settings_module.set_setting("reader_auto_scroll_speed", value)
 
+    def _on_auto_next_chapter_changed(self, state):
+        """自动切换下一章选项改变"""
+        self._auto_scroll_next_chapter = (state == Qt.CheckState.Checked.value)
+
+        # 保存到配置
+        from novel_reader.core import settings as settings_module
+        settings_module.set_setting("reader_auto_scroll_next_chapter", self._auto_scroll_next_chapter)
+        print(f"[INFO] 自动切换下一章: {'启用' if self._auto_scroll_next_chapter else '禁用'}")
+
+    def _on_switch_delay_changed(self, value: int):
+        """章节切换延迟改变（底部停留时间）"""
+        self._chapter_switch_delay = value
+
+        # 保存到配置
+        from novel_reader.core import settings as settings_module
+        settings_module.set_setting("reader_chapter_switch_delay", value)
+
+    def _on_start_delay_changed(self, value: int):
+        """章节开始延迟改变（新章准备时间）"""
+        self._chapter_start_delay = value
+
+        # 保存到配置
+        from novel_reader.core import settings as settings_module
+        settings_module.set_setting("reader_chapter_start_delay", value)
+
+    def _continue_auto_scroll_after_chapter_change(self):
+        """章节切换后继续自动滚动（延迟启动）"""
+        # 检查是否有待恢复的滚动请求
+        if self._pending_resume_after_chapter:
+            print(f"[INFO] {self._chapter_start_delay/1000:.1f}秒后开始自动滚动...")
+            # 延迟启动自动滚动
+            QTimer.singleShot(self._chapter_start_delay, self._start_auto_scroll_now)
+
+    def _start_auto_scroll_now(self):
+        """立即启动自动滚动"""
+        # 清除待恢复标志
+        was_pending = self._pending_resume_after_chapter
+        self._pending_resume_after_chapter = False
+
+        if not was_pending:
+            return
+
+        # 确保自动滚动状态
+        if not self._is_auto_scrolling:
+            self._is_auto_scrolling = True
+            self.auto_scroll_btn.setChecked(True)
+            self.auto_scroll_btn.setText("⏸ 停止滚动")
+
+        # 确保定时器在运行
+        if not self._auto_scroll_timer.isActive():
+            self._auto_scroll_timer.start(self._scroll_speed)
+            print("[INFO] 自动滚动已继续")
+
+    def _auto_switch_to_next_chapter(self):
+        """延迟后自动切换到下一章"""
+        # 重置等待标志
+        self._waiting_to_next_chapter = False
+
+        # 检查是否仍在自动滚动模式
+        if not self._is_auto_scrolling:
+            print("[INFO] 自动滚动已停止，取消切换章节")
+            return
+
+        # 检查是否还能切换到下一章
+        if self.current_chapter_index < len(self.chapters) - 1:
+            print(f"[INFO] 自动切换到下一章 (第 {self.current_chapter_index + 1} 章 -> 第 {self.current_chapter_index + 2} 章)")
+            # 设置待恢复标志
+            self._pending_resume_after_chapter = True
+            self._next_chapter(keep_auto_scroll=True)
+
+            # 切换到下一章后，延迟再开始滚动
+            QTimer.singleShot(100, self._continue_auto_scroll_after_chapter_change)
+        else:
+            # 已经是最后一章（可能在等待期间发生了变化）
+            self._is_auto_scrolling = False
+            self._waiting_to_next_chapter = False
+            self._pending_resume_after_chapter = False
+            self.auto_scroll_btn.setChecked(False)
+            self.auto_scroll_btn.setText("📜 自动滚动")
+            print("[INFO] 已是最后一章，自动滚动停止")
+
     def toggle_auto_scroll_shortcut(self):
         """通过快捷键切换自动滚动"""
         self.auto_scroll_btn.click()
@@ -1192,6 +1332,8 @@ class ReaderWidget(QWidget):
         if self._is_auto_scrolling:
             self._auto_scroll_timer.stop()
             self._is_auto_scrolling = False
+            self._waiting_to_next_chapter = False  # 重置等待标志
+            self._pending_resume_after_chapter = False  # 重置待恢复标志
             self.auto_scroll_btn.setChecked(False)
             self.auto_scroll_btn.setText("📜 自动滚动")
 
@@ -1356,3 +1498,313 @@ class ReadingStatsDialog(QDialog):
             item_layout.addWidget(subtext_label)
 
         return item_layout
+
+
+# ==================== 自动滚动设置对话框 ====================
+
+class AutoScrollSettingsDialog(QDialog):
+    """自动滚动设置对话框"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent_widget = parent
+        self._setup_ui()
+
+    def _setup_ui(self):
+        """设置界面"""
+        self.setWindowTitle("⚙️ 自动滚动设置")
+        self.setMinimumWidth(500)
+        self.setMaximumWidth(600)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(20)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # 标题
+        title_label = QLabel("📜 自动滚动设置")
+        title_label.setStyleSheet("font-weight: bold; font-size: 18px; color: #212529;")
+        layout.addWidget(title_label)
+
+        # 分隔线
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(line)
+
+        # 创建设置表单
+        form_layout = QVBoxLayout()
+        form_layout.setSpacing(15)
+
+        # 1. 滚动速度
+        speed_item = self._create_setting_item(
+            "🚀 滚动速度",
+            "控制文本滚动的速度",
+            "reader_auto_scroll_speed",
+            100,  # min
+            3000,  # max
+            100,   # step
+            "ms",
+            "滚动间隔（毫秒），越小越快"
+        )
+        form_layout.addLayout(speed_item)
+
+        # 2. 自动切换下一章
+        auto_next_item = self._create_checkbox_item(
+            "📖 自动切换下一章",
+            "滚动到底部时自动切换到下一章",
+            "reader_auto_scroll_next_chapter",
+            "启用后会自动切换到下一章并继续滚动"
+        )
+        form_layout.addLayout(auto_next_item)
+
+        # 3. 底部停留时间
+        switch_delay_item = self._create_setting_item(
+            "⏸️ 章节底部停留",
+            "在切换到下一章前的停留时间",
+            "reader_chapter_switch_delay",
+            0,      # min
+            10000,  # max
+            500,    # step
+            "ms",
+            "在章节底部停留的时间，用于消化内容"
+        )
+        form_layout.addLayout(switch_delay_item)
+
+        # 4. 新章节准备时间
+        start_delay_item = self._create_setting_item(
+            "✨ 新章节准备",
+            "切换到下一章后的准备时间",
+            "reader_chapter_start_delay",
+            0,      # min
+            10000,  # max
+            500,    # step
+            "ms",
+            "开始滚动前的准备时间，用于阅读章节标题"
+        )
+        form_layout.addLayout(start_delay_item)
+
+        layout.addLayout(form_layout)
+
+        # 预设配置
+        preset_label = QLabel("💡 快速预设:")
+        preset_label.setStyleSheet("font-weight: bold; font-size: 13px; color: #495057;")
+        layout.addWidget(preset_label)
+
+        preset_layout = QHBoxLayout()
+        preset_layout.setSpacing(10)
+
+        fast_btn = QPushButton("快速阅读")
+        fast_btn.setStyleSheet(self._get_preset_button_style())
+        fast_btn.clicked.connect(lambda: self._apply_preset("fast"))
+        preset_layout.addWidget(fast_btn)
+
+        normal_btn = QPushButton("正常节奏")
+        normal_btn.setStyleSheet(self._get_preset_button_style())
+        normal_btn.clicked.connect(lambda: self._apply_preset("normal"))
+        preset_layout.addWidget(normal_btn)
+
+        careful_btn = QPushButton("仔细阅读")
+        careful_btn.setStyleSheet(self._get_preset_button_style())
+        careful_btn.clicked.connect(lambda: self._apply_preset("careful"))
+        preset_layout.addWidget(careful_btn)
+
+        layout.addLayout(preset_layout)
+
+        # 关闭按钮
+        layout.addStretch()
+        close_btn = QPushButton("关闭")
+        close_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                background-color: #007bff;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
+            }
+        """)
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
+
+    def _create_setting_item(self, title: str, description: str, config_key: str,
+                            min_val: int, max_val: int, step: int,
+                            suffix: str, tooltip: str):
+        """创建设置项布局"""
+        from novel_reader.core import settings as settings_module
+
+        item_layout = QVBoxLayout()
+        item_layout.setSpacing(5)
+
+        # 标题和描述
+        header_layout = QHBoxLayout()
+        title_label = QLabel(title)
+        title_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #212529;")
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+        item_layout.addLayout(header_layout)
+
+        desc_label = QLabel(description)
+        desc_label.setStyleSheet("font-size: 11px; color: #6c757d;")
+        item_layout.addWidget(desc_label)
+
+        # 控制行
+        control_layout = QHBoxLayout()
+        control_layout.setContentsMargins(10, 0, 0, 0)
+
+        # SpinBox
+        spinbox = QSpinBox()
+        spinbox.setRange(min_val, max_val)
+        current_value = settings_module.get_setting(config_key, 1000)
+        spinbox.setValue(current_value)
+        spinbox.setSuffix(f" {suffix}")
+        spinbox.setSingleStep(step)
+        spinbox.setStyleSheet("width: 120px;")
+        spinbox.setToolTip(tooltip)
+
+        # 保存控件引用，以便应用预设时使用
+        setattr(self, f"_{config_key}_spinbox", spinbox)
+
+        control_layout.addWidget(spinbox)
+        control_layout.addStretch()
+
+        # 值改变时更新父控件和保存配置
+        spinbox.valueChanged.connect(
+            lambda v, key=config_key: self._on_setting_changed(key, v)
+        )
+
+        item_layout.addLayout(control_layout)
+
+        # 添加分隔线
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        separator.setStyleSheet("background-color: #e9ecef;")
+        item_layout.addWidget(separator)
+
+        return item_layout
+
+    def _create_checkbox_item(self, title: str, description: str,
+                              config_key: str, tooltip: str):
+        """创建复选框设置项"""
+        from novel_reader.core import settings as settings_module
+
+        item_layout = QVBoxLayout()
+        item_layout.setSpacing(5)
+
+        # 标题和复选框
+        header_layout = QHBoxLayout()
+
+        checkbox = QCheckBox(title)
+        current_value = settings_module.get_setting(config_key, True)
+        checkbox.setChecked(current_value)
+        checkbox.setStyleSheet("font-size: 13px; font-weight: bold; color: #212529;")
+        checkbox.setToolTip(tooltip)
+
+        # 保存控件引用
+        setattr(self, f"_{config_key}_checkbox", checkbox)
+
+        header_layout.addWidget(checkbox)
+        header_layout.addStretch()
+        item_layout.addLayout(header_layout)
+
+        # 描述
+        desc_label = QLabel(description)
+        desc_label.setStyleSheet("font-size: 11px; color: #6c757d;")
+        item_layout.addWidget(desc_label)
+
+        # 值改变时更新父控件和保存配置
+        checkbox.stateChanged.connect(
+            lambda state, key=config_key: self._on_checkbox_changed(key, state)
+        )
+
+        # 添加分隔线
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        separator.setStyleSheet("background-color: #e9ecef;")
+        item_layout.addWidget(separator)
+
+        return item_layout
+
+    def _get_preset_button_style(self):
+        """获取预设按钮样式"""
+        return """
+            QPushButton {
+                padding: 6px 12px;
+                background-color: #e9ecef;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #dee2e6;
+            }
+        """
+
+    def _on_setting_changed(self, key: str, value: int):
+        """设置值改变"""
+        from novel_reader.core import settings as settings_module
+        settings_module.set_setting(key, value)
+
+        # 更新父控件
+        if self.parent_widget:
+            if key == "reader_auto_scroll_speed":
+                self.parent_widget._scroll_speed = value
+            elif key == "reader_chapter_switch_delay":
+                self.parent_widget._chapter_switch_delay = value
+            elif key == "reader_chapter_start_delay":
+                self.parent_widget._chapter_start_delay = value
+
+    def _on_checkbox_changed(self, key: str, state: int):
+        """复选框值改变"""
+        from PySide6.QtCore import Qt
+        from novel_reader.core import settings as settings_module
+
+        is_checked = (state == Qt.CheckState.Checked.value)
+        settings_module.set_setting(key, is_checked)
+
+        # 更新父控件
+        if self.parent_widget and key == "reader_auto_scroll_next_chapter":
+            self.parent_widget._auto_scroll_next_chapter = is_checked
+
+    def _apply_preset(self, preset: str):
+        """应用预设配置"""
+        from novel_reader.core import settings as settings_module
+
+        presets = {
+            "fast": {
+                "reader_auto_scroll_speed": 500,
+                "reader_chapter_switch_delay": 2000,
+                "reader_chapter_start_delay": 2000,
+            },
+            "normal": {
+                "reader_auto_scroll_speed": 1000,
+                "reader_chapter_switch_delay": 3000,
+                "reader_chapter_start_delay": 5000,
+            },
+            "careful": {
+                "reader_auto_scroll_speed": 1500,
+                "reader_chapter_switch_delay": 5000,
+                "reader_chapter_start_delay": 7000,
+            }
+        }
+
+        if preset not in presets:
+            return
+
+        config = presets[preset]
+
+        # 更新配置
+        for key, value in config.items():
+            settings_module.set_setting(key, value)
+            self._on_setting_changed(key, value)
+
+        # 更新控件显示
+        self._reader_auto_scroll_speed_spinbox.setValue(config["reader_auto_scroll_speed"])
+        self._reader_chapter_switch_delay_spinbox.setValue(config["reader_chapter_switch_delay"])
+        self._reader_chapter_start_delay_spinbox.setValue(config["reader_chapter_start_delay"])
+
+        print(f"[INFO] 已应用预设配置: {preset}")
