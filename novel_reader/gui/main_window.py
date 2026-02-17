@@ -2504,6 +2504,7 @@ class MainWindow(QMainWindow):
         <tr><td><b>PageDown</b></td><td>下一章</td></tr>
         <tr><td><b>↑</b></td><td>增加音量</td></tr>
         <tr><td><b>↓</b></td><td>减少音量</td></tr>
+        <tr><td><b>Ctrl + R</b></td><td>切换阅读模式</td></tr>
         <tr><td><b>Ctrl + I</b></td><td>导入书籍</td></tr>
         <tr><td><b>F5</b></td><td>刷新列表</td></tr>
         <tr><td><b>F1</b></td><td>显示此帮助</td></tr>
@@ -2514,7 +2515,7 @@ class MainWindow(QMainWindow):
 
         dialog = QDialog(self)
         dialog.setWindowTitle("快捷键")
-        dialog.setMinimumSize(450, 500)  # 设置最小宽度和高度
+        dialog.setMinimumSize(450, 515)  # 设置最小宽度和高度
 
         layout = QVBoxLayout(dialog)
 
