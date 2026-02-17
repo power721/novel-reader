@@ -190,7 +190,6 @@ class EdgeTTSEngine(TTSEngine):
             rate=rate,
             pitch=pitch,
             volume=volume,
-            convert_to_wav=True
         )
 
 
@@ -348,7 +347,7 @@ def chunk_to_audio_path(
 
     if engine == "edge" or (not engine and get_setting("tts_engine", "piper") == "edge"):
         voice_id = voice_id or get_setting("edge_chinese_voice_id", "xiaoxiao")
-        return str(AUDIO_DIR / str(book_id) / f"chunk_edge_{voice_id}_{chunk_id:05d}.wav")
+        return str(AUDIO_DIR / str(book_id) / f"chunk_edge_{voice_id}_{chunk_id:05d}.mp3")
     else:
         voice_id = voice_id or get_setting("chinese_model_id", "xiao_ya")
         return str(AUDIO_DIR / str(book_id) / f"chunk_{voice_id}_{chunk_id:05d}.wav")

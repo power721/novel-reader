@@ -42,79 +42,6 @@ from novel_reader.core.tts import (
 )
 
 
-# ==================== Audio Conversion ====================
-
-def mp3_to_wav(mp3_path: str, wav_path: str) -> bool:
-    """
-    Convert MP3 to WAV using ffmpeg
-
-    Args:
-        mp3_path: Input MP3 file path
-        wav_path: Output WAV file path
-
-    Returns:
-        True if successful, False otherwise
-    """
-    try:
-        import subprocess
-
-        cmd = [
-            "ffmpeg",
-            "-y",  # Overwrite output file
-            "-i", mp3_path,
-            "-ar", "22050",  # Sample rate to match Piper
-            "-ac", "1",  # Mono
-            wav_path
-        ]
-
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=60
-        )
-
-        if result.returncode == 0:
-            return True
-        else:
-            print(f"⚠️ ffmpeg conversion failed: {result.stderr.decode()}")
-            return False
-    except FileNotFoundError:
-        print("⚠️ ffmpeg not found, MP3 will not be converted to WAV")
-        return False
-    except Exception as e:
-        print(f"⚠️ ffmpeg conversion error: {e}")
-        return False
-
-
-def convert_audio_to_wav(input_path: str, output_path: str) -> str:
-    """
-    Convert audio file to WAV format
-
-    Edge TTS outputs MP3, so we need to convert to WAV for compatibility.
-
-    Args:
-        input_path: Input audio file path
-        output_path: Output WAV file path
-
-    Returns:
-        Path to WAV file (either converted or original)
-    """
-    input_file = Path(input_path)
-
-    # If already WAV, return as-is
-    if input_file.suffix.lower() == '.wav':
-        return input_path
-
-    # Try to convert to WAV
-    if mp3_to_wav(input_path, output_path):
-        return output_path
-
-    # Fallback: return original MP3
-    print(f"⚠️ Using original MP3 file (not converted)")
-    return input_path
-
-
 # ==================== Edge TTS Core Functions ====================
 
 def check_edge_tts_available() -> bool:
@@ -199,8 +126,7 @@ def text_to_speech(
         english_voice_id: Optional[str] = None,
         rate: str = "+0%",
         pitch: str = "+0Hz",
-        volume: str = "+0%",
-        convert_to_wav: bool = True
+        volume: str = "+0%"
 ) -> str:
     """
     Mixed Chinese/English text-to-speech using Edge TTS
@@ -216,10 +142,9 @@ def text_to_speech(
         rate: Speaking rate adjustment (e.g., "+0%", "+10%")
         pitch: Pitch adjustment (e.g., "+0Hz", "+10Hz")
         volume: Volume adjustment (e.g., "+0%", "+10%")
-        convert_to_wav: Convert MP3 to WAV for compatibility
 
     Returns:
-        Path to generated audio file
+        Path to generated MP3 audio file
 
     Raises:
         ImportError: If edge-tts is not installed
@@ -296,22 +221,18 @@ def text_to_speech(
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
+    # Ensure output path ends with .mp3
+    output_mp3 = str(output_file).replace('.wav', '.mp3') if output_file.suffix == '.wav' else str(output_file)
+    if not output_mp3.endswith('.mp3'):
+        output_mp3 = output_mp3 + '.mp3'
+
     # Single sentence - direct output
     if len(sentences) == 1:
         sent_text, sent_lang = sentences[0]
         voice = en_voice if sent_lang == 'en' else zh_voice
 
-        # Edge TTS outputs MP3
-        mp3_path = str(output_file).replace('.wav', '.mp3') if output_file.suffix == '.wav' else str(output_file)
-        if not mp3_path.endswith('.mp3'):
-            mp3_path = mp3_path + '.mp3'
-
-        _text_to_speech_sync(sent_text, voice.name, mp3_path, rate, pitch, volume)
-
-        # Convert to WAV if requested
-        if convert_to_wav:
-            return convert_audio_to_wav(mp3_path, str(output_file))
-        return mp3_path
+        _text_to_speech_sync(sent_text, voice.name, output_mp3, rate, pitch, volume)
+        return output_mp3
 
     # Multiple sentences - need to merge
     # For mixed text, we need to concatenate multiple audio files
@@ -366,31 +287,12 @@ def text_to_speech(
         # Store first segment as fallback (copy it outside temp dir before it's deleted)
         if temp_files:
             import shutil
-            fallback_mp3 = Path(output_file.parent) / f"temp_fallback_{output_file.stem}.mp3"
+            fallback_mp3 = Path(output_file.parent) / f"temp_fallback_{Path(output_mp3).stem}.mp3"
             shutil.copy2(temp_files[0], str(fallback_mp3))
             fallback_file = str(fallback_mp3)
             print(f"[edge_tts] Created fallback file: {fallback_mp3.name}")
         else:
             raise RuntimeError("No segments were successfully converted")
-
-            # Verify the MP3 was created
-            if not temp_mp3.exists():
-                raise RuntimeError(f"Failed to generate audio for segment {idx}")
-
-            # Store first segment as fallback
-            if idx == 0:
-                # Copy first segment to a permanent location for fallback
-                fallback_mp3 = Path(output_file.parent) / f"temp_fallback_{output_file.stem}.mp3"
-                import shutil
-                shutil.copy2(temp_mp3, fallback_mp3)
-                fallback_file = str(fallback_mp3)
-
-            temp_files.append(str(temp_mp3))
-
-        # Determine output MP3 path
-        output_mp3 = str(output_file).replace('.wav', '.mp3') if output_file.suffix == '.wav' else str(output_file)
-        if not output_mp3.endswith('.mp3'):
-            output_mp3 = output_mp3 + '.mp3'
 
         # Try to concatenate
         try:
@@ -400,8 +302,6 @@ def text_to_speech(
             if result and result in temp_files:
                 print(f"⚠️ Concatenation failed, using first segment only")
                 if fallback_file:
-                    if convert_to_wav:
-                        return convert_audio_to_wav(fallback_file, str(output_file))
                     return fallback_file
                 else:
                     raise RuntimeError("Concatenation failed and no fallback available")
@@ -411,16 +311,11 @@ def text_to_speech(
                 # Clean up fallback file
                 if fallback_file and Path(fallback_file).exists():
                     Path(fallback_file).unlink(missing_ok=True)
-                # Convert to WAV if requested
-                if convert_to_wav:
-                    return convert_audio_to_wav(result, str(output_file))
                 return result
             else:
                 # Fallback: use first segment
                 print(f"⚠️ Concatenation produced invalid output, using first segment only")
                 if fallback_file:
-                    if convert_to_wav:
-                        return convert_audio_to_wav(fallback_file, str(output_file))
                     return fallback_file
                 else:
                     raise RuntimeError("Concatenation failed and no fallback available")
@@ -430,13 +325,11 @@ def text_to_speech(
             # Fallback: use first segment
             print(f"⚠️ Using first segment only")
             if fallback_file:
-                if convert_to_wav:
-                    return convert_audio_to_wav(fallback_file, str(output_file))
                 return fallback_file
             else:
                 raise
 
-    return str(output_file)
+    return output_mp3
 
 
 def concat_mp3s(mp3_files: List[str], output_path: str) -> str:
@@ -535,71 +428,10 @@ def chunk_to_audio_path(book_id: int, chunk_id: int, voice_id: str = "xiaoxiao")
         voice_id: Voice ID
 
     Returns:
-        Audio file path
+        Audio file path (MP3 format for Edge TTS)
     """
     from novel_reader.core.tts import AUDIO_DIR
-    return str(AUDIO_DIR / str(book_id) / f"chunk_edge_{voice_id}_{chunk_id:05d}.wav")
-
-
-def convert_chunk(
-        text: str,
-        book_id: int,
-        chunk_id: int,
-        chinese_voice_id: Optional[str] = None,
-        english_voice_id: Optional[str] = None
-) -> str:
-    """
-    Convert a text chunk to audio using Edge TTS
-
-    Args:
-        text: Chunk text
-        book_id: Book ID
-        chunk_id: Chunk ID
-        chinese_voice_id: Chinese voice ID (optional)
-        english_voice_id: English voice ID (optional)
-
-    Returns:
-        Path to generated audio file
-
-    Raises:
-        ValueError: If text is empty
-        RuntimeError: If conversion fails
-    """
-    text = text.strip()
-    if not text:
-        raise ValueError(f"Chunk {chunk_id} text is empty")
-
-    # Get voice IDs from settings if not provided
-    from novel_reader.core import get_setting
-    if not chinese_voice_id:
-        chinese_voice_id = get_setting("edge_chinese_voice_id", DEFAULT_CHINESE_VOICE)
-
-    if not english_voice_id:
-        english_voice_id = get_setting("edge_english_voice_id", DEFAULT_ENGLISH_VOICE)
-
-    output = chunk_to_audio_path(book_id, chunk_id, chinese_voice_id)
-
-    try:
-        path = text_to_speech(
-            text,
-            output,
-            chinese_voice_id=chinese_voice_id,
-            english_voice_id=english_voice_id,
-            convert_to_wav=True
-        )
-
-        size = Path(path).stat().st_size
-        if size == 0:
-            raise RuntimeError("Audio file is empty")
-
-        # print(f"✓ Chunk {chunk_id} OK ({size / 1024:.1f} KB) [Edge TTS]")
-        return path
-
-    except Exception as e:
-        print(f"✗ Chunk {chunk_id} failed: {e} [Edge TTS]")
-        if Path(output).exists():
-            Path(output).unlink(missing_ok=True)
-        raise
+    return str(AUDIO_DIR / str(book_id) / f"chunk_edge_{voice_id}_{chunk_id:05d}.mp3")
 
 
 # ==================== Test Code ====================
@@ -633,7 +465,7 @@ if __name__ == '__main__':
     test_text = "你好，我是晓潇。Hello, I am Xiaoxiao."
 
     try:
-        output_file = "test_edge_tts_output.wav"
+        output_file = "test_edge_tts_output.mp3"
         print(f"  Converting: '{test_text}'")
 
         result = text_to_speech(

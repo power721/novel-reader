@@ -1534,9 +1534,9 @@ class MainWindow(QMainWindow):
         for chunk_id in sorted(self._pending_chunks):
             # 根据TTS引擎确定音频文件路径
             if tts_engine == "edge":
-                # Edge TTS format: chunk_edge_{voice_id}_{chunk_id:05d}.wav
+                # Edge TTS format: chunk_edge_{voice_id}_{chunk_id:05d}.mp3
                 edge_voice_id = get_setting("edge_chinese_voice_id", "xiaoxiao")
-                audio_path = audio_dir / f"chunk_edge_{edge_voice_id}_{chunk_id:05d}.wav"
+                audio_path = audio_dir / f"chunk_edge_{edge_voice_id}_{chunk_id:05d}.mp3"
             else:
                 # Piper TTS format: chunk_{model_id}_{chunk_id:05d}.wav
                 chinese_model_id = get_setting("chinese_model_id", "xiao_ya")

@@ -129,9 +129,9 @@ class PlaybackWorker(QThread):
 
                 # 根据TTS引擎确定音频文件路径
                 if tts_engine == "edge":
-                    # Edge TTS format: chunk_edge_{voice_id}_{chunk_id:05d}.wav
+                    # Edge TTS format: chunk_edge_{voice_id}_{chunk_id:05d}.mp3
                     edge_voice_id = get_setting("edge_chinese_voice_id", "xiaoxiao")
-                    audio_path = book_audio_dir / f"chunk_edge_{edge_voice_id}_{chunk_id:05d}.wav"
+                    audio_path = book_audio_dir / f"chunk_edge_{edge_voice_id}_{chunk_id:05d}.mp3"
                 else:
                     # Piper TTS format: chunk_{model_id}_{chunk_id:05d}.wav
                     audio_path = book_audio_dir / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
