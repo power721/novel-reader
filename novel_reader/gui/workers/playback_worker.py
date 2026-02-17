@@ -149,8 +149,8 @@ class PlaybackWorker(QThread):
                     file_size = audio_path.stat().st_size
                     # print(f"✅ [Chunk {chunk_id}] 音频文件存在: {audio_path.name} ({file_size / 1024:.1f} KB)")
 
-                    if file_size < 20000:
-                        print(f"⚠️ [Chunk {chunk_id}] 文件过小 ({file_size} < 20000)，可能损坏，删除并重新转换...")
+                    if file_size < 5000:
+                        print(f"⚠️ [Chunk {chunk_id}] 文件过小 ({file_size} < 5000)，可能损坏，删除并重新转换...")
                         audio_path.unlink()
                         file_needs_conversion = True
 
@@ -167,7 +167,7 @@ class PlaybackWorker(QThread):
                     while waited < max_wait and self._is_running:
                         if audio_path.exists():
                             file_size = audio_path.stat().st_size
-                            if file_size > 20000:  # 大于20KB认为有效
+                            if file_size > 5000:  # 大于20KB认为有效
                                 file_ready = True
                                 print(f"✅ [Chunk {chunk_id}] 音频文件就绪 ({file_size / 1024:.1f} KB)")
                                 break
@@ -240,7 +240,7 @@ class PlaybackWorker(QThread):
                     while waited < max_wait and self._is_running:
                         if audio_path.exists():
                             file_size = audio_path.stat().st_size
-                            if file_size > 20000:  # 大于20KB认为有效
+                            if file_size > 5000:  # 大于20KB认为有效
                                 file_ready = True
                                 print(f"✅ [Chunk {chunk_id}] 重新转换完成 ({file_size / 1024:.1f} KB)，重试播放")
                                 break

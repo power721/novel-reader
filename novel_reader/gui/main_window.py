@@ -501,6 +501,7 @@ class MainWindow(QMainWindow):
 
         # 阅读模式信号
         self.reader_widget.exit_reading_mode_requested.connect(self._exit_reading_mode)
+        self.reader_widget.play_chapter_requested.connect(self._on_chapter_double_clicked)
 
     def _load_data(self, auto_play: bool = True):
         """加载数据
@@ -1411,7 +1412,7 @@ class MainWindow(QMainWindow):
         if Path(next_chapter_audio_path).exists():
             # 文件存在，检查大小
             file_size = Path(next_chapter_audio_path).stat().st_size
-            if file_size > 20000:  # 大于20KB认为有效
+            if file_size > 5000:  # 大于20KB认为有效
                 print(f"✅ 下一章节音频已存在 ({file_size / 1024:.1f} KB)，无需转换")
                 return
             else:
@@ -1542,7 +1543,7 @@ class MainWindow(QMainWindow):
                 chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
                 audio_path = audio_dir / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
 
-            if not audio_path.exists() or audio_path.stat().st_size < 20000:
+            if not audio_path.exists() or audio_path.stat().st_size < 5000:
                 chunks_to_convert.append(chunk_id)
 
         # 清空待处理队列（因为要开始转换了）
@@ -2307,7 +2308,7 @@ class MainWindow(QMainWindow):
         while waited < max_wait:
             if audio_path.exists():
                 file_size = audio_path.stat().st_size
-                if file_size > 20000:  # 大于20KB认为有效
+                if file_size > 5000:  # 大于20KB认为有效
                     file_ready = True
                     print(f"[DEBUG] File ready: {file_size / 1024:.1f} KB")
                     break
@@ -2442,7 +2443,7 @@ class MainWindow(QMainWindow):
         if debug_info['audio_exists']:
             size_kb = debug_info['audio_size'] / 1024
             msg += f"音频大小: {size_kb:.2f} KB\n"
-            if debug_info['audio_size'] < 20000:
+            if debug_info['audio_size'] < 5000:
                 msg += f"⚠ 音频文件过小（<20KB），可能损坏\n"
 
         msg += f"\n文本预览:\n{debug_info['text_preview']}..."

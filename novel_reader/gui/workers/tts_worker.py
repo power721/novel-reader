@@ -7,7 +7,7 @@ from PySide6.QtCore import QThread, Signal
 import os
 from typing import Optional
 
-MIN_SIZE = 20000
+MIN_SIZE = 5000
 
 
 class TTSWorker(QThread):

@@ -212,7 +212,7 @@ def play_audio(file_path: str, should_stop_check_fn=None) -> None:
         except:
             pass
         raise FileNotFoundError(f"音频文件为空，已删除: {file_path}")
-    if file_size < 20000:  # 小于20KB可能损坏
+    if file_size < 5000:  # 小于20KB可能损坏
         print(f"  ⚠ 警告: 文件大小异常 ({file_size} bytes)，删除并重新转换")
         try:
             os.remove(file_path)
@@ -686,7 +686,7 @@ def diagnose_audio_files(book_id: int) -> dict:
             if file_size == 0:
                 chunk_info["status"] = "empty"
                 result["empty"] += 1
-            elif file_size < 20000:  # 小于20KB认为损坏
+            elif file_size < 5000:  # 小于20KB认为损坏
                 chunk_info["status"] = "too_small"
                 result["too_small"] += 1
             else:

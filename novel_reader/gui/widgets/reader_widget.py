@@ -4,9 +4,9 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QTextEdit, QScrollBar, QPushButton, QSpinBox, QFrame,
-    QListWidget, QListWidgetItem, QSplitter, QSizePolicy, QComboBox
+    QListWidget, QListWidgetItem, QSplitter, QSizePolicy, QComboBox, QMenu
 )
-from PySide6.QtCore import Signal, Slot, Qt
+from PySide6.QtCore import Signal, Slot, Qt, QPoint
 from PySide6.QtGui import QFont, QTextCursor, QTextBlockFormat
 from typing import Optional
 
@@ -74,6 +74,7 @@ class ReaderWidget(QWidget):
     progress_changed = Signal(int, int)  # (current_position, total_length)
     chapter_changed = Signal(int)  # 章节改变信号
     exit_reading_mode_requested = Signal()  # 请求退出阅读模式信号
+    play_chapter_requested = Signal(int)  # 请求播放章节音频，参数：start_chunk
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -263,6 +264,10 @@ class ReaderWidget(QWidget):
         self.chapter_list.setMaximumWidth(400)
         self.chapter_list.setMinimumWidth(250)
         self.chapter_list.currentRowChanged.connect(self._on_chapter_selected)
+
+        # 启用自定义右键菜单
+        self.chapter_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.chapter_list.customContextMenuRequested.connect(self._show_chapter_context_menu)
 
         # 默认隐藏章节列表，让文本占据全部空间
         # self.chapter_list.setVisible(False)
@@ -626,6 +631,35 @@ class ReaderWidget(QWidget):
         """章节列表选中事件"""
         if row >= 0 and row < len(self.chapters):
             self._display_chapter(row)
+
+    def _show_chapter_context_menu(self, pos: QPoint):
+        """显示章节列表的右键菜单"""
+        # 获取点击的列表项
+        item = self.chapter_list.itemAt(pos)
+        if not item:
+            return
+
+        # 获取章节索引
+        chapter_index = item.data(Qt.UserRole)
+        if chapter_index is None or chapter_index < 0 or chapter_index >= len(self.chapters):
+            return
+
+        chapter = self.chapters[chapter_index]
+        start_chunk = chapter['start_chunk']
+
+        # 创建右键菜单
+        menu = QMenu(self)
+
+        # 播放章节音频
+        play_action = menu.addAction("▶️ 播放本章节音频")
+        play_action.setToolTip(f"播放《{chapter['title']}》的音频")
+
+        # 显示菜单并获取用户选择
+        action = menu.exec_(self.chapter_list.mapToGlobal(pos))
+
+        if action == play_action:
+            # 发射播放章节信号
+            self.play_chapter_requested.emit(start_chunk)
 
     def _prev_chapter(self):
         """上一章"""
