@@ -198,6 +198,19 @@ class MainWindow(QMainWindow):
                 self.statusBar().showMessage("已切换到音频模式", 3000)
             self._update_ui_for_mode()
 
+    def _exit_reading_mode(self):
+        """退出阅读模式（返回音频模式）"""
+        # 保存阅读位置
+        if self.current_book_id:
+            self.reader_widget.save_reading_position()
+
+        # 直接切换到音频模式
+        if self._reading_mode:
+            # 取消复选框的选中状态
+            self.reading_mode_action.setChecked(False)
+            # 手动调用切换方法
+            self._toggle_reading_mode()
+
     def _restore_last_mode(self):
         """恢复上次使用的模式"""
         from novel_reader.core import settings as settings_module
@@ -463,6 +476,9 @@ class MainWindow(QMainWindow):
 
         # TTS 转换信号
         self.tts_widget.convert_book_requested.connect(self._convert_book)
+
+        # 阅读模式信号
+        self.reader_widget.exit_reading_mode_requested.connect(self._exit_reading_mode)
 
     def _load_data(self, auto_play: bool = True):
         """加载数据

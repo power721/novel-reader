@@ -73,6 +73,7 @@ class ReaderWidget(QWidget):
     # 信号定义
     progress_changed = Signal(int, int)  # (current_position, total_length)
     chapter_changed = Signal(int)  # 章节改变信号
+    exit_reading_mode_requested = Signal()  # 请求退出阅读模式信号
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -154,6 +155,23 @@ class ReaderWidget(QWidget):
         self.toggle_chapter_list_btn.setChecked(self.show_chapter_list)  # 根据配置设置
         self.toggle_chapter_list_btn.clicked.connect(self._toggle_chapter_list)
         toolbar_layout.addWidget(self.toggle_chapter_list_btn)
+
+        # 退出阅读模式按钮
+        self.exit_reading_mode_btn = QPushButton("🚪 退出阅读")
+        self.exit_reading_mode_btn.setStyleSheet("""
+            QPushButton {
+                padding: 3px 8px;
+                background-color: #e9ecef;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #dee2e6;
+            }
+        """)
+        self.exit_reading_mode_btn.clicked.connect(self._exit_reading_mode)
+        toolbar_layout.addWidget(self.exit_reading_mode_btn)
 
         toolbar_layout.addStretch()
 
@@ -657,6 +675,11 @@ class ReaderWidget(QWidget):
         from novel_reader.core import settings as settings_module
         settings_module.set_setting("reader_show_chapter_list", is_visible)
 
+    def _exit_reading_mode(self):
+        """退出阅读模式"""
+        # 发射退出阅读模式信号
+        self.exit_reading_mode_requested.emit()
+
     def _on_font_size_changed(self, value: int):
         """字体大小改变"""
         self.font_size = value
@@ -722,6 +745,7 @@ class ReaderWidget(QWidget):
         self.prev_chapter_btn.setStyleSheet(button_style)
         self.next_chapter_btn.setStyleSheet(button_style)
         self.toggle_chapter_list_btn.setStyleSheet(button_style)
+        self.exit_reading_mode_btn.setStyleSheet(button_style)
 
         # 更新下拉菜单和输入框样式
         combo_style = f"""
