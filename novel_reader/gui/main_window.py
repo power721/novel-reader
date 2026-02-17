@@ -159,6 +159,15 @@ class MainWindow(QMainWindow):
         mode_to_save = "reading" if self._reading_mode else "audio"
         settings_module.set_setting("last_mode", mode_to_save)
 
+        # 保存当前书籍ID到对应的模式
+        if self.current_book_id:
+            if self._reading_mode:
+                # 切换到阅读模式，保存到 reading_book_id
+                settings_module.set_setting("reading_book_id", self.current_book_id)
+            else:
+                # 切换到音频模式，保存到 last_book_id
+                settings_module.set_setting("last_book_id", self.current_book_id)
+
         # 更新界面显示
         if self._reading_mode:
             # 切换到阅读模式
@@ -475,10 +484,16 @@ class MainWindow(QMainWindow):
         set_playback_speed(saved_speed)
         self.player_widget.set_playback_speed(saved_speed)
 
-        # 获取最后播放的书籍ID
-        last_book_id = get_setting("last_book_id", None)
+        # 根据上次使用的模式获取对应的书籍ID
+        last_mode = get_setting("last_mode", "audio")
+        if last_mode == "reading":
+            # 阅读模式：使用 reading_book_id
+            last_book_id = get_setting("reading_book_id", None)
+        else:
+            # 音频模式：使用 last_book_id
+            last_book_id = get_setting("last_book_id", None)
 
-        # 加载书籍列表，并自动选中上次播放的书
+        # 加载书籍列表，并自动选中上次使用的书
         if last_book_id:
             try:
                 last_book_id = int(last_book_id)
@@ -631,6 +646,15 @@ class MainWindow(QMainWindow):
     def _on_book_selected(self, book_id: int):
         """书籍被选中"""
         self.current_book_id = book_id
+
+        # 保存选中的书籍ID（根据模式）
+        from novel_reader.core import set_setting
+        if self._reading_mode:
+            # 阅读模式：保存到 reading_book_id
+            set_setting("reading_book_id", book_id)
+        else:
+            # 音频模式：保存到 last_book_id
+            set_setting("last_book_id", book_id)
 
         # 更新子组件状态
         current_chunk = self._get_current_playing_chunk(book_id)
