@@ -470,6 +470,7 @@ class MainWindow(QMainWindow):
         self.book_list_widget.book_delete_requested.connect(self._on_delete_book)
         self.book_list_widget.book_rename_requested.connect(self._on_rename_book)
         self.book_list_widget.book_imported.connect(self._on_book_imported)
+        self.book_list_widget.enter_reading_mode_requested.connect(self._on_enter_reading_mode)
 
         # 章节列表信号
         # self.chapter_list_widget.chapter_selected.connect(self._on_chapter_selected)
@@ -750,6 +751,35 @@ class MainWindow(QMainWindow):
 
         # 直接开始播放
         self._play_book(book_id)
+
+    @Slot(int)
+    def _on_enter_reading_mode(self, book_id: int):
+        """进入阅读模式"""
+        # 设置当前书籍
+        self.current_book_id = book_id
+
+        # 选中该书（触发 UI 更新）
+        self.book_list_widget.select_book_by_id(book_id)
+
+        # 如果不在阅读模式，切换到阅读模式
+        if not self._reading_mode:
+            # 设置复选框状态
+            self.reading_mode_action.setChecked(True)
+            # 手动调用切换方法
+            self._toggle_reading_mode()
+
+        # 加载书籍到阅读器
+        from novel_reader.core import get_book
+        book = get_book(book_id)
+        if book:
+            current_chunk = book.get('current_chunk', 0)
+            self.reader_widget.load_book(book_id, current_chunk)
+
+        # 保存到阅读模式书籍ID
+        from novel_reader.core import set_setting
+        set_setting("reading_book_id", book_id)
+
+        self.statusBar().showMessage(f"已进入阅读模式: 《{book.get('title', '未知') if book else '未知'}》", 3000)
 
     @Slot()
     def _on_books_updated(self):

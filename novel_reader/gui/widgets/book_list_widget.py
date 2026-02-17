@@ -23,6 +23,7 @@ class BookListWidget(QWidget):
     book_delete_requested = Signal(int)  # 请求删除书籍，参数：book_id
     book_rename_requested = Signal(int, str)  # 请求重命名书籍，参数：book_id, current_title
     book_imported = Signal(int)  # 书籍导入成功，参数：book_id
+    enter_reading_mode_requested = Signal(int)  # 请求进入阅读模式，参数：book_id
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -167,6 +168,12 @@ class BookListWidget(QWidget):
         # 添加分隔线
         menu.addSeparator()
 
+        # 阅读模式操作
+        enter_reading_mode_action = menu.addAction("📖 进入阅读模式")
+
+        # 添加分隔线
+        menu.addSeparator()
+
         # 文件操作
         open_book_file_action = menu.addAction("📄 打开书籍文件")
         open_book_dir_action = menu.addAction("📂 打开书籍目录")
@@ -193,6 +200,10 @@ class BookListWidget(QWidget):
 
         if action == info_action:
             self._show_book_info(book_id)
+
+        elif action == enter_reading_mode_action:
+            # 发射进入阅读模式信号
+            self.enter_reading_mode_requested.emit(book_id)
 
         elif action == open_book_file_action:
             self._open_book_file(book_id)
