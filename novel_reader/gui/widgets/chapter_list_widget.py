@@ -17,6 +17,7 @@ class ChapterListWidget(QWidget):
     chapter_double_clicked = Signal(int)  # 章节被双击，参数：start_chunk
     play_chapter_requested = Signal(int)  # 请求播放章节，参数：start_chunk
     convert_chapter_requested = Signal(int, int)  # 请求转换章节，参数：start_chunk, end_chunk
+    enter_reading_mode_requested = Signal(int, int)  # 请求进入阅读模式，参数：start_chunk, chapter_index
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -101,11 +102,13 @@ class ChapterListWidget(QWidget):
         if start_chunk is None:
             return
 
-        # 找到对应的章节数据
+        # 找到对应的章节数据和索引
         chapter_data = None
-        for chapter in self.chapters:
+        chapter_index = -1
+        for i, chapter in enumerate(self.chapters):
             if chapter['start_chunk'] == start_chunk:
                 chapter_data = chapter
+                chapter_index = i
                 break
 
         if not chapter_data:
@@ -122,6 +125,10 @@ class ChapterListWidget(QWidget):
         convert_action = menu.addAction("🔄 转换本章节 TTS")
         convert_action.setToolTip(f"转换《{chapter_data['title']}》的所有 {chapter_data['chunk_count']} 个分段")
 
+        # 进入阅读模式
+        enter_reading_mode_action = menu.addAction("📖 进入阅读模式")
+        enter_reading_mode_action.setToolTip(f"在阅读模式中打开《{chapter_data['title']}》")
+
         # 显示菜单并获取用户选择
         action = menu.exec_(self.chapters_tree.mapToGlobal(pos))
 
@@ -131,6 +138,9 @@ class ChapterListWidget(QWidget):
         elif action == convert_action:
             # 发射转换章节信号
             self.convert_chapter_requested.emit(chapter_data['start_chunk'], chapter_data['end_chunk'])
+        elif action == enter_reading_mode_action:
+            # 发射进入阅读模式信号（传入章节起始位置和章节索引）
+            self.enter_reading_mode_requested.emit(chapter_data['start_chunk'], chapter_index)
 
     def load_chapters(self, book_id: int, current_chunk: Optional[int] = None):
         """

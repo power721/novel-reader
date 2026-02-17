@@ -844,6 +844,70 @@ class ReaderWidget(QWidget):
         if 0 <= chapter_index < len(self.chapters):
             self._display_chapter(chapter_index)
 
+    def load_book_and_jump_to_chapter(self, book_id: int, chapter_index: int):
+        """
+        加载书籍并直接跳转到指定章节（忽略保存的阅读位置）
+
+        Args:
+            book_id: 书籍ID
+            chapter_index: 章节索引（0-based）
+        """
+        from novel_reader.core import get_book, get_book_chapters
+        from novel_reader.utils.parser import parse_txt_preserve_format
+
+        book = get_book(book_id)
+        if book is None:
+            self.text_display.setPlainText("书籍不存在")
+            self._clear_chapters()
+            return
+
+        self.current_book_id = book_id
+        self.current_book_title = book['title']
+
+        # 使用数据库中的章节信息
+        db_chapters = get_book_chapters(book_id)
+
+        # 获取章节文本
+        chapter_texts, _ = parse_txt_preserve_format(book['file_path'])
+
+        self.chapter_texts = chapter_texts
+
+        # 使用数据库中的章节信息
+        if db_chapters:
+            self.chapters = db_chapters
+        else:
+            self.chapters = [{
+                'id': 0,
+                'title': book['title'],
+                'start_chunk': 0
+            }]
+
+        # 边界检查
+        if chapter_index < 0:
+            chapter_index = 0
+        elif chapter_index >= len(self.chapters):
+            chapter_index = len(self.chapters) - 1
+
+        if chapter_index >= len(self.chapter_texts):
+            return
+
+        # 直接设置要跳转的章节
+        self.current_chapter_index = chapter_index
+
+        # 先显示指定章节（避免信号触发导致的竞态条件）
+        # 暂时断开信号，防止 setCurrentRow 触发 _on_chapter_selected
+        try:
+            self.chapter_list.currentRowChanged.disconnect()
+            self._display_chapter(self.current_chapter_index)
+            # 再更新章节列表
+            self._update_chapter_list()
+        finally:
+            # 重新连接信号
+            self.chapter_list.currentRowChanged.connect(self._on_chapter_selected)
+
+        # 保存章节位置
+        self._save_chapter_position()
+
     def clear(self):
         """清空显示"""
         self.text_display.setPlainText("请选择一本书开始阅读")

@@ -477,6 +477,7 @@ class MainWindow(QMainWindow):
         self.chapter_list_widget.chapter_double_clicked.connect(self._on_chapter_double_clicked)
         self.chapter_list_widget.play_chapter_requested.connect(self._on_chapter_double_clicked)
         self.chapter_list_widget.convert_chapter_requested.connect(self._convert_chapter)
+        self.chapter_list_widget.enter_reading_mode_requested.connect(self._on_enter_reading_mode_from_chapter)
 
         # 当前播放文本信号
         self.play_text_widget.bookmark_double_clicked.connect(self._on_bookmark_double_clicked)
@@ -778,6 +779,35 @@ class MainWindow(QMainWindow):
         set_setting("reading_book_id", book_id)
 
         self.statusBar().showMessage(f"已进入阅读模式: 《{book.get('title', '未知') if book else '未知'}》", 3000)
+
+    @Slot(int, int)
+    def _on_enter_reading_mode_from_chapter(self, start_chunk: int, chapter_index: int):
+        """从章节列表进入阅读模式（跳转到指定章节）
+
+        Args:
+            start_chunk: 章节起始chunk位置
+            chapter_index: 章节索引（0-based）
+        """
+        if not self.current_book_id:
+            self.statusBar().showMessage("请先选择一本书", 3000)
+            return
+
+        # 如果不在阅读模式，切换到阅读模式
+        if not self._reading_mode:
+            self.reading_mode_action.setChecked(True)
+            self._toggle_reading_mode()
+
+        # 直接加载书籍并跳转到指定章节
+        self.reader_widget.load_book_and_jump_to_chapter(self.current_book_id, chapter_index)
+
+        # 显示状态消息
+        from novel_reader.core import get_book
+        book = get_book(self.current_book_id)
+        from novel_reader.core import get_book_chapters
+        chapters = get_book_chapters(self.current_book_id)
+        if book and chapters and 0 <= chapter_index < len(chapters):
+            chapter_title = chapters[chapter_index]['title']
+            self.statusBar().showMessage(f"已进入阅读模式: 《{book['title']}》 - 第{chapter_index + 1}章 {chapter_title}", 3000)
 
     @Slot()
     def _on_books_updated(self):
