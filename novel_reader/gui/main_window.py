@@ -684,14 +684,12 @@ class MainWindow(QMainWindow):
         """书籍被选中"""
         self.current_book_id = book_id
 
-        # 保存选中的书籍ID（根据模式）
+        # 保存选中的书籍ID（只在阅读模式下保存）
         from novel_reader.core import set_setting
         if self._reading_mode:
             # 阅读模式：保存到 reading_book_id
             set_setting("reading_book_id", book_id)
-        else:
-            # 音频模式：保存到 last_book_id
-            set_setting("last_book_id", book_id)
+        # 音频模式下不保存 last_book_id，只在实际播放时保存
 
         # 更新子组件状态
         current_chunk = self._get_current_playing_chunk(book_id)
