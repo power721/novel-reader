@@ -569,6 +569,10 @@ class ReaderWidget(QWidget):
         # 更新按钮状态
         self._update_chapter_buttons()
 
+        # 更新章节列表高亮状态
+        if self.chapter_list.isVisible():
+            self.chapter_list.setCurrentRow(self.current_chapter_index)
+
         # 保存阅读位置
         self._save_chapter_position()
 
