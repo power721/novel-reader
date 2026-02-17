@@ -374,7 +374,7 @@ class ReaderWidget(QWidget):
         # 设置样式表（使用主题颜色）
         self.text_display.setStyleSheet(f"""
             QTextEdit {{
-                background-color: {theme['text_bg']};
+                background-color: {theme['bg_color']};
                 border: none;
                 padding: 15px;
                 color: {theme['text_color']};

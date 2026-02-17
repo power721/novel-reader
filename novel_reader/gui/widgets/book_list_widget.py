@@ -436,10 +436,12 @@ class BookListWidget(QWidget):
                 with open(book['file_path'], 'r', encoding='utf-8') as f:
                     text = f.read()
                     char_count = f"{len(text):,}"
-                    # 估算 chunk 数量（假设每个 chunk 约 100 字符）
-                    chunk_count = f"{len(text) // 100:,}"
             except Exception as e:
                 char_count = f"读取失败: {e}"
+
+        # 使用数据库中保存的 chunk 数量
+        if book.get('chunk_count') and book['chunk_count'] > 0:
+            chunk_count = f"{book['chunk_count']:,}"
 
         # 创建对话框
         dialog = QDialog(self)

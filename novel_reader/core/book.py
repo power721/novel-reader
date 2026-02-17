@@ -84,15 +84,16 @@ def import_book(file_path: str) -> int:
                            SET title             = ?,
                                updated_at        = ?,
                                original_filename = ?,
-                               file_format       = ?
+                               file_format       = ?,
+                               chunk_count       = ?
                            WHERE id = ?
-                           """, (title, datetime.now().isoformat(), original_filename, file_format, book_id))
+                           """, (title, datetime.now().isoformat(), original_filename, file_format, len(chunks), book_id))
         else:
             # 创建新书记录
             cursor.execute("""
-                           INSERT INTO book (title, file_path, original_filename, file_format, current_chunk)
-                           VALUES (?, ?, ?, ?, 0)
-                           """, (title, file_path, original_filename, file_format))
+                           INSERT INTO book (title, file_path, original_filename, file_format, current_chunk, chunk_count)
+                           VALUES (?, ?, ?, ?, 0, ?)
+                           """, (title, file_path, original_filename, file_format, len(chunks)))
             book_id = cursor.lastrowid
 
         # 插入章节信息
@@ -141,6 +142,7 @@ def get_book(book_id: int) -> Optional[Dict]:
                           reading_chapter,
                           last_played_at,
                           reading_position,
+                          chunk_count,
                           created_at,
                           updated_at
                    FROM book
@@ -162,8 +164,9 @@ def get_book(book_id: int) -> Optional[Dict]:
             "reading_chapter": row[7],
             "last_played_at": row[8],
             "reading_position": row[9] if len(row) > 9 else 0,
-            "created_at": row[10] if len(row) > 10 else row[9],
-            "updated_at": row[11] if len(row) > 11 else row[10]
+            "chunk_count": row[10] if len(row) > 10 else 0,
+            "created_at": row[11] if len(row) > 11 else row[9],
+            "updated_at": row[12] if len(row) > 12 else row[10]
         }
     return None
 
@@ -220,6 +223,7 @@ def list_books() -> List[Dict]:
                           current_chunk,
                           current_chapter,
                           last_played_at,
+                          chunk_count,
                           created_at,
                           updated_at
                    FROM book
@@ -239,8 +243,9 @@ def list_books() -> List[Dict]:
             "current_chunk": row[5],
             "current_chapter": row[6],
             "last_played_at": row[7],
-            "created_at": row[8],
-            "updated_at": row[9]
+            "chunk_count": row[8] if len(row) > 8 else 0,
+            "created_at": row[9] if len(row) > 9 else row[8],
+            "updated_at": row[10] if len(row) > 10 else row[9]
         }
         for row in rows
     ]
