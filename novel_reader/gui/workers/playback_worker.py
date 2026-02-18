@@ -167,7 +167,7 @@ class PlaybackWorker(QThread):
                     while waited < max_wait and self._is_running:
                         if audio_path.exists():
                             file_size = audio_path.stat().st_size
-                            if file_size > 5000:  # 大于20KB认为有效
+                            if file_size > 5000:  # 大于5KB认为有效
                                 file_ready = True
                                 print(f"✅ [Chunk {chunk_id}] 音频文件就绪 ({file_size / 1024:.1f} KB)")
                                 break
@@ -240,7 +240,7 @@ class PlaybackWorker(QThread):
                     while waited < max_wait and self._is_running:
                         if audio_path.exists():
                             file_size = audio_path.stat().st_size
-                            if file_size > 5000:  # 大于20KB认为有效
+                            if file_size > 5000:  # 大于5KB认为有效
                                 file_ready = True
                                 print(f"✅ [Chunk {chunk_id}] 重新转换完成 ({file_size / 1024:.1f} KB)，重试播放")
                                 break
@@ -276,7 +276,7 @@ class PlaybackWorker(QThread):
             print(f"\n✅ 播放完成")
             print(f"📊 统计: 成功播放 {played_count} 个，跳过 {skipped_count} 个")
             if skipped_count > 0:
-                print(f"💡 提示: 已自动删除小于20KB的损坏文件")
+                print(f"💡 提示: 已自动删除小于5KB的损坏文件")
                 print(f"💡 建议: 请转换相关章节以继续播放")
 
         except Exception as e:

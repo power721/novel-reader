@@ -191,7 +191,7 @@ class TTSWorker(QThread):
                             while waited < max_wait:
                                 if os.path.exists(audio_path):
                                     file_size = os.path.getsize(audio_path)
-                                    if file_size > MIN_SIZE:  # 文件大于20KB认为就绪
+                                    if file_size > MIN_SIZE:  # 文件大于5KB认为就绪
                                         file_ready = True
                                         break
                                 time.sleep(0.1)

@@ -179,23 +179,6 @@ class ReaderWidget(QWidget):
         self.toggle_chapter_list_btn.clicked.connect(self._toggle_chapter_list)
         toolbar_layout.addWidget(self.toggle_chapter_list_btn)
 
-        # 退出阅读模式按钮
-        self.exit_reading_mode_btn = QPushButton("🚪 退出阅读")
-        self.exit_reading_mode_btn.setStyleSheet("""
-            QPushButton {
-                padding: 3px 8px;
-                background-color: #e9ecef;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #dee2e6;
-            }
-        """)
-        self.exit_reading_mode_btn.clicked.connect(self._exit_reading_mode)
-        toolbar_layout.addWidget(self.exit_reading_mode_btn)
-
         # 阅读统计按钮
         self.stats_btn = QPushButton("📊 统计")
         self.stats_btn.setStyleSheet("""
@@ -213,6 +196,23 @@ class ReaderWidget(QWidget):
         self.stats_btn.setCheckable(False)
         self.stats_btn.clicked.connect(self._show_stats_dialog)
         toolbar_layout.addWidget(self.stats_btn)
+
+        # 退出阅读模式按钮
+        self.exit_reading_mode_btn = QPushButton("🚪 退出阅读")
+        self.exit_reading_mode_btn.setStyleSheet("""
+            QPushButton {
+                padding: 3px 8px;
+                background-color: #e9ecef;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #dee2e6;
+            }
+        """)
+        self.exit_reading_mode_btn.clicked.connect(self._exit_reading_mode)
+        toolbar_layout.addWidget(self.exit_reading_mode_btn)
 
         toolbar_layout.addSpacing(20)
 
@@ -909,6 +909,8 @@ class ReaderWidget(QWidget):
         self.toggle_chapter_list_btn.setStyleSheet(button_style)
         self.exit_reading_mode_btn.setStyleSheet(button_style)
         self.stats_btn.setStyleSheet(button_style)
+        self.auto_scroll_btn.setStyleSheet(button_style)
+        self.scroll_settings_btn.setStyleSheet(button_style)
 
         # 更新下拉菜单和输入框样式
         combo_style = f"""

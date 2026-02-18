@@ -43,6 +43,10 @@ class MainWindow(QMainWindow):
         self._audio_shortcuts = []  # 音频播放相关快捷键列表
         self._reading_shortcuts = []  # 阅读模式相关快捷键列表
 
+        # 提前加载设置（在创建UI之前）
+        from novel_reader.core import settings as settings_module
+        self._audio_compact_mode: bool = settings_module.get_setting("audio_compact_mode", False)
+
         # 初始化界面
         self._init_ui()
         self._connect_signals()
@@ -147,12 +151,37 @@ class MainWindow(QMainWindow):
         # 视图菜单
         view_menu = menubar.addMenu("视图(&V)")
 
+        # 音频精简模式切换
+        self.audio_compact_mode_action = QAction("音频精简模式(&C)", self)
+        self.audio_compact_mode_action.setCheckable(True)
+        self.audio_compact_mode_action.setShortcut("Ctrl+Shift+C")
+        self.audio_compact_mode_action.setChecked(self._audio_compact_mode)
+        self.audio_compact_mode_action.triggered.connect(self._toggle_audio_compact_mode)
+        view_menu.addAction(self.audio_compact_mode_action)
+
+        view_menu.addSeparator()
+
         # 阅读模式切换
         self.reading_mode_action = QAction("阅读模式(&R)", self)
         self.reading_mode_action.setCheckable(True)
         self.reading_mode_action.setShortcut("Ctrl+R")
         self.reading_mode_action.triggered.connect(self._toggle_reading_mode)
         view_menu.addAction(self.reading_mode_action)
+
+    def _toggle_audio_compact_mode(self):
+        """切换音频精简模式"""
+        self._audio_compact_mode = self.audio_compact_mode_action.isChecked()
+
+        # 保存到配置
+        from novel_reader.core import settings as settings_module
+        settings_module.set_setting("audio_compact_mode", self._audio_compact_mode)
+
+        # 更新界面显示（仅在音频模式下生效）
+        if not self._reading_mode:
+            self._update_ui_for_mode()
+
+        mode_str = "精简模式" if self._audio_compact_mode else "完整模式"
+        self.statusBar().showMessage(f"已切换到音频{mode_str}", 2000)
 
     def _toggle_reading_mode(self):
         """切换阅读模式"""
@@ -240,7 +269,9 @@ class MainWindow(QMainWindow):
             # 默认保持音频模式
             self.reading_mode_action.setChecked(False)
             self._reading_mode = False
-            print(f"[INFO] 恢复上次模式: 音频模式")
+            # 应用精简模式设置
+            self._update_ui_for_mode()
+            print(f"[INFO] 恢复上次模式: 音频模式, 精简模式: {self._audio_compact_mode}")
 
     def _center_window(self):
         """将窗口居中显示在屏幕上"""
@@ -299,6 +330,22 @@ class MainWindow(QMainWindow):
             self._set_audio_shortcuts_enabled(True)
             # 禁用阅读模式快捷键
             self._set_reading_shortcuts_enabled(False)
+
+            # 根据精简模式设置显示/隐藏组件
+            if self._audio_compact_mode:
+                # 精简模式：只显示播放文本和播放控制
+                self.book_list_widget.setVisible(False)
+                self.chapter_list_widget.setVisible(False)
+                self.tts_widget.setVisible(False)
+                # 让播放文本组件占据整个列表区域
+                self.play_text_widget.setVisible(True)
+                self.player_widget.setVisible(True)
+            else:
+                # 完整模式：显示所有组件
+                self.book_list_widget.setVisible(True)
+                self.chapter_list_widget.setVisible(True)
+                self.play_text_widget.setVisible(True)
+                self.tts_widget.setVisible(True)
 
         # 如果有选中的书籍，加载到相应模式
         if self.current_book_id:
@@ -1436,7 +1483,7 @@ class MainWindow(QMainWindow):
         if Path(next_chapter_audio_path).exists():
             # 文件存在，检查大小
             file_size = Path(next_chapter_audio_path).stat().st_size
-            if file_size > 5000:  # 大于20KB认为有效
+            if file_size > 5000:  # 大于5KB认为有效
                 print(f"✅ 下一章节音频已存在 ({file_size / 1024:.1f} KB)，无需转换")
                 return
             else:
@@ -2332,7 +2379,7 @@ class MainWindow(QMainWindow):
         while waited < max_wait:
             if audio_path.exists():
                 file_size = audio_path.stat().st_size
-                if file_size > 5000:  # 大于20KB认为有效
+                if file_size > 5000:  # 大于5KB认为有效
                     file_ready = True
                     print(f"[DEBUG] File ready: {file_size / 1024:.1f} KB")
                     break
@@ -2410,7 +2457,7 @@ class MainWindow(QMainWindow):
                 f"发现 {diagnosis['problematic']} 个问题文件\n\n"
                 f"缺失: {diagnosis['missing']}\n"
                 f"空文件: {diagnosis['empty']}\n"
-                f"过小 (<20KB): {diagnosis['too_small']}\n\n"
+                f"过小 (<5KB): {diagnosis['too_small']}\n\n"
                 f"是否删除空文件和过小的文件？\n"
                 f"(删除后需要重新转换)",
                 QMessageBox.Yes | QMessageBox.No,
@@ -2422,7 +2469,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.information(
                     self,
                     "删除完成",
-                    f"已删除 {deleted} 个损坏的文件 (<20KB)\n\n请重新转换这些章节"
+                    f"已删除 {deleted} 个损坏的文件 (<5KB)\n\n请重新转换这些章节"
                 )
                 # 刷新书籍列表
                 self.book_list_widget.load_books()
@@ -2468,7 +2515,7 @@ class MainWindow(QMainWindow):
             size_kb = debug_info['audio_size'] / 1024
             msg += f"音频大小: {size_kb:.2f} KB\n"
             if debug_info['audio_size'] < 5000:
-                msg += f"⚠ 音频文件过小（<20KB），可能损坏\n"
+                msg += f"⚠ 音频文件过小（<5KB），可能损坏\n"
 
         msg += f"\n文本预览:\n{debug_info['text_preview']}..."
 

@@ -545,3 +545,4 @@ class PlayerWidget(QWidget):
         # 重置分段导航按钮
         self.prev_chunk_btn.setEnabled(False)
         self.next_chunk_btn.setEnabled(False)
+

@@ -25,6 +25,7 @@ DEFAULT_SETTINGS = {
     "reader_theme": "light",  # 阅读模式主题: "light", "dark", "eye_protection"
     "reader_show_chapter_list": True,  # 阅读模式是否显示章节列表
     "last_mode": "audio",  # 上次使用的模式: "audio" 或 "reading"
+    "audio_compact_mode": False,  # 音频模式精简模式: True=只显示文本和播放控制
     # TTS 引擎设置
     "tts_engine": "edge",  # TTS 引擎: "piper" 或 "edge"
     # Piper TTS 模型设置

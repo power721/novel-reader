@@ -82,26 +82,33 @@ class PlayTextWidget(QWidget):
                 self.text_display.setPlainText(f"Chunk {chunk_id} 超出范围")
                 return
 
+            from novel_reader.core import settings as settings_module
+            limit = 100
+            if settings_module.get_setting("audio_compact_mode", False):
+                limit = 200
             count = 0
             # 获取前两个、当前和后两个chunk的文本
             prev_texts = []
-            for i in range(5):
+            for i in range(6):
                 offset = i + 1
                 if chunk_id - offset >= 0:
                     prev_texts.insert(0, chunks[chunk_id - offset])
                     count += len(chunks[chunk_id - offset])
-                    if count >= 100:
+                    if count >= limit:
                         break
 
             current_text = chunks[chunk_id]
             count += len(chunks[chunk_id])
 
+            limit = 300
+            if settings_module.get_setting("audio_compact_mode", False):
+                limit = 600
             next_texts = []
-            for i in range(5):
+            for i in range(6):
                 if chunk_id + i + 1 < len(chunks):
                     next_texts.append(chunks[chunk_id + i + 1])
                     count += len(chunks[chunk_id + i + 1])
-                    if count >= 300:
+                    if count >= limit:
                         break
 
             # 构建HTML显示，高亮当前chunk
