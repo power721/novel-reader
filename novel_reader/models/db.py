@@ -27,6 +27,9 @@ def get_conn() -> sqlite3.Connection:
     conn.execute('PRAGMA journal_mode=WAL')
     conn.execute('PRAGMA busy_timeout=30000')  # 30秒超时
 
+    # 确保时间戳使用 UTC 时间
+    conn.execute('PRAGMA timezone=UTC')
+
     return conn
 
 
@@ -72,11 +75,11 @@ def init_db() -> None:
                        created_at
                        TIMESTAMP
                        DEFAULT
-                       CURRENT_TIMESTAMP,
+                       (datetime('now')),
                        updated_at
                        TIMESTAMP
                        DEFAULT
-                       CURRENT_TIMESTAMP
+                       (datetime('now'))
                    )
                    """)
 

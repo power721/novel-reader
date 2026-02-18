@@ -11,6 +11,38 @@ from PySide6.QtGui import QDragEnterEvent, QDropEvent, QColor
 from typing import Optional
 from pathlib import Path
 import os
+from datetime import datetime, timezone
+
+
+def format_utc_time_for_display(time_str: str, show_time: bool = True) -> str:
+    """
+    将 UTC 时间字符串格式化为本地时间显示
+
+    Args:
+        time_str: UTC 时间字符串（ISO 8601 格式）
+        show_time: 是否显示时间部分
+
+    Returns:
+        格式化的本地时间字符串，如 "2026-02-18 13:55" 或 "2026-02-18"
+    """
+    if not time_str:
+        return "未设置"
+
+    try:
+        # 解析 UTC 时间
+        utc_time = datetime.fromisoformat(time_str)
+        # 转换为本地时区
+        local_time = utc_time.astimezone()
+
+        if show_time:
+            # 显示日期和时间
+            return local_time.strftime("%Y-%m-%d %H:%M")
+        else:
+            # 只显示日期
+            return local_time.strftime("%Y-%m-%d")
+    except Exception as e:
+        # 解析失败，返回原字符串
+        return time_str[:19].replace('T', ' ') if len(time_str) > 19 else time_str
 
 
 class BookListWidget(QWidget):
@@ -283,14 +315,18 @@ class BookListWidget(QWidget):
             else:
                 progress_text = f"{current_chunk}"
 
-            # 格式化最后播放时间
+            # 格式化最后播放时间（相对时间）
             last_played_at = book.get('last_played_at')
             if last_played_at:
                 try:
-                    dt = datetime.fromisoformat(last_played_at)
+                    # 解析 UTC 时间并转换为本地时间
+                    utc_time = datetime.fromisoformat(last_played_at)
+                    local_time = utc_time.astimezone()
+
                     # 计算相对时间
-                    now = datetime.now()
-                    diff = now - dt
+                    now = datetime.now(timezone.utc).astimezone()
+                    diff = now - local_time
+
                     if diff.days > 0:
                         time_text = f"{diff.days}天前"
                     elif diff.seconds >= 3600:
@@ -302,7 +338,8 @@ class BookListWidget(QWidget):
                     else:
                         time_text = "刚刚"
                 except:
-                    time_text = last_played_at[:10] if len(last_played_at) > 10 else last_played_at
+                    # 降级处理：显示日期
+                    time_text = format_utc_time_for_display(last_played_at, show_time=False)
             else:
                 time_text = "未播放"
 
@@ -490,20 +527,20 @@ class BookListWidget(QWidget):
         layout.addRow("当前章节：", QLabel(str(current_chapter)))
         layout.addRow("当前分段：", QLabel(str(current_chunk)))
 
-        # 时间信息
+        # 时间信息（使用本地时区显示）
         created_at = book.get('created_at', '')
         if created_at:
-            created_label = QLabel(created_at[:19].replace('T', ' '))
+            created_label = QLabel(format_utc_time_for_display(created_at))
             layout.addRow("导入时间：", created_label)
 
         updated_at = book.get('updated_at', '')
         if updated_at:
-            updated_label = QLabel(updated_at[:19].replace('T', ' '))
+            updated_label = QLabel(format_utc_time_for_display(updated_at))
             layout.addRow("更新时间：", updated_label)
 
         last_played_at = book.get('last_played_at')
         if last_played_at:
-            last_played_label = QLabel(last_played_at[:19].replace('T', ' '))
+            last_played_label = QLabel(format_utc_time_for_display(last_played_at))
             layout.addRow("最后播放：", last_played_label)
 
         # 添加确定按钮

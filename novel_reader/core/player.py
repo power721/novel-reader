@@ -6,8 +6,19 @@ import os
 import sqlite3
 from pathlib import Path
 from typing import Optional
+from datetime import datetime, timezone
 
 from novel_reader.models import get_conn
+
+
+def get_current_time() -> str:
+    """
+    获取当前时间的 ISO 格式字符串（带时区）
+
+    Returns:
+        ISO 8601 格式的时间字符串，包含 UTC 时区信息
+    """
+    return datetime.now(timezone.utc).isoformat()
 
 # ==================== 配置区 ====================
 
@@ -382,14 +393,15 @@ def update_progress(book_id: int, chunk_id: int) -> None:
                     break
 
         # 更新进度、章节和最后播放时间
+        current_time = get_current_time()
         cursor.execute("""
                        UPDATE book
                        SET current_chunk   = ?,
                            current_chapter = ?,
                            last_played_at  = ?,
-                           updated_at      = CURRENT_TIMESTAMP
+                           updated_at      = ?
                        WHERE id = ?
-                       """, (chunk_id, current_chapter_id, datetime.now().isoformat(), book_id))
+                       """, (chunk_id, current_chapter_id, current_time, current_time, book_id))
 
         conn.commit()
 

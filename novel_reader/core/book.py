@@ -5,10 +5,53 @@ import os
 import shutil
 from pathlib import Path
 from typing import Optional, List, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 
 from novel_reader.utils import parse_txt, load_txt_file
 from novel_reader.models import get_conn
+
+
+def get_current_time() -> str:
+    """
+    获取当前时间的 ISO 格式字符串（带时区）
+    用于应用层需要显式设置时间的场景
+
+    Returns:
+        ISO 8601 格式的时间字符串，包含 UTC 时区信息
+    """
+    return datetime.now(timezone.utc).isoformat()
+
+
+def format_db_time(time_str: Optional[str]) -> str:
+    """
+    格式化数据库时间字符串为 ISO 8601 格式（带时区）
+
+    SQLite 的 datetime('now') 返回格式：YYYY-MM-DD HH:MM:SS
+    我们需要转换为：YYYY-MM-DDTHH:MM:SS+00:00
+
+    Args:
+        time_str: 数据库时间字符串
+
+    Returns:
+        ISO 8601 格式的时间字符串，带时区
+    """
+    if not time_str:
+        return ""
+
+    # 如果已经包含 T，说明已经是 ISO 格式
+    if "T" in time_str:
+        return time_str
+
+    # 否则是 SQLite 格式，需要转换
+    # "2026-02-18 13:55:48" -> "2026-02-18T13:55:48+00:00"
+    try:
+        # 尝试解析为 naive datetime，然后设置为 UTC
+        dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+        # 添加 UTC 时区信息
+        return dt.replace(tzinfo=timezone.utc).isoformat()
+    except:
+        # 解析失败，返回原字符串
+        return time_str
 
 
 def import_book(file_path: str) -> int:
@@ -83,17 +126,19 @@ def import_book(file_path: str) -> int:
                            UPDATE book
                            SET title             = ?,
                                updated_at        = ?,
+                               created_at        = ?,
                                original_filename = ?,
                                file_format       = ?,
                                chunk_count       = ?
                            WHERE id = ?
-                           """, (title, datetime.now().isoformat(), original_filename, file_format, len(chunks), book_id))
+                           """, (title, get_current_time(), get_current_time(), original_filename, file_format, len(chunks), book_id))
         else:
-            # 创建新书记录
+            # 创建新书记录（使用统一的时间函数）
+            current_time = get_current_time()
             cursor.execute("""
-                           INSERT INTO book (title, file_path, original_filename, file_format, current_chunk, chunk_count)
-                           VALUES (?, ?, ?, ?, 0, ?)
-                           """, (title, file_path, original_filename, file_format, len(chunks)))
+                           INSERT INTO book (title, file_path, original_filename, file_format, current_chunk, chunk_count, created_at, updated_at)
+                           VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+                           """, (title, file_path, original_filename, file_format, len(chunks), current_time, current_time))
             book_id = cursor.lastrowid
 
         # 插入章节信息
@@ -163,12 +208,12 @@ def get_book(book_id: int) -> Optional[Dict]:
             "current_chunk": row[5],
             "current_chapter": row[6],
             "reading_chapter": row[7],
-            "last_played_at": row[8],
+            "last_played_at": format_db_time(row[8]),
             "reading_position": row[9] if len(row) > 9 else 0,
             "chunk_count": row[10] if len(row) > 10 else 0,
             "reading_time": row[11] if len(row) > 11 else 0,
-            "created_at": row[12] if len(row) > 12 else row[10],
-            "updated_at": row[13] if len(row) > 13 else row[11]
+            "created_at": format_db_time(row[12] if len(row) > 12 else row[10]),
+            "updated_at": format_db_time(row[13] if len(row) > 13 else row[11])
         }
     return None
 
@@ -244,10 +289,10 @@ def list_books() -> List[Dict]:
             "file_format": row[4],
             "current_chunk": row[5],
             "current_chapter": row[6],
-            "last_played_at": row[7],
+            "last_played_at": format_db_time(row[7]),
             "chunk_count": row[8] if len(row) > 8 else 0,
-            "created_at": row[9] if len(row) > 9 else row[8],
-            "updated_at": row[10] if len(row) > 10 else row[9]
+            "created_at": format_db_time(row[9] if len(row) > 9 else row[8]),
+            "updated_at": format_db_time(row[10] if len(row) > 10 else row[9])
         }
         for row in rows
     ]
@@ -361,7 +406,7 @@ def update_book_title(book_id: int, new_title: str) -> bool:
                        SET title      = ?,
                            updated_at = ?
                        WHERE id = ?
-                       """, (new_title, datetime.now().isoformat(), book_id))
+                       """, (new_title, get_current_time(), book_id))
 
         conn.commit()
         conn.close()
@@ -409,7 +454,7 @@ def update_book_reading_position(book_id: int, position: int) -> bool:
                        SET reading_position = ?,
                            updated_at      = ?
                        WHERE id = ?
-                       """, (position, datetime.now().isoformat(), book_id))
+                       """, (position, get_current_time(), book_id))
 
         conn.commit()
         conn.close()
@@ -456,7 +501,7 @@ def update_book_reading_chapter(book_id: int, chapter_index: int) -> bool:
                        SET reading_chapter = ?,
                            updated_at      = ?
                        WHERE id = ?
-                       """, (chapter_index, datetime.now().isoformat(), book_id))
+                       """, (chapter_index, get_current_time(), book_id))
 
         conn.commit()
         conn.close()
@@ -503,7 +548,7 @@ def update_book_reading_time(book_id: int, additional_seconds: int) -> bool:
                        SET reading_time = reading_time + ?,
                            updated_at   = ?
                        WHERE id = ?
-                       """, (additional_seconds, datetime.now().isoformat(), book_id))
+                       """, (additional_seconds, get_current_time(), book_id))
 
         conn.commit()
         conn.close()
@@ -685,7 +730,7 @@ def get_bookmarks(book_id: int) -> List[Dict]:
             "chapter_id": row[3],
             "chapter_title": row[4] or "",
             "note": row[5] or "",
-            "created_at": row[6]
+            "created_at": format_db_time(row[6])
         })
 
     return bookmarks
@@ -728,7 +773,7 @@ def get_all_bookmarks() -> List[Dict]:
             "chapter_id": row[4],
             "chapter_title": row[5] or "",
             "note": row[6] or "",
-            "created_at": row[7]
+            "created_at": format_db_time(row[7])
         })
 
     return bookmarks
