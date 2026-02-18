@@ -210,6 +210,19 @@ def init_db() -> None:
                        ON bookmark(book_id)
                    """)
 
+    # 添加书签章节字段（用于升级现有数据库）
+    try:
+        cursor.execute("SELECT chapter_id FROM bookmark LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE bookmark ADD COLUMN chapter_id INTEGER")
+        print("Added column: bookmark.chapter_id")
+
+    try:
+        cursor.execute("SELECT chapter_title FROM bookmark LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE bookmark ADD COLUMN chapter_title TEXT")
+        print("Added column: bookmark.chapter_title")
+
     conn.commit()
     conn.close()
 

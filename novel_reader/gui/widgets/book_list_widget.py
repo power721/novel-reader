@@ -822,3 +822,20 @@ class BookListWidget(QWidget):
                 "清理失败",
                 f"清理音频缓存时出错：\n{str(e)}"
             )
+
+    def select_book_by_id(self, book_id: int) -> bool:
+        """
+        通过ID选择书籍
+
+        Args:
+            book_id: 书籍ID
+
+        Returns:
+            是否找到并选中
+        """
+        for i in range(self.book_list.count()):
+            item = self.book_list.item(i)
+            if item and item.data(Qt.UserRole) == book_id:
+                self.book_list.setCurrentItem(item)
+                return True
+        return False

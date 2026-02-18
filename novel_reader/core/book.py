@@ -555,6 +555,185 @@ def get_book_reading_stats(book_id: int) -> Optional[Dict]:
     return None
 
 
+def add_bookmark(book_id: int, chunk: int, note: str = "") -> Optional[int]:
+    """
+    添加书签
+
+    Args:
+        book_id: 书籍 ID
+        chunk: chunk 索引
+        note: 书签备注（可选）
+
+    Returns:
+        书签 ID，如果失败返回 None
+    """
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    try:
+        # 检查书籍是否存在
+        cursor.execute("SELECT title FROM book WHERE id = ?", (book_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            conn.close()
+            print(f"✗ 书籍不存在 (ID: {book_id})")
+            return None
+
+        # 查找对应章节
+        cursor.execute("""
+                       SELECT id, title
+                       FROM chapter
+                       WHERE book_id = ?
+                       ORDER BY start_chunk DESC
+                       """, (book_id,))
+
+        chapter_id = None
+        chapter_title = None
+
+        # 找到第一个 start_chunk <= chunk 的章节
+        for chapter in cursor.fetchall():
+            cursor.execute("SELECT start_chunk FROM chapter WHERE id = ?", (chapter[0],))
+            start_chunk = cursor.fetchone()[0]
+            if start_chunk <= chunk:
+                chapter_id = chapter[0]
+                chapter_title = chapter[1]
+                break
+
+        # 插入书签（包含章节信息）
+        cursor.execute("""
+                       INSERT INTO bookmark (book_id, chunk, chapter_id, chapter_title, note)
+                       VALUES (?, ?, ?, ?, ?)
+                       """, (book_id, chunk, chapter_id, chapter_title, note))
+
+        bookmark_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        chapter_info = f" - {chapter_title}" if chapter_title else ""
+        print(f"✓ 书签已添加 (ID: {bookmark_id}){chapter_info}")
+        return bookmark_id
+
+    except Exception as e:
+        conn.close()
+        print(f"✗ 添加书签失败: {e}")
+        return None
+
+
+def remove_bookmark(bookmark_id: int) -> bool:
+    """
+    删除书签
+
+    Args:
+        bookmark_id: 书签 ID
+
+    Returns:
+        是否删除成功
+    """
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("DELETE FROM bookmark WHERE id = ?", (bookmark_id,))
+        conn.commit()
+        conn.close()
+
+        print(f"✓ 书签已删除 (ID: {bookmark_id})")
+        return True
+
+    except Exception as e:
+        conn.close()
+        print(f"✗ 删除书签失败: {e}")
+        return False
+
+
+def get_bookmarks(book_id: int) -> List[Dict]:
+    """
+    获取书籍的所有书签
+
+    Args:
+        book_id: 书籍 ID
+
+    Returns:
+        书签列表，按 chunk 索引排序
+    """
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+                   SELECT id,
+                          book_id,
+                          chunk,
+                          chapter_id,
+                          chapter_title,
+                          note,
+                          created_at
+                   FROM bookmark
+                   WHERE book_id = ?
+                   ORDER BY chunk ASC
+                   """, (book_id,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    bookmarks = []
+    for row in rows:
+        bookmarks.append({
+            "id": row[0],
+            "book_id": row[1],
+            "chunk": row[2],
+            "chapter_id": row[3],
+            "chapter_title": row[4] or "",
+            "note": row[5] or "",
+            "created_at": row[6]
+        })
+
+    return bookmarks
+
+
+def get_all_bookmarks() -> List[Dict]:
+    """
+    获取所有书签（包含书籍信息）
+
+    Returns:
+        书签列表，按书籍和 chunk 索引排序
+    """
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+                   SELECT b.id,
+                          b.book_id,
+                          bk.title,
+                          b.chunk,
+                          b.chapter_id,
+                          b.chapter_title,
+                          b.note,
+                          b.created_at
+                   FROM bookmark b
+                   JOIN book bk ON b.book_id = bk.id
+                   ORDER BY b.book_id ASC, b.chunk ASC
+                   """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    bookmarks = []
+    for row in rows:
+        bookmarks.append({
+            "id": row[0],
+            "book_id": row[1],
+            "book_title": row[2],
+            "chunk": row[3],
+            "chapter_id": row[4],
+            "chapter_title": row[5] or "",
+            "note": row[6] or "",
+            "created_at": row[7]
+        })
+
+    return bookmarks
+
+
 if __name__ == "__main__":
     # 初始化数据库
     from novel_reader.models import init_db

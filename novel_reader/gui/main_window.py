@@ -315,6 +315,10 @@ class MainWindow(QMainWindow):
             self._set_audio_shortcuts_enabled(False)
             # 启用阅读模式快捷键
             self._set_reading_shortcuts_enabled(True)
+
+            # 禁用书签菜单（阅读模式不需要书签功能）
+            if hasattr(self, 'bookmark_menu'):
+                self.bookmark_menu.setEnabled(False)
         else:
             # 音频模式：显示所有音频模式组件，隐藏阅读器
             self.player_widget.setVisible(True)
@@ -330,6 +334,10 @@ class MainWindow(QMainWindow):
             self._set_audio_shortcuts_enabled(True)
             # 禁用阅读模式快捷键
             self._set_reading_shortcuts_enabled(False)
+
+            # 启用书签菜单
+            if hasattr(self, 'bookmark_menu'):
+                self.bookmark_menu.setEnabled(True)
 
             # 根据精简模式设置显示/隐藏组件
             if self._audio_compact_mode:
@@ -509,6 +517,23 @@ class MainWindow(QMainWindow):
         model_settings_action = QAction("TTS 模型管理...(&M)", self)
         model_settings_action.triggered.connect(self._show_model_settings)
         settings_menu.addAction(model_settings_action)
+
+        # 书签菜单
+        self.bookmark_menu = menubar.addMenu("书签(&B)")
+
+        self.add_bookmark_action = QAction("添加书签(&A)", self)
+        self.add_bookmark_action.setShortcut("Ctrl+B")
+        self.add_bookmark_action.triggered.connect(self._add_bookmark)
+        self.bookmark_menu.addAction(self.add_bookmark_action)
+
+        self.show_bookmarks_action = QAction("查看当前书籍书签(&C)", self)
+        self.show_bookmarks_action.setShortcut("Ctrl+Shift+B")
+        self.show_bookmarks_action.triggered.connect(self._show_bookmarks)
+        self.bookmark_menu.addAction(self.show_bookmarks_action)
+
+        self.show_all_bookmarks_action = QAction("查看所有书签(&F)", self)
+        self.show_all_bookmarks_action.triggered.connect(self._show_all_bookmarks)
+        self.bookmark_menu.addAction(self.show_all_bookmarks_action)
 
         # 帮助菜单
         help_menu = menubar.addMenu("帮助(&H)")
@@ -2620,6 +2645,9 @@ class MainWindow(QMainWindow):
         <tr><td><b>PageDown</b></td><td>下一章</td></tr>
         <tr><td><b>↑</b></td><td>增加音量</td></tr>
         <tr><td><b>↓</b></td><td>减少音量</td></tr>
+        <tr><td><b>Ctrl + B</b></td><td>添加书签</td></tr>
+        <tr><td><b>Ctrl + Shift + B</b></td><td>查看当前书籍书签</td></tr>
+        <tr><td><b>Ctrl + Shift + C</b></td><td>切换音频精简模式</td></tr>
         </table>
 
         <h3>阅读模式</h3>
@@ -2678,3 +2706,91 @@ class MainWindow(QMainWindow):
 
         # 确保应用程序退出
         QApplication.quit()
+
+    # ==================== 书签功能 ====================
+
+    def _add_bookmark(self):
+        """添加书签"""
+        if self.current_book_id is None:
+            QMessageBox.warning(self, "提示", "请先选择一本书")
+            return
+
+        # 获取当前播放位置
+        current_chunk = self._get_current_playing_chunk(self.current_book_id)
+
+        # 获取当前书籍信息
+        from novel_reader.core import get_book
+        book = get_book(self.current_book_id)
+        if not book:
+            return
+
+        # 添加书签
+        from novel_reader.core.book import add_bookmark
+        bookmark_id = add_bookmark(self.current_book_id, current_chunk)
+
+        if bookmark_id:
+            self.statusBar().showMessage(f"✓ 书签已添加（分段 {current_chunk}）", 3000)
+        else:
+            QMessageBox.warning(self, "错误", "添加书签失败")
+
+    def _show_bookmarks(self):
+        """显示当前书籍的书签列表"""
+        if self.current_book_id is None:
+            QMessageBox.warning(self, "提示", "请先选择一本书")
+            return
+
+        from novel_reader.core import get_book
+        book = get_book(self.current_book_id)
+        if not book:
+            return
+
+        from .dialogs import BookmarkDialog
+        dialog = BookmarkDialog(self.current_book_id, book['title'], self)
+        dialog.jump_to_bookmark.connect(self._jump_to_chunk_in_current_book)
+        dialog.exec()
+
+    def _show_all_bookmarks(self):
+        """显示所有书签"""
+        from .dialogs import AllBookmarksDialog
+        dialog = AllBookmarksDialog(self)
+        dialog.jump_to_bookmark.connect(self._jump_to_bookmark_in_book)
+        dialog.exec()
+
+    def _jump_to_chunk_in_current_book(self, chunk: int):
+        """在当前书籍中跳转到指定分段"""
+        if self.current_book_id is None:
+            return
+
+        # 停止当前播放
+        if self.playback_worker and self.playback_worker.isRunning():
+            self._stop_playback()
+
+        # 跳转并播放
+        self._play_from_chunk(chunk)
+
+    def _jump_to_bookmark_in_book(self, book_id: int, chunk: int):
+        """跳转到指定书籍的指定分段"""
+        # 如果不是当前书籍，先切换书籍
+        if book_id != self.current_book_id:
+            # 选择书籍
+            self.book_list_widget.select_book_by_id(book_id)
+
+            # 等待书籍加载完成
+            from PySide6.QtCore import QCoreApplication
+            QCoreApplication.processEvents()
+
+            if self.current_book_id == book_id:
+                # 停止当前播放
+                if self.playback_worker and self.playback_worker.isRunning():
+                    self._stop_playback()
+
+                # 跳转并播放
+                self._play_from_chunk(chunk)
+
+    def _get_current_playing_chunk(self, book_id: int) -> int:
+        """获取当前播放的chunk位置"""
+        from novel_reader.core import get_book
+        book = get_book(book_id)
+        if book:
+            return book.get('current_chunk', 0)
+        return 0
