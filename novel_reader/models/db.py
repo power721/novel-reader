@@ -70,6 +70,22 @@ def init_db() -> None:
                        INTEGER
                        DEFAULT
                        0,
+                       reading_position
+                       INTEGER
+                       DEFAULT
+                       0,
+                       reading_chapter
+                       INTEGER
+                       DEFAULT
+                       -1,
+                       chunk_count
+                       INTEGER
+                       DEFAULT
+                       0,
+                       reading_time
+                       INTEGER
+                       DEFAULT
+                       0,
                        last_played_at
                        TIMESTAMP,
                        created_at
@@ -82,59 +98,6 @@ def init_db() -> None:
                        (datetime('now'))
                    )
                    """)
-
-    # 检查并添加新字段（用于升级现有数据库）
-    try:
-        cursor.execute("SELECT current_chapter FROM book LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE book ADD COLUMN current_chapter INTEGER DEFAULT 0")
-        print("Added column: book.current_chapter")
-
-    try:
-        cursor.execute("SELECT last_played_at FROM book LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE book ADD COLUMN last_played_at TIMESTAMP")
-        print("Added column: book.last_played_at")
-
-    try:
-        cursor.execute("SELECT original_filename FROM book LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE book ADD COLUMN original_filename TEXT")
-        print("Added column: book.original_filename")
-
-    try:
-        cursor.execute("SELECT file_format FROM book LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE book ADD COLUMN file_format TEXT")
-        print("Added column: book.file_format")
-
-    # 添加阅读位置字段（用于阅读模式）
-    try:
-        cursor.execute("SELECT reading_position FROM book LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE book ADD COLUMN reading_position INTEGER DEFAULT 0")
-        print("Added column: book.reading_position")
-
-    # 添加阅读模式章节索引字段（独立于音频模式）
-    try:
-        cursor.execute("SELECT reading_chapter FROM book LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE book ADD COLUMN reading_chapter INTEGER DEFAULT -1")
-        print("Added column: book.reading_chapter")
-
-    # 添加 chunk_count 字段
-    try:
-        cursor.execute("SELECT chunk_count FROM book LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE book ADD COLUMN chunk_count INTEGER DEFAULT 0")
-        print("Added column: book.chunk_count")
-
-    # 添加阅读时长字段（秒）
-    try:
-        cursor.execute("SELECT reading_time FROM book LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE book ADD COLUMN reading_time INTEGER DEFAULT 0")
-        print("Added column: book.reading_time")
 
     # 创建 chapter 表
     cursor.execute("""
@@ -189,6 +152,10 @@ def init_db() -> None:
                        INTEGER
                        NOT
                        NULL,
+                       chapter_id
+                       INTEGER,
+                       chapter_title
+                       TEXT,
                        note
                        TEXT,
                        created_at
@@ -216,26 +183,6 @@ def init_db() -> None:
                    CREATE INDEX IF NOT EXISTS idx_bookmark_book_id
                        ON bookmark(book_id)
                    """)
-
-    # 添加书签章节字段（用于升级现有数据库）
-    try:
-        cursor.execute("SELECT chapter_id FROM bookmark LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE bookmark ADD COLUMN chapter_id INTEGER")
-        print("Added column: bookmark.chapter_id")
-
-    try:
-        cursor.execute("SELECT chapter_title FROM bookmark LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE bookmark ADD COLUMN chapter_title TEXT")
-        print("Added column: bookmark.chapter_title")
-
-    # 添加章节字数字段（用于升级现有数据库）
-    try:
-        cursor.execute("SELECT word_count FROM chapter LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE chapter ADD COLUMN word_count INTEGER DEFAULT 0")
-        print("Added column: chapter.word_count")
 
     conn.commit()
     conn.close()
