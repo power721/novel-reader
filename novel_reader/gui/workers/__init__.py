@@ -6,8 +6,11 @@ PySide6 GUI 工作线程模块
 
 from .playback_worker import PlaybackWorker
 from .tts_worker import TTSWorker
+from .import_worker import ImportWorker, ImportSingleWorker
 
 __all__ = [
     "PlaybackWorker",
     "TTSWorker",
+    "ImportWorker",
+    "ImportSingleWorker",
 ]

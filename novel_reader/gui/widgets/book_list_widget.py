@@ -112,50 +112,32 @@ class BookListWidget(QWidget):
     def dropEvent(self, event: QDropEvent):
         """拖拽放下事件"""
         urls = event.mimeData().urls()
+        file_paths = []
 
-        imported_count = 0
-        failed_files = []
-
+        # 收集所有有效文件路径
         for url in urls:
             if url.isLocalFile():
                 file_path = url.toLocalFile()
+                file_suffix = Path(file_path).suffix.lower()
 
                 # 支持电子书格式
                 from novel_reader.utils.ebook_converter import is_ebook_file
 
-                file_suffix = Path(file_path).suffix.lower()
                 if file_suffix != '.txt' and not is_ebook_file(file_path):
-                    failed_files.append((file_path, "不支持的文件格式"))
+                    QMessageBox.warning(
+                        self,
+                        "不支持的文件格式",
+                        f"文件 {Path(file_path).name} 的格式不受支持"
+                    )
                     continue
 
-                try:
-                    from novel_reader.core import import_book
-                    import_book(file_path)
-                    imported_count += 1
-                except Exception as e:
-                    failed_files.append((file_path, str(e)))
+                file_paths.append(file_path)
 
-        # 显示导入结果
-        if imported_count > 0:
-            self.load_books()
-            QMessageBox.information(
-                self,
-                "导入成功",
-                f"成功导入 {imported_count} 本书"
-            )
+        if not file_paths:
+            return
 
-            # 为每本导入的书籍发射信号（触发自动转换前2个chunk）
-            from novel_reader.core import list_books
-            books = list_books()
-            # 获取最新导入的书籍（最后导入的几本）
-            for book in books[:imported_count]:
-                self.book_imported.emit(book['id'])
-
-        if failed_files:
-            error_msg = "以下文件导入失败:\n\n"
-            for file_path, reason in failed_files:
-                error_msg += f"{Path(file_path).name}: {reason}\n"
-            QMessageBox.warning(self, "导入失败", error_msg)
+        # 使用后台线程导入书籍
+        self._import_books_in_background(file_paths)
 
     def _on_item_clicked(self, item: QTreeWidgetItem, column: int):
         """项目点击事件"""
@@ -433,20 +415,143 @@ class BookListWidget(QWidget):
         )
 
         if file_path:
-            try:
-                from novel_reader.core import import_book
-                book_id = import_book(file_path)
-                QMessageBox.information(
-                    self,
-                    "成功",
-                    f"导入成功！书籍 ID: {book_id}"
-                )
-                self.load_books()
+            # 使用后台线程导入书籍
+            self._import_single_book_in_background(file_path)
 
-                # 发射导入成功信号
-                self.book_imported.emit(book_id)
-            except Exception as e:
-                QMessageBox.critical(self, "错误", f"导入失败: {e}")
+    def _import_single_book_in_background(self, file_path: str):
+        """在后台线程中导入单本书籍"""
+        from novel_reader.gui.workers.import_worker import ImportSingleWorker
+
+        # 创建进度对话框
+        from PySide6.QtWidgets import QProgressDialog, QApplication
+        progress = QProgressDialog("正在导入书籍...", "取消", 0, 0, self)
+        progress.setWindowTitle("导入书籍")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setCancelButton(None)  # 禁用取消按钮（导入过程不可中断）
+        progress.show()
+
+        # 创建工作线程
+        self._import_worker = ImportSingleWorker(file_path, self)
+
+        # 连接信号
+        self._import_worker.import_finished.connect(
+            lambda book_id, title: self._on_single_import_success(book_id, title, progress)
+        )
+        self._import_worker.import_failed.connect(
+            lambda error: self._on_single_import_failed(error, progress)
+        )
+        self._import_worker.progress_updated.connect(
+            lambda msg: progress.setLabelText(msg)
+        )
+
+        # 启动线程
+        self._import_worker.start()
+
+        # 处理事件循环以保持界面响应
+        while self._import_worker.isRunning():
+            QApplication.processEvents()
+            if progress.wasCanceled():
+                # 注意：实际上我们不能安全地取消导入操作
+                # 因为数据库操作可能已经部分完成
+                pass
+
+    def _on_single_import_success(self, book_id: int, title: str, progress_dialog):
+        """导入成功处理"""
+        progress_dialog.close()
+
+        QMessageBox.information(
+            self,
+            "导入成功",
+            f"书籍「{title}」导入成功！\n书籍 ID: {book_id}"
+        )
+
+        # 刷新书籍列表
+        self.load_books()
+
+        # 发射导入成功信号（触发自动转换前2个chunk）
+        self.book_imported.emit(book_id)
+
+    def _on_single_import_failed(self, error_message: str, progress_dialog):
+        """导入失败处理"""
+        progress_dialog.close()
+        QMessageBox.critical(self, "导入失败", error_message)
+
+    def _import_books_in_background(self, file_paths: list):
+        """在后台线程中批量导入书籍"""
+        from novel_reader.gui.workers.import_worker import ImportWorker
+
+        # 创建进度对话框
+        from PySide6.QtWidgets import QProgressDialog, QApplication
+        progress = QProgressDialog(f"正在导入 {len(file_paths)} 个文件...", None, 0, 0, self)
+        progress.setWindowTitle("批量导入")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setCancelButton(None)
+        progress.show()
+
+        # 创建工作线程
+        self._import_worker = ImportWorker(file_paths, self)
+
+        # 连接信号
+        self._import_worker.import_batch_finished.connect(
+            lambda success, failed, failed_files: self._on_batch_import_finished(
+                success, failed, failed_files, progress
+            )
+        )
+        self._import_worker.import_finished.connect(
+            lambda book_id, title: self._on_book_imported_in_batch(book_id, title)
+        )
+        self._import_worker.import_failed.connect(
+            lambda error: print(f"[ERROR] Import failed: {error}")
+        )
+        self._import_worker.progress_updated.connect(
+            lambda msg: progress.setLabelText(msg)
+        )
+
+        # 启动线程
+        self._import_worker.start()
+
+        # 收集成功导入的书籍ID
+        self._batch_imported_book_ids = []
+
+        # 处理事件循环以保持界面响应
+        while self._import_worker.isRunning():
+            QApplication.processEvents()
+
+    def _on_book_imported_in_batch(self, book_id: int, title: str):
+        """批量导入中单本书籍导入成功"""
+        self._batch_imported_book_ids.append(book_id)
+        print(f"[INFO] Imported book: {title} (ID: {book_id})")
+
+    def _on_batch_import_finished(self, success_count: int, failed_count: int,
+                                  failed_files: list, progress_dialog):
+        """批量导入完成处理"""
+        progress_dialog.close()
+
+        # 刷新书籍列表
+        self.load_books()
+
+        # 显示导入结果
+        if success_count > 0 and failed_count == 0:
+            QMessageBox.information(
+                self,
+                "导入完成",
+                f"成功导入 {success_count} 本书"
+            )
+        elif success_count > 0 and failed_count > 0:
+            QMessageBox.warning(
+                self,
+                "部分成功",
+                f"成功导入 {success_count} 本书\n失败 {failed_count} 个文件"
+            )
+        elif failed_count > 0:
+            error_msg = "导入失败:\n\n"
+            for file_path, reason in failed_files:
+                error_msg += f"{Path(file_path).name}: {reason}\n"
+            QMessageBox.warning(self, "导入失败", error_msg)
+
+        # 为每本导入的书籍发射信号
+        for book_id in self._batch_imported_book_ids:
+            self.book_imported.emit(book_id)
 
     def _show_book_info(self, book_id: int):
         """显示书籍信息对话框"""
