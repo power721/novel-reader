@@ -143,12 +143,19 @@ def import_book(file_path: str) -> int:
 
         # 插入章节信息
         chapter_records = []
-        for chapter_title, start_chunk in chapters:
+        for idx, (chapter_title, start_chunk) in enumerate(chapters):
+            # 计算章节字数
+            # 找到本章的结束位置（下一章的开始位置，或者全书结束）
+            end_chunk = chapters[idx + 1][1] if idx + 1 < len(chapters) else len(chunks)
+
+            # 计算本章的字数（累加所有属于本章的 chunk 的字数）
+            word_count = sum(len(chunks[i]) for i in range(start_chunk, end_chunk))
+
             cursor.execute("""
-                           INSERT INTO chapter (book_id, title, start_chunk)
-                           VALUES (?, ?, ?)
-                           """, (book_id, chapter_title, start_chunk))
-            chapter_records.append((cursor.lastrowid, chapter_title, start_chunk))
+                           INSERT INTO chapter (book_id, title, start_chunk, word_count)
+                           VALUES (?, ?, ?, ?)
+                           """, (book_id, chapter_title, start_chunk, word_count))
+            chapter_records.append((cursor.lastrowid, chapter_title, start_chunk, word_count))
 
         conn.commit()
 
@@ -232,7 +239,7 @@ def get_book_chapters(book_id: int) -> List[Dict]:
     cursor = conn.cursor()
 
     cursor.execute("""
-                   SELECT id, title, start_chunk
+                   SELECT id, title, start_chunk, word_count
                    FROM chapter
                    WHERE book_id = ?
                    ORDER BY start_chunk
@@ -245,7 +252,8 @@ def get_book_chapters(book_id: int) -> List[Dict]:
         {
             "id": row[0],
             "title": row[1],
-            "start_chunk": row[2]
+            "start_chunk": row[2],
+            "word_count": row[3] if len(row) > 3 else 0
         }
         for row in rows
     ]

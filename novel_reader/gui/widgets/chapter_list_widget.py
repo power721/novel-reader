@@ -39,9 +39,9 @@ class ChapterListWidget(QWidget):
 
         # 章节树形列表
         self.chapters_tree = QTreeWidget()
-        self.chapters_tree.setHeaderLabels(["章节标题", "分段"])
+        self.chapters_tree.setHeaderLabels(["章节标题", "字数"])
         self.chapters_tree.setColumnWidth(0, 350)
-        self.chapters_tree.setColumnWidth(1, 30)
+        self.chapters_tree.setColumnWidth(1, 80)
         self.chapters_tree.setAlternatingRowColors(True)
         self.chapters_tree.setRootIsDecorated(False)
         self.chapters_tree.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -123,7 +123,11 @@ class ChapterListWidget(QWidget):
 
         # 转换章节
         convert_action = menu.addAction("🔄 转换本章节 TTS")
-        convert_action.setToolTip(f"转换《{chapter_data['title']}》的所有 {chapter_data['chunk_count']} 个分段")
+        word_count = chapter_data.get('word_count', 0)
+        word_info = f"{word_count}字" if word_count > 0 else ""
+        chunk_info = f"{chapter_data['chunk_count']}个分段"
+        tooltip_info = f"{word_info} {chunk_info}".strip() if word_info else chunk_info
+        convert_action.setToolTip(f"转换《{chapter_data['title']}》（{tooltip_info}）")
 
         # 进入阅读模式
         enter_reading_mode_action = menu.addAction("📖 进入阅读模式")
@@ -185,20 +189,24 @@ class ChapterListWidget(QWidget):
             else:
                 end_chunk = total_chunks
 
-            # 保存章节数据（包含结束位置）
+            # 保存章节数据（包含结束位置和字数）
             chapter_data = {
                 'id': chapter['id'],
                 'title': chapter['title'],
                 'start_chunk': start_chunk,
                 'end_chunk': end_chunk,
-                'chunk_count': end_chunk - start_chunk
+                'chunk_count': end_chunk - start_chunk,
+                'word_count': chapter.get('word_count', 0)
             }
             self.chapters.append(chapter_data)
 
             # 创建树项
+            word_count = chapter.get('word_count', 0)
+            word_count_str = str(word_count)
+
             item = QTreeWidgetItem([
                 chapter['title'],
-                f"{chapter_data['chunk_count']}"
+                word_count_str
             ])
 
             # 在第0列存储 start_chunk（使用 UserRole）

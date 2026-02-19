@@ -157,6 +157,10 @@ def init_db() -> None:
                        INTEGER
                        NOT
                        NULL,
+                       word_count
+                       INTEGER
+                       DEFAULT
+                       0,
                        FOREIGN
                        KEY
                    (
@@ -225,6 +229,13 @@ def init_db() -> None:
     except sqlite3.OperationalError:
         cursor.execute("ALTER TABLE bookmark ADD COLUMN chapter_title TEXT")
         print("Added column: bookmark.chapter_title")
+
+    # 添加章节字数字段（用于升级现有数据库）
+    try:
+        cursor.execute("SELECT word_count FROM chapter LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE chapter ADD COLUMN word_count INTEGER DEFAULT 0")
+        print("Added column: chapter.word_count")
 
     conn.commit()
     conn.close()

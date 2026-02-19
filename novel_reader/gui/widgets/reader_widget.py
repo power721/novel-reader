@@ -412,6 +412,11 @@ class ReaderWidget(QWidget):
         self.chapter_progress_label.setStyleSheet("color: #6c757d; font-size: 11px;")  # 减小字体
         navbar_layout.addWidget(self.chapter_progress_label)
 
+        # 当前章节字数
+        self.chapter_word_count_label = QLabel("")
+        self.chapter_word_count_label.setStyleSheet("color: #6c757d; font-size: 11px;")
+        navbar_layout.addWidget(self.chapter_word_count_label)
+
         # 本次阅读时长
         self.session_time_label = QLabel("本次阅读: 0分钟")
         self.session_time_label.setStyleSheet("color: #6c757d; font-size: 11px;")
@@ -810,6 +815,17 @@ class ReaderWidget(QWidget):
         else:
             self.chapter_progress_label.setText("0 / 0 章 (0%)")
 
+        # 更新字数标签
+        if self.current_chapter_index >= 0 and self.current_chapter_index < len(self.chapters):
+            chapter = self.chapters[self.current_chapter_index]
+            word_count = chapter.get('word_count', 0)
+            if word_count > 0:
+                self.chapter_word_count_label.setText(f"{word_count}字")
+            else:
+                self.chapter_word_count_label.setText("")
+        else:
+            self.chapter_word_count_label.setText("")
+
     def _toggle_chapter_list(self):
         """切换章节列表显示/隐藏"""
         is_visible = self.toggle_chapter_list_btn.isChecked()
@@ -960,6 +976,7 @@ class ReaderWidget(QWidget):
         # 更新标签颜色
         self.chapter_title_label.setStyleSheet(f"font-size: 12px; color: {theme['subtitle_color']};")
         self.chapter_progress_label.setStyleSheet(f"color: {theme['subtitle_color']}; font-size: 11px;")
+        self.chapter_word_count_label.setStyleSheet(f"color: {theme['subtitle_color']}; font-size: 11px;")
 
         # 更新章节列表样式
         self.chapter_list.setStyleSheet(f"""
@@ -1128,7 +1145,7 @@ class ReaderWidget(QWidget):
             from novel_reader.core.book import update_book_reading_time
             # 保存60秒
             update_book_reading_time(self.current_book_id, 60)
-            print(f"[INFO] 自动保存阅读时长: +60 秒 (本次会话总计: {self._session_reading_seconds} 秒)")
+            # print(f"[INFO] 自动保存阅读时长: +60 秒 (本次会话总计: {self._session_reading_seconds} 秒)")
             # 重置未保存计数，而不是重置会话计数
             self._unsaved_seconds = 0
 
