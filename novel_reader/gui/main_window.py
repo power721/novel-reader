@@ -307,6 +307,9 @@ class MainWindow(QMainWindow):
             self.lists_splitter.setVisible(False)  # 关键：隐藏 ListsSplitter 本身
             if hasattr(self, 'reader_widget'):
                 self.reader_widget.setVisible(True)
+                # 启动阅读计时器（如果已加载书籍）
+                if self.reader_widget.current_book_id:
+                    self.reader_widget.start_reading_timer()
                 # 确保章节列表与按钮状态一致（默认显示目录）
                 if self.reader_widget.toggle_chapter_list_btn.isChecked():
                     self.reader_widget.chapter_list.setVisible(True)
@@ -2689,6 +2692,12 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         """窗口关闭事件"""
         print("正在关闭应用...")
+
+        # 保存阅读位置并停止阅读计时器
+        if hasattr(self, 'reader_widget') and self.current_book_id:
+            print("保存阅读位置和计时器...")
+            self.reader_widget.save_reading_position()
+            self.reader_widget.stop_reading_timer()
 
         # 停止所有工作线程
         if self.playback_worker and self.playback_worker.isRunning():

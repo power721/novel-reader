@@ -107,8 +107,8 @@ class ReaderWidget(QWidget):
         from novel_reader.core import settings as settings_module
         self._scroll_speed = settings_module.get_setting("reader_auto_scroll_speed", 1000)  # 从配置读取
         self._auto_scroll_next_chapter = settings_module.get_setting("reader_auto_scroll_next_chapter", True)  # 从配置读取自动切换下一章设置
-        self._chapter_switch_delay = settings_module.get_setting("reader_chapter_switch_delay", 3000)  # 从配置读取章节切换延迟（底部停留时间）
-        self._chapter_start_delay = settings_module.get_setting("reader_chapter_start_delay", 5000)  # 从配置读取章节开始延迟（新章准备时间）
+        self._chapter_switch_delay = settings_module.get_setting("reader_chapter_switch_delay", 5000)  # 从配置读取章节切换延迟（底部停留时间）
+        self._chapter_start_delay = settings_module.get_setting("reader_chapter_start_delay", 7000)  # 从配置读取章节开始延迟（新章准备时间）
         self.font_size = settings_module.get_setting("reader_font_size", 14)
         self.line_spacing = settings_module.get_setting("reader_line_spacing", 100)
         self.theme = settings_module.get_setting("reader_theme", "light")  # 当前主题
@@ -639,13 +639,14 @@ class ReaderWidget(QWidget):
         # 重新连接信号
         self.chapter_list.currentRowChanged.connect(self._on_chapter_selected)
 
-    def _display_chapter(self, chapter_index: int, keep_auto_scroll: bool = False):
+    def _display_chapter(self, chapter_index: int, keep_auto_scroll: bool = False, continue_timing: bool = True):
         """
         显示指定章节
 
         Args:
             chapter_index: 章节索引
             keep_auto_scroll: 是否保持自动滚动状态（默认 False）
+            continue_timing: 是否继续计时（默认 True，不重置计时器）
         """
         # 安全检查
         if chapter_index < 0:
@@ -698,8 +699,11 @@ class ReaderWidget(QWidget):
         # 保存阅读位置
         self._save_chapter_position()
 
-        # 启动阅读计时器
-        self._start_reading_timer()
+        # 启动阅读计时器（如果需要继续计时）
+        if continue_timing:
+            self._continue_reading_timer()
+        else:
+            self._start_reading_timer()
 
         # 发射信号
         self.chapter_changed.emit(chapter_index)
@@ -1020,6 +1024,10 @@ class ReaderWidget(QWidget):
         """停止阅读计时器（供外部调用）"""
         self._stop_reading_timer()
 
+    def start_reading_timer(self):
+        """启动阅读计时器（供外部调用）"""
+        self._continue_reading_timer()
+
     def jump_to_chapter(self, chapter_index: int):
         """
         跳转到指定章节
@@ -1105,7 +1113,7 @@ class ReaderWidget(QWidget):
     # ==================== 阅读计时相关 ====================
 
     def _start_reading_timer(self):
-        """启动阅读计时器"""
+        """启动阅读计时器（重置会话时长）"""
         if not self._is_timer_running:
             self._reading_timer.start(1000)  # 每秒触发一次
             self._is_timer_running = True
@@ -1116,19 +1124,28 @@ class ReaderWidget(QWidget):
             # 立即更新一次显示
             self._update_session_time_display()
 
+    def _continue_reading_timer(self):
+        """继续阅读计时器（不重置会话时长）"""
+        if not self._is_timer_running:
+            self._reading_timer.start(1000)  # 每秒触发一次
+            self._is_timer_running = True
+            # 立即更新一次显示
+            self._update_session_time_display()
+
     def _stop_reading_timer(self):
         """停止阅读计时器并保存时长"""
         if self._is_timer_running:
             self._reading_timer.stop()
             self._is_timer_running = False
 
-            # 保存剩余的未保存时长到数据库
+            # 保存所有剩余的未保存时长到数据库
             if self.current_book_id and self._unsaved_seconds > 0:
                 from novel_reader.core.book import update_book_reading_time
                 update_book_reading_time(self.current_book_id, self._unsaved_seconds)
-                print(f"[INFO] 已保存剩余阅读时长: {self._unsaved_seconds} 秒")
+                # 清零未保存秒数
+                self._unsaved_seconds = 0
 
-            print("[INFO] 阅读计时器已停止")
+            print(f"[INFO] 阅读计时器已停止 (本次会话: {self._session_reading_seconds} 秒)")
 
     def _on_reading_timer_tick(self):
         """计时器每秒触发"""
@@ -1795,19 +1812,19 @@ class AutoScrollSettingsDialog(QDialog):
 
         presets = {
             "fast": {
-                "reader_auto_scroll_speed": 500,
-                "reader_chapter_switch_delay": 2000,
-                "reader_chapter_start_delay": 2000,
+                "reader_auto_scroll_speed": 750,
+                "reader_chapter_switch_delay": 3000,
+                "reader_chapter_start_delay": 5000,
             },
             "normal": {
                 "reader_auto_scroll_speed": 1000,
-                "reader_chapter_switch_delay": 3000,
-                "reader_chapter_start_delay": 5000,
+                "reader_chapter_switch_delay": 4000,
+                "reader_chapter_start_delay": 7000,
             },
             "careful": {
                 "reader_auto_scroll_speed": 1500,
                 "reader_chapter_switch_delay": 5000,
-                "reader_chapter_start_delay": 7000,
+                "reader_chapter_start_delay": 9000,
             }
         }
 
