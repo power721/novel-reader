@@ -975,9 +975,9 @@ class BookListWidget(QWidget):
         Returns:
             是否找到并选中
         """
-        for i in range(self.book_list.count()):
-            item = self.book_list.item(i)
-            if item and item.data(Qt.UserRole) == book_id:
-                self.book_list.setCurrentItem(item)
+        for i in range(self.books_tree.topLevelItemCount()):
+            item = self.books_tree.topLevelItem(i)
+            if item and item.data(0, Qt.UserRole) == book_id:
+                self.books_tree.setCurrentItem(item)
                 return True
         return False

@@ -601,6 +601,7 @@ class MainWindow(QMainWindow):
         # 阅读模式信号
         self.reader_widget.exit_reading_mode_requested.connect(self._exit_reading_mode)
         self.reader_widget.play_chapter_requested.connect(self._on_chapter_double_clicked)
+        self.reader_widget.switch_book_requested.connect(self._on_switch_book_in_reading_mode)
 
     def _load_data(self, auto_play: bool = True):
         """加载数据
@@ -908,6 +909,38 @@ class MainWindow(QMainWindow):
         if book and chapters and 0 <= chapter_index < len(chapters):
             chapter_title = chapters[chapter_index]['title']
             self.statusBar().showMessage(f"已进入阅读模式: 《{book['title']}》 - 第{chapter_index + 1}章 {chapter_title}", 3000)
+
+    @Slot(int)
+    def _on_switch_book_in_reading_mode(self, book_id: int):
+        """在阅读模式下切换书籍
+
+        Args:
+            book_id: 要切换到的书籍ID
+        """
+        from novel_reader.core import get_book
+
+        # 保存当前书籍的阅读位置和计时器
+        if self.current_book_id:
+            self.reader_widget.save_reading_position()
+            self.reader_widget.stop_reading_timer()
+
+        # 切换到新书籍
+        self.current_book_id = book_id
+
+        # 选中该书（触发 UI 更新）
+        self.book_list_widget.select_book_by_id(book_id)
+
+        # 加载书籍到阅读器
+        book = get_book(book_id)
+        if book:
+            current_chunk = book.get('current_chunk', 0)
+            self.reader_widget.load_book(book_id, current_chunk)
+
+        # 保存到阅读模式书籍ID
+        from novel_reader.core import set_setting
+        set_setting("reading_book_id", book_id)
+
+        self.statusBar().showMessage(f"已切换书籍: 《{book.get('title', '未知') if book else '未知'}》", 3000)
 
     @Slot()
     def _on_books_updated(self):
@@ -1601,7 +1634,7 @@ class MainWindow(QMainWindow):
                 self._process_pending_chunks()
             else:
                 # 否则将请求加入队列，等待当前TTS完成
-                print(f"[DEBUG] TTS正在运行，将新请求加入待处理队列: {new_chunks}")
+                # print(f"[DEBUG] TTS正在运行，将新请求加入待处理队列: {new_chunks}")
                 self.statusBar().showMessage(f"⏳ TTS正在运行，{len(new_chunks)}个新请求已加入队列", 2000)
             return
 
@@ -2311,7 +2344,7 @@ class MainWindow(QMainWindow):
         """TTS 第一阶段完成（当前章节）"""
         # 检查是否有待处理的chunks
         if self._pending_chunks:
-            print(f"[DEBUG] Phase1完成，发现待处理chunks: {self._pending_chunks}")
+            # print(f"[DEBUG] Phase1完成，发现待处理chunks: {self._pending_chunks}")
             self.statusBar().showMessage(
                 f"✅ 当前章节完成，等待后台转换完成后处理 {len(self._pending_chunks)} 个待转换chunks...", 2000)
             # 不立即处理，等待当前 worker 完成后，通过 _on_tts_finished 处理
@@ -2324,7 +2357,7 @@ class MainWindow(QMainWindow):
 
         # 检查是否有待处理的chunks
         if self._pending_chunks:
-            print(f"[DEBUG] TTS完成，发现待处理chunks: {self._pending_chunks}")
+            # print(f"[DEBUG] TTS完成，发现待处理chunks: {self._pending_chunks}")
             self.statusBar().showMessage(f"✅ 批次完成，继续处理 {len(self._pending_chunks)} 个待转换chunks...", 2000)
             # 自动处理待处理队列
             self._process_pending_chunks()

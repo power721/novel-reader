@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QSplitter, QSizePolicy, QComboBox, QMenu, QDialog, QCheckBox
 )
 from PySide6.QtCore import Signal, Slot, Qt, QPoint, QTimer
-from PySide6.QtGui import QFont, QTextCursor, QTextBlockFormat
+from PySide6.QtGui import QFont, QTextCursor, QTextBlockFormat, QColor
 from typing import Optional
 
 
@@ -75,6 +75,7 @@ class ReaderWidget(QWidget):
     chapter_changed = Signal(int)  # 章节改变信号
     exit_reading_mode_requested = Signal()  # 请求退出阅读模式信号
     play_chapter_requested = Signal(int)  # 请求播放章节音频，参数：start_chunk
+    switch_book_requested = Signal(int)  # 请求切换书籍，参数：book_id
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -92,6 +93,8 @@ class ReaderWidget(QWidget):
         self._total_reading_seconds = 0  # 总阅读时长（秒）
         self._unsaved_seconds = 0  # 未保存到数据库的秒数
         self._is_timer_running = False
+        # 每本书籍的会话阅读时间缓存 {book_id: {'session_seconds': int, 'unsaved_seconds': int}}
+        self._book_reading_cache = {}
 
         # 自动滚动相关
         self._auto_scroll_timer = QTimer(self)
@@ -157,6 +160,23 @@ class ReaderWidget(QWidget):
         toolbar_layout.addWidget(self.chapter_title_label)
 
         toolbar_layout.addStretch()
+
+        # 切换书籍按钮
+        self.switch_book_btn = QPushButton("📚 切换书籍")
+        self.switch_book_btn.setStyleSheet("""
+            QPushButton {
+                padding: 3px 8px;
+                background-color: #e9ecef;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #dee2e6;
+            }
+        """)
+        self.switch_book_btn.clicked.connect(self._show_switch_book_dialog)
+        toolbar_layout.addWidget(self.switch_book_btn)
 
         # 显示/隐藏章节列表按钮
         # 根据配置设置按钮初始状态
@@ -412,6 +432,13 @@ class ReaderWidget(QWidget):
         self.chapter_progress_label.setStyleSheet("color: #6c757d; font-size: 11px;")  # 减小字体
         navbar_layout.addWidget(self.chapter_progress_label)
 
+        # 当前章节标题
+        self.navbar_chapter_title_label = QLabel("")
+        self.navbar_chapter_title_label.setStyleSheet("color: #6c757d; font-size: 11px;")
+        # self.navbar_chapter_title_label.setWordWrap(True)
+        self.navbar_chapter_title_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        navbar_layout.addWidget(self.navbar_chapter_title_label)
+
         # 当前章节字数
         self.chapter_word_count_label = QLabel("")
         self.chapter_word_count_label.setStyleSheet("color: #6c757d; font-size: 11px;")
@@ -522,9 +549,23 @@ class ReaderWidget(QWidget):
             preserve_position: 是否保持当前阅读位置（True=不重新定位章节）
         """
         # 如果是同一本书且要求保持位置，只更新书籍ID，不重新加载
-        if preserve_position and book_id == self.current_book_id and self.chapters:
+        is_same_book = (book_id == self.current_book_id)
+        if preserve_position and is_same_book and self.chapters:
             print(f"[INFO] 阅读模式：保持当前阅读位置（章节 {self.current_chapter_index + 1}）")
             return
+
+        # 如果切换到不同的书籍，先保存当前书籍的会话时间到缓存
+        if not is_same_book and self.current_book_id is not None:
+            if self._is_timer_running:
+                print(f"[INFO] 阅读模式：切换书籍，停止当前计时器")
+                self._stop_reading_timer()
+            # 保存当前书籍的会话时间到缓存
+            self._book_reading_cache[self.current_book_id] = {
+                'session_seconds': self._session_reading_seconds,
+                'unsaved_seconds': self._unsaved_seconds
+            }
+            print(f"[INFO] 阅读模式：已保存书籍 {self.current_book_id} 的会话时间缓存 "
+                  f"({self._session_reading_seconds}秒，未保存{self._unsaved_seconds}秒)")
 
         self.current_book_id = book_id
 
@@ -558,6 +599,22 @@ class ReaderWidget(QWidget):
                 print(f"[WARNING] 使用数据库的章节信息，但文本可能有偏差")
 
             self.chapter_texts = chapter_texts
+
+            # 从数据库加载总阅读时长
+            self._load_reading_time()
+
+            # 恢复该书籍的会话时间缓存（如果存在）
+            if book_id in self._book_reading_cache:
+                cached = self._book_reading_cache[book_id]
+                self._session_reading_seconds = cached['session_seconds']
+                self._unsaved_seconds = cached['unsaved_seconds']
+                print(f"[INFO] 阅读模式：恢复书籍 {book_id} 的会话时间缓存 "
+                      f"({self._session_reading_seconds}秒，未保存{self._unsaved_seconds}秒)")
+            else:
+                # 新书籍，重置会话时间
+                self._session_reading_seconds = 0
+                self._unsaved_seconds = 0
+                print(f"[INFO] 阅读模式：新书籍，重置会话时间")
 
             # 使用数据库中的章节信息（有正确的 start_chunk 用于查找）
             if db_chapters:
@@ -615,6 +672,7 @@ class ReaderWidget(QWidget):
         self.current_chapter_index = -1
         self.chapter_list.clear()
         self.chapter_title_label.setText("未选择书籍")
+        self.navbar_chapter_title_label.setText("")
         self._update_chapter_buttons()
 
     def _update_chapter_list(self):
@@ -660,11 +718,14 @@ class ReaderWidget(QWidget):
         self.current_chapter_index = chapter_index
         chapter = self.chapters[chapter_index]
 
-        # 更新标题（书籍标题 - 章节标题）
+        # 更新工具栏标题（只显示书籍标题）
         if self.current_book_title:
-            self.chapter_title_label.setText(f"{self.current_book_title} - 第 {chapter_index + 1} 章：{chapter['title']}")
+            self.chapter_title_label.setText(self.current_book_title)
         else:
             self.chapter_title_label.setText(f"第 {chapter_index + 1} 章：{chapter['title']}")
+
+        # 更新底部导航栏章节标题（只显示章节标题，去掉"第X章"）
+        self.navbar_chapter_title_label.setText(chapter['title'])
 
         # 显示文本
         self.text_display.setPlainText(self.chapter_texts[chapter_index])
@@ -929,6 +990,7 @@ class ReaderWidget(QWidget):
         self.toggle_chapter_list_btn.setStyleSheet(button_style)
         self.exit_reading_mode_btn.setStyleSheet(button_style)
         self.stats_btn.setStyleSheet(button_style)
+        self.switch_book_btn.setStyleSheet(button_style)
         self.auto_scroll_btn.setStyleSheet(button_style)
         self.scroll_settings_btn.setStyleSheet(button_style)
 
@@ -979,6 +1041,7 @@ class ReaderWidget(QWidget):
 
         # 更新标签颜色
         self.chapter_title_label.setStyleSheet(f"font-size: 12px; color: {theme['subtitle_color']};")
+        self.navbar_chapter_title_label.setStyleSheet(f"color: {theme['subtitle_color']}; font-size: 11px;")
         self.chapter_progress_label.setStyleSheet(f"color: {theme['subtitle_color']}; font-size: 11px;")
         self.chapter_word_count_label.setStyleSheet(f"color: {theme['subtitle_color']}; font-size: 11px;")
 
@@ -1117,9 +1180,10 @@ class ReaderWidget(QWidget):
         if not self._is_timer_running:
             self._reading_timer.start(1000)  # 每秒触发一次
             self._is_timer_running = True
-            # 重置本次会话时长
+            # 重置本次会话时长和未保存计数
             self._session_reading_seconds = 0
             self._unsaved_seconds = 0
+            # 注意：_total_reading_seconds 不应该被重置，它应该在 load_book 时从数据库加载
             print(f"[INFO] 阅读计时器已启动 (书籍ID: {self.current_book_id})")
             # 立即更新一次显示
             self._update_session_time_display()
@@ -1193,8 +1257,17 @@ class ReaderWidget(QWidget):
         if not self.current_book_id:
             return
 
-        dialog = ReadingStatsDialog(self.current_book_id, self)
+        dialog = ReadingStatsDialog(self.current_book_id, reader_widget=self, parent=self)
         dialog.exec()
+
+    def _show_switch_book_dialog(self):
+        """显示切换书籍对话框"""
+        dialog = SwitchBookDialog(self.current_book_id, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_book_id = dialog.selected_book_id
+            if new_book_id and new_book_id != self.current_book_id:
+                # 发射切换书籍信号
+                self.switch_book_requested.emit(new_book_id)
 
     def _show_scroll_settings_dialog(self):
         """显示自动滚动设置对话框"""
@@ -1379,9 +1452,10 @@ class ReaderWidget(QWidget):
 class ReadingStatsDialog(QDialog):
     """阅读统计对话框"""
 
-    def __init__(self, book_id: int, parent=None):
+    def __init__(self, book_id: int, reader_widget=None, parent=None):
         super().__init__(parent)
         self.book_id = book_id
+        self.reader_widget = reader_widget  # 保存 reader_widget 引用
         self._setup_ui()
 
     def _setup_ui(self):
@@ -1424,6 +1498,10 @@ class ReadingStatsDialog(QDialog):
         current_chapter = stats.get('reading_chapter', 0) + 1
         total_reading_seconds = stats.get('reading_time_seconds', 0)
         chunk_count = stats.get('chunk_count', 0)
+
+        # 加上当前会话未保存的阅读时长（确保累计时间包含当前会话）
+        if self.reader_widget and self.reader_widget.current_book_id == self.book_id:
+            total_reading_seconds += self.reader_widget._unsaved_seconds
 
         # 阅读进度
         progress_percent = 0
@@ -1844,3 +1922,164 @@ class AutoScrollSettingsDialog(QDialog):
         self._reader_chapter_start_delay_spinbox.setValue(config["reader_chapter_start_delay"])
 
         print(f"[INFO] 已应用预设配置: {preset}")
+
+
+# ==================== 切换书籍对话框 ====================
+
+class SwitchBookDialog(QDialog):
+    """切换书籍对话框"""
+
+    def __init__(self, current_book_id: int, parent=None):
+        super().__init__(parent)
+        self.current_book_id = current_book_id
+        self.selected_book_id = None
+        self._setup_ui()
+
+    def _setup_ui(self):
+        """设置界面"""
+        from novel_reader.core import list_books, get_book_chapters
+
+        self.setWindowTitle("📚 切换书籍")
+        self.setMinimumWidth(500)
+        self.setMaximumWidth(700)
+        self.setMinimumHeight(500)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # 标题
+        title_label = QLabel("📚 选择要阅读的书籍")
+        title_label.setStyleSheet("font-weight: bold; font-size: 18px; color: #212529;")
+        layout.addWidget(title_label)
+
+        # 说明文本
+        hint_label = QLabel("选择一本书籍即可切换，当前阅读进度会自动保存")
+        hint_label.setStyleSheet("font-size: 12px; color: #6c757d;")
+        layout.addWidget(hint_label)
+
+        # 分隔线
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(line)
+
+        # 书籍列表
+        self.books_list = QListWidget()
+        self.books_list.setStyleSheet("""
+            QListWidget {
+                background-color: #ffffff;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                padding: 5px;
+            }
+            QListWidget::item {
+                padding: 10px;
+                border-radius: 4px;
+                border: 1px solid transparent;
+            }
+            QListWidget::item:hover {
+                background-color: #e9ecef;
+            }
+            QListWidget::item:selected {
+                background-color: #007bff;
+                color: white;
+            }
+            QListWidget::item[current] {
+                border: 1px solid #007bff;
+            }
+        """)
+        layout.addWidget(self.books_list)
+
+        # 加载书籍列表
+        books = list_books()
+        if not books:
+            self.books_list.addItem("暂无书籍")
+        else:
+            for book in books:
+                book_id = book['id']
+                title = book['title']
+
+                # 获取章节数
+                chapters = get_book_chapters(book_id)
+                total_chapters = len(chapters) if chapters else 0
+
+                # 格式化进度信息
+                current_chapter = book.get('current_chapter', 0)
+                if total_chapters > 0:
+                    progress_text = f"{current_chapter}/{total_chapters}章"
+                else:
+                    progress_text = "未分章"
+
+                # 标记当前书籍
+                current_mark = " [当前]" if book_id == self.current_book_id else ""
+
+                # 创建列表项
+                item_text = f"{title}{current_mark}\n进度: {progress_text}"
+                item = QListWidgetItem(item_text)
+                item.setData(Qt.UserRole, book_id)
+
+                # 当前书籍高亮显示
+                if book_id == self.current_book_id:
+                    item.setBackground(QColor("#e3f2fd"))
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
+
+                self.books_list.addItem(item)
+
+        # 双击选择
+        self.books_list.itemDoubleClicked.connect(self._accept_selection)
+
+        # 底部按钮
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        cancel_btn = QPushButton("取消")
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                background-color: #6c757d;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #5a6268;
+            }
+        """)
+        cancel_btn.clicked.connect(self.reject)
+        button_layout.addWidget(cancel_btn)
+
+        confirm_btn = QPushButton("确定")
+        confirm_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                background-color: #007bff;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
+            }
+        """)
+        confirm_btn.clicked.connect(self._accept_selection)
+        button_layout.addWidget(confirm_btn)
+
+        layout.addLayout(button_layout)
+
+    def _accept_selection(self):
+        """确认选择"""
+        current_item = self.books_list.currentItem()
+        if current_item:
+            self.selected_book_id = current_item.data(Qt.UserRole)
+            # 如果选择的是当前书籍，不切换
+            if self.selected_book_id == self.current_book_id:
+                self.reject()
+                return
+            self.accept()
+        else:
+            self.reject()
