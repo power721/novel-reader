@@ -7,6 +7,8 @@ from PySide6.QtCore import QThread, Signal
 import os
 from typing import Optional
 
+from novel_reader.core.tts_engine import convert_chunk
+
 MIN_SIZE = 5000
 
 
@@ -21,6 +23,10 @@ class TTSWorker(QThread):
     chapter_finished = Signal(int, int)  # 章节转换完成，参数：chapter_end_chunk, next_start_chunk
     first_chunk_ready = Signal(int)  # 第一个chunk转换完成，参数：start_chunk
     error = Signal(str)  # 转换错误
+    retry_queued = Signal(list)  # 失败的 chunk 已加入重试队列，参数：chunk_id 列表
+
+    # 最大重试次数
+    MAX_RETRIES = 3
 
     def __init__(self, book_id: int, start_chunk: Optional[int] = None,
                  end_chunk: Optional[int] = None,
@@ -42,6 +48,7 @@ class TTSWorker(QThread):
         self.chapter_mode = chapter_mode
         self.max_preview_chapters = max_preview_chapters
         self._is_running = True
+        self.failed_chunks = {}  # {chunk_id: {"text": str, "retry_count": int, "error": str}}
 
     def run(self):
         """执行 TTS 转换任务"""
@@ -224,12 +231,27 @@ class TTSWorker(QThread):
                         except Exception as create_error:
                             self.log.emit(f"[{i + 1}/{total}] 创建静音文件失败: {create_error}")
                     except Exception as e:
-                        self.log.emit(f"[{i + 1}/{total}] ❌ 转换失败: {e}")
-                        import traceback
-                        self.log.emit(f"[{i + 1}/{total}] 详细错误:\n{traceback.format_exc()}")
+                        # 将失败的 chunk 加入重试队列
+                        error_msg = str(e)
+                        self.log.emit(f"[{i + 1}/{total}] ❌ 转换失败: {error_msg}")
+
+                        # 记录失败的 chunk
+                        if i not in self.failed_chunks:
+                            self.failed_chunks[i] = {
+                                "text": chunks[i],
+                                "retry_count": 0,
+                                "error": error_msg
+                            }
+                        else:
+                            self.failed_chunks[i]["retry_count"] += 1
+                            self.failed_chunks[i]["error"] = error_msg
 
                 # 更新进度
                 self.progress.emit(i + 1, total)
+
+            # 第一阶段转换完成，重试失败的 chunks
+            if self._is_running and self.failed_chunks:
+                self._retry_failed_chunks(chunks, total, tts_engine)
 
             # 章节模式：发送当前章节完成信号
             if self.chapter_mode and self._is_running:
@@ -243,6 +265,11 @@ class TTSWorker(QThread):
             # 第一阶段完成后，发出 phase1_finished 信号以触发处理待处理队列
             # 这样可以让新的转换请求及时开始，而无需等待预转换完成
             if self._is_running:
+                # 如果仍有失败的 chunk，发出信号通知主窗口
+                if self.failed_chunks:
+                    failed_list = list(self.failed_chunks.keys())
+                    self.retry_queued.emit(failed_list)
+                    self.log.emit(f"⚠️ {len(failed_list)} 个分段转换失败，已加入重试队列")
                 # self.log.emit(f"✅ 第一阶段转换完成，发出 phase1_finished 信号")
                 self.phase1_finished.emit()
 
@@ -316,3 +343,71 @@ class TTSWorker(QThread):
         """停止转换"""
         self._is_running = False
         self.terminate()
+
+    def _retry_failed_chunks(self, chunks, total, tts_engine):
+        """
+        重试失败的 chunks
+
+        Args:
+            chunks: 所有文本 chunks
+            total: 总 chunk 数
+            tts_engine: TTS 引擎类型
+        """
+        import time
+
+        max_retry_rounds = self.MAX_RETRIES
+        retry_round = 0
+
+        while self.failed_chunks and retry_round < max_retry_rounds and self._is_running:
+            retry_round += 1
+            failed_count = len(self.failed_chunks)
+            self.log.emit(f"🔄 开始第 {retry_round} 轮重试 ({failed_count} 个失败分段)...")
+
+            # 复制一份列表，因为迭代时会修改字典
+            chunks_to_retry = list(self.failed_chunks.keys())
+            still_failed = []
+
+            for chunk_id in chunks_to_retry:
+                if not self._is_running:
+                    break
+
+                chunk_info = self.failed_chunks[chunk_id]
+                chunk_text = chunk_info["text"]
+
+                self.log.emit(f"[重试 {retry_round}/{max_retry_rounds}] 分段 {chunk_id}...")
+
+                try:
+                    # 等待一小段时间再重试，避免网络问题
+                    time.sleep(0.5)
+
+                    convert_chunk(chunk_text, self.book_id, chunk_id, engine=tts_engine)
+
+                    # 成功则从失败列表中移除
+                    del self.failed_chunks[chunk_id]
+                    self.log.emit(f"[重试 {retry_round}/{max_retry_rounds}] ✅ 分段 {chunk_id} 转换成功")
+
+                except Exception as e:
+                    error_msg = str(e)
+                    self.log.emit(f"[重试 {retry_round}/{max_retry_rounds}] ❌ 分段 {chunk_id} 仍然失败: {error_msg}")
+
+                    # 更新错误信息
+                    self.failed_chunks[chunk_id]["retry_count"] += 1
+                    self.failed_chunks[chunk_id]["error"] = error_msg
+                    still_failed.append(chunk_id)
+
+            # 如果还有失败的分段，继续下一轮
+            if not still_failed:
+                self.log.emit(f"✅ 所有分段重试成功！")
+                break
+            else:
+                self.log.emit(f"⚠️ 第 {retry_round} 轮重试完成，仍有 {len(still_failed)} 个分段失败")
+
+        # 最终统计
+        if self.failed_chunks:
+            final_failed = list(self.failed_chunks.keys())
+            self.log.emit(f"❌ 经过 {max_retry_rounds} 轮重试后，仍有 {len(final_failed)} 个分段转换失败:")
+            for chunk_id in final_failed[:10]:  # 只显示前10个
+                error = self.failed_chunks[chunk_id]["error"]
+                self.log.emit(f"   - 分段 {chunk_id}: {error[:100]}")
+            if len(final_failed) > 10:
+                self.log.emit(f"   - ... 还有 {len(final_failed) - 10} 个")
