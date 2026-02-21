@@ -295,7 +295,7 @@ class ReaderWidget(QWidget):
         self.font_spinbox.setRange(12, 32)
         self.font_spinbox.setValue(self.font_size)
         self.font_spinbox.setSuffix(" px")
-        self.font_spinbox.setStyleSheet("width: 80px;")
+        self.font_spinbox.setStyleSheet("width: 50px;")
         self.font_spinbox.valueChanged.connect(self._on_font_size_changed)
         toolbar_layout.addWidget(self.font_spinbox)
 
@@ -308,7 +308,7 @@ class ReaderWidget(QWidget):
         self.line_spacing_spinbox.setRange(50, 250)
         self.line_spacing_spinbox.setValue(self.line_spacing)
         self.line_spacing_spinbox.setSuffix("%")
-        self.line_spacing_spinbox.setStyleSheet("width: 80px;")
+        self.line_spacing_spinbox.setStyleSheet("width: 50px;")
         self.line_spacing_spinbox.valueChanged.connect(self._on_line_spacing_changed)
         toolbar_layout.addWidget(self.line_spacing_spinbox)
 
@@ -686,7 +686,7 @@ class ReaderWidget(QWidget):
         self.chapter_list.clear()
 
         for i, chapter in enumerate(self.chapters):
-            item = QListWidgetItem(f"{i + 1}. {chapter['title']}")
+            item = QListWidgetItem(chapter['title'])
             item.setData(Qt.UserRole, i)  # 保存章节索引
             self.chapter_list.addItem(item)
 
@@ -1044,6 +1044,7 @@ class ReaderWidget(QWidget):
         self.navbar_chapter_title_label.setStyleSheet(f"color: {theme['subtitle_color']}; font-size: 11px;")
         self.chapter_progress_label.setStyleSheet(f"color: {theme['subtitle_color']}; font-size: 11px;")
         self.chapter_word_count_label.setStyleSheet(f"color: {theme['subtitle_color']}; font-size: 11px;")
+        self.session_time_label.setStyleSheet(f"color: {theme['subtitle_color']}; font-size: 11px;")
 
         # 更新章节列表样式
         self.chapter_list.setStyleSheet(f"""
@@ -1475,6 +1476,15 @@ class ReadingStatsDialog(QDialog):
         chapters = get_book_chapters(self.book_id)
         total_chapters = len(chapters) if chapters else 1
 
+        # 计算总字数（累加所有章节字数）
+        total_word_count = sum(ch.get('word_count', 0) for ch in chapters) if chapters else 0
+
+        # 格式化字数显示：超过10万显示为"x万"
+        if total_word_count >= 100000:
+            word_count_str = f"{total_word_count / 10000:.1f} 万字"
+        else:
+            word_count_str = f"{total_word_count} 字"
+
         self.setWindowTitle("📊 阅读统计")
         self.setMinimumWidth(400)
         self.setMaximumWidth(500)
@@ -1533,25 +1543,25 @@ class ReadingStatsDialog(QDialog):
         time_item = self._create_stat_item(
             "⏱ 累计阅读",
             time_str,
-            f"{total_reading_seconds:,} 秒"
+            f"{total_reading_seconds} 秒"
         )
         stats_grid.addLayout(time_item)
+
+        # 总字数
+        word_count_item = self._create_stat_item(
+            "📖 书籍总字数",
+            word_count_str,
+            ""
+        )
+        stats_grid.addLayout(word_count_item)
 
         # 总段数
         chunks_item = self._create_stat_item(
             "📄 总段数",
-            f"{chunk_count:,} 段",
+            f"{chunk_count} 段",
             ""
         )
         stats_grid.addLayout(chunks_item)
-
-        # 章节数
-        chapters_item = self._create_stat_item(
-            "📑 章节数",
-            f"{total_chapters} 章",
-            ""
-        )
-        stats_grid.addLayout(chapters_item)
 
         layout.addLayout(stats_grid)
 
