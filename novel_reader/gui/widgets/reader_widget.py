@@ -200,7 +200,7 @@ class ReaderWidget(QWidget):
         toolbar_layout.addWidget(self.toggle_chapter_list_btn)
 
         # 阅读统计按钮
-        self.stats_btn = QPushButton("📊 统计")
+        self.stats_btn = QPushButton("📊 阅读统计")
         self.stats_btn.setStyleSheet("""
             QPushButton {
                 padding: 3px 8px;
@@ -1549,19 +1549,19 @@ class ReadingStatsDialog(QDialog):
 
         # 总字数
         word_count_item = self._create_stat_item(
-            "📖 书籍总字数",
+            "📖 总字数",
             word_count_str,
             ""
         )
         stats_grid.addLayout(word_count_item)
 
         # 总段数
-        chunks_item = self._create_stat_item(
-            "📄 总段数",
-            f"{chunk_count} 段",
-            ""
-        )
-        stats_grid.addLayout(chunks_item)
+        # chunks_item = self._create_stat_item(
+        #     "📄 总段数",
+        #     f"{chunk_count} 段",
+        #     ""
+        # )
+        # stats_grid.addLayout(chunks_item)
 
         layout.addLayout(stats_grid)
 
