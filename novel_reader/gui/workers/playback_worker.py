@@ -160,7 +160,7 @@ class PlaybackWorker(QThread):
 
                     # 等待TTS转换完成
                     import time
-                    max_wait = 60  # 最多等待60秒
+                    max_wait = 30  # 最多等待30秒
                     waited = 0
                     file_ready = False
 
@@ -233,7 +233,7 @@ class PlaybackWorker(QThread):
 
                     # 等待TTS转换重新生成该文件
                     import time
-                    max_wait = 120  # 最多等待120秒
+                    max_wait = 30  # 最多等待30秒
                     waited = 0
                     file_ready = False
 

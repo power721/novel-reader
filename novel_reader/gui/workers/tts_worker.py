@@ -12,6 +12,33 @@ from novel_reader.core.tts_engine import convert_chunk
 MIN_SIZE = 5000
 
 
+def _is_meaningless_chunk(text: str) -> bool:
+    """
+    判断分段是否没有有意义的内容，应该被跳过
+
+    Args:
+        text: 分段文本
+
+    Returns:
+        True 如果分段应该被跳过，否则 False
+    """
+    stripped = text.strip()
+
+    # 跳过只有省略号的分段
+    if stripped == "...":
+        return True
+
+    # 跳过只有省略号（中英文）的分段
+    if stripped in ("...", "…", "。。。", "‥‥", "....", "....."):
+        return True
+
+    # 跳过纯空白分段
+    if not stripped:
+        return True
+
+    return False
+
+
 class TTSWorker(QThread):
     """TTS 转换工作线程，在后台执行转换任务"""
 
@@ -181,6 +208,13 @@ class TTSWorker(QThread):
                     skipped += 1
                 else:
                     chunk_text = chunks[i].strip()
+
+                    # 跳过只包含省略号的分段
+                    if _is_meaningless_chunk(chunk_text):
+                        self.log.emit(f"[{i + 1}/{total}] 跳过分段 {i}（仅为省略号）")
+                        skipped += 1
+                        continue
+
                     self.log.emit(f"[{i + 1}/{total}] 正在转换分段 {i}... (文本长度: {len(chunk_text)} 字符)")
 
                     try:

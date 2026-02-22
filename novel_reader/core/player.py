@@ -11,6 +11,33 @@ from datetime import datetime, timezone
 from novel_reader.models import get_conn
 
 
+def _is_meaningless_chunk(text: str) -> bool:
+    """
+    判断分段是否没有有意义的内容，应该被跳过
+
+    Args:
+        text: 分段文本
+
+    Returns:
+        True 如果分段应该被跳过，否则 False
+    """
+    stripped = text.strip()
+
+    # 跳过只有省略号的分段
+    if stripped == "...":
+        return True
+
+    # 跳过只有省略号（中英文）的分段
+    if stripped in ("...", "…", "。。。", "‥‥", "....", "....."):
+        return True
+
+    # 跳过纯空白分段
+    if not stripped:
+        return True
+
+    return False
+
+
 def get_current_time() -> str:
     """
     获取当前时间的 ISO 格式字符串（带时区）
@@ -135,6 +162,13 @@ def play_book(book_id: int, start_chunk: Optional[int] = None) -> None:
                 break
 
             chunk_text = chunks[chunk_id]
+
+            # 跳过只包含省略号的分段
+            if _is_meaningless_chunk(chunk_text):
+                print(f"⏭ [Chunk {chunk_id}] 跳过省略号分段")
+                skipped_count += 1
+                continue
+
             audio_path = AUDIO_DIR / str(book_id) / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
 
             # 检查音频文件是否存在

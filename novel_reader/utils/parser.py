@@ -108,13 +108,46 @@ def smart_split_chunks(text: str, chunk_size: int) -> List[str]:
             buffer += sentence
         else:
             if buffer.strip():
-                chunks.append(buffer.strip())
+                chunk_text = buffer.strip()
+                # 跳过只包含省略号或没有有意义内容的分段
+                if not _is_meaningless_chunk(chunk_text):
+                    chunks.append(chunk_text)
             buffer = sentence
 
     if buffer.strip():
-        chunks.append(buffer.strip())
+        chunk_text = buffer.strip()
+        # 跳过只包含省略号或没有有意义内容的分段
+        if not _is_meaningless_chunk(chunk_text):
+            chunks.append(chunk_text)
 
     return chunks
+
+
+def _is_meaningless_chunk(text: str) -> bool:
+    """
+    判断分段是否没有有意义的内容，应该被跳过
+
+    Args:
+        text: 分段文本
+
+    Returns:
+        True 如果分段应该被跳过，否则 False
+    """
+    stripped = text.strip()
+
+    # 跳过只有省略号的分段
+    if stripped == "...":
+        return True
+
+    # 跳过只有省略号（中英文）的分段
+    if stripped in ("...", "…", "。。。", "‥‥", "....", "....."):
+        return True
+
+    # 跳过纯空白分段
+    if not stripped:
+        return True
+
+    return False
 
 
 def parse_txt(
