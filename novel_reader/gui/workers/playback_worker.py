@@ -6,6 +6,33 @@ from typing import Optional
 from pathlib import Path
 
 
+def _is_meaningless_chunk(text: str) -> bool:
+    """
+    判断分段是否没有有意义的内容，应该被跳过
+
+    Args:
+        text: 分段文本
+
+    Returns:
+        True 如果分段应该被跳过，否则 False
+    """
+    stripped = text.strip()
+
+    # 跳过只有省略号的分段
+    if stripped == "...":
+        return True
+
+    # 跳过只有省略号（中英文）的分段
+    if stripped in ("...", "…", "。。。", "‥‥", "....", "....."):
+        return True
+
+    # 跳过纯空白分段
+    if not stripped:
+        return True
+
+    return False
+
+
 class PlaybackWorker(QThread):
     """播放工作线程，在后台执行播放任务"""
 
@@ -121,6 +148,17 @@ class PlaybackWorker(QThread):
                     next_chapter_start = chapter_boundaries[chunk_id]
                     # print(f"🔄 [DEBUG] 即将播放章节最后一个chunk {chunk_id}，提前转换下一章 chunk {next_chapter_start}")
                     self.last_chunk_of_chapter_started.emit(next_chapter_start)
+
+                # 跳过只包含省略号的分段
+                chunk_text = chunks[chunk_id]
+                if _is_meaningless_chunk(chunk_text):
+                    print(f"⏭ [Chunk {chunk_id}] 跳过省略号分段")
+                    skipped_count += 1
+                    # 更新播放进度，以便继续播放下一个分段
+                    from novel_reader.core.player import update_progress
+                    update_progress(self.book_id, chunk_id)
+                    self.progress_updated.emit(chunk_id + 1, total_chunks)
+                    continue
 
                 # 获取当前设置的模型ID和TTS引擎
                 from novel_reader.core import get_setting

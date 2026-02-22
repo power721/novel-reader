@@ -167,6 +167,8 @@ def play_book(book_id: int, start_chunk: Optional[int] = None) -> None:
             if _is_meaningless_chunk(chunk_text):
                 print(f"⏭ [Chunk {chunk_id}] 跳过省略号分段")
                 skipped_count += 1
+                # 更新播放进度，以便继续播放下一个分段
+                update_progress(book_id, chunk_id)
                 continue
 
             audio_path = AUDIO_DIR / str(book_id) / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
