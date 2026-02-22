@@ -1750,6 +1750,9 @@ class MainWindow(QMainWindow):
         # 强制停止当前转换
         self._stop_tts_worker_safely()
 
+        # 清空待转换队列，避免之前的转换请求影响新的播放
+        self._pending_chunks.clear()
+
         # 直接从指定位置播放，依赖预转换机制
         self.statusBar().showMessage(f"从 chunk {start_chunk} 开始播放...")
         self._play_from_chunk(start_chunk)
