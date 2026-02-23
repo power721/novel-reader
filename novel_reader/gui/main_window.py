@@ -1604,11 +1604,21 @@ class MainWindow(QMainWindow):
 
     @Slot(list)
     def _on_chunks_conversion_requested(self, chunk_ids: list):
-        """处理批量chunk转换请求"""
+        """处理批量chunk转换请求，确保当前播放的chunk始终是最高优先级"""
         if not chunk_ids:
             return
 
         # print(f"[DEBUG] 收到批量chunk转换请求: {chunk_ids}")
+
+        # 获取当前正在播放的chunk
+        current_chunk = None
+        if self.playback_worker and hasattr(self, 'current_book_id'):
+            # 获取当前正在播放的chunk
+            book = self._get_cached_book(self.current_book_id)
+            if book:
+                current_chunk = book.get('current_chunk')
+            else:
+                current_chunk = None
 
         # 添加到待处理队列
         new_chunks = set(chunk_ids) - self._pending_chunks
@@ -1616,19 +1626,9 @@ class MainWindow(QMainWindow):
 
         # 如果 TTS worker 正在运行，检查是否需要中断
         if self.tts_worker and self.tts_worker.isRunning():
-            # 检查新请求是否包含当前正在播放的chunk
-            current_chunk = None
-            if self.playback_worker and hasattr(self, 'current_book_id'):
-                # 获取当前正在播放的chunk
-                book = self._get_cached_book(self.current_book_id)
-                if book:
-                    current_chunk = book.get('current_chunk')
-                else:
-                    current_chunk = None
-
-            # 如果新请求包含当前播放的chunk，需要优先处理
-            if current_chunk is not None and current_chunk in chunk_ids:
-                print(f"[DEBUG] 新请求包含当前播放chunk {current_chunk}，停止当前任务并优先处理")
+            # 如果新请求包含当前播放的chunk，或者当前播放的chunk已经在待处理队列中，需要优先处理
+            if current_chunk is not None and (current_chunk in chunk_ids or current_chunk in self._pending_chunks):
+                print(f"[DEBUG] 检测到当前播放chunk {current_chunk} 需要转换，停止当前任务并优先处理")
                 self._stop_tts_worker_safely()
                 # 立即处理待处理队列
                 self._process_pending_chunks()
@@ -1642,7 +1642,7 @@ class MainWindow(QMainWindow):
         self._process_pending_chunks()
 
     def _process_pending_chunks(self):
-        """处理待转换的chunks"""
+        """处理待转换的chunks，确保当前要播放的chunk具有最高优先级"""
         if not self._pending_chunks:
             return
 
@@ -1654,7 +1654,13 @@ class MainWindow(QMainWindow):
             print(f"[DEBUG] TTS worker正在运行，跳过处理待处理队列: {self._pending_chunks}")
             return
 
-        # 过滤掉已经存在的chunks
+        # 获取当前正在播放的chunk（最高优先级）
+        book = self._get_cached_book(self.playback_worker.book_id)
+        if not book:
+            return
+        current_playing_chunk = book.get('current_chunk', 0)
+
+        # 过滤掉已经存在的chunks，并按优先级排序
         book_id = self.playback_worker.book_id
         from pathlib import Path
         from novel_reader.core import get_setting
@@ -1664,7 +1670,7 @@ class MainWindow(QMainWindow):
         tts_engine = get_setting("tts_engine", "piper")
         chunks_to_convert = []
 
-        for chunk_id in sorted(self._pending_chunks):
+        for chunk_id in self._pending_chunks:
             # 根据TTS引擎确定音频文件路径
             if tts_engine == "edge":
                 # Edge TTS format: chunk_edge_{voice_id}_{chunk_id:05d}.mp3
@@ -1683,6 +1689,25 @@ class MainWindow(QMainWindow):
 
         if not chunks_to_convert:
             return
+
+        # 按优先级排序：当前播放的chunk最优先，然后按chunk_id顺序
+        def chunk_priority(chunk_id):
+            # 当前播放的chunk优先级最高（返回0）
+            if chunk_id == current_playing_chunk:
+                return 0
+            # 其他chunk按距离当前播放chunk的距离排序
+            else:
+                return abs(chunk_id - current_playing_chunk) + 1000
+
+        chunks_to_convert.sort(key=chunk_priority)
+
+        # 如果当前播放的chunk在待转换列表中，只转换它和接下来的几个chunk
+        if current_playing_chunk in chunks_to_convert:
+            # 找到当前播放chunk的位置
+            current_index = chunks_to_convert.index(current_playing_chunk)
+            # 只转换从当前播放chunk开始的几个chunk（最多3个）
+            chunks_to_convert = chunks_to_convert[current_index:current_index + 3]
+            print(f"[DEBUG] 优先转换当前播放chunk {current_playing_chunk} 及后续chunk: {chunks_to_convert}")
 
         start_chunk = chunks_to_convert[0]
         end_chunk = chunks_to_convert[-1] + 1
@@ -1704,6 +1729,7 @@ class MainWindow(QMainWindow):
         self.tts_worker.phase1_finished.connect(self._on_tts_phase1_finished)
         self.tts_worker.finished.connect(self._on_tts_finished)
         self.tts_worker.error.connect(self._on_tts_error)
+        self.tts_worker.retry_queued.connect(self._on_tts_retry_queued)
         self.tts_worker.start()
 
         self.statusBar().showMessage(f"🔄 正在转换 {len(chunks_to_convert)} 个分段...")
@@ -2374,6 +2400,50 @@ class MainWindow(QMainWindow):
         self.tts_widget.add_log(f"错误: {error_msg}")
         QMessageBox.critical(self, "TTS 错误", f"转换失败: {error_msg}")
         self.statusBar().showMessage("TTS 转换失败", 3000)
+
+    @Slot(list)
+    def _on_tts_retry_queued(self, chunk_ids: list):
+        """处理TTS转换失败的chunk重试请求，确保当前播放的chunk优先重试"""
+        if not chunk_ids:
+            return
+
+        print(f"[DEBUG] 收到重试请求: {chunk_ids}")
+
+        # 获取当前正在播放的chunk
+        current_chunk = None
+        if self.playback_worker and hasattr(self, 'current_book_id'):
+            book = self._get_cached_book(self.current_book_id)
+            if book:
+                current_chunk = book.get('current_chunk')
+
+        # 如果当前播放的chunk在失败列表中，优先重试它
+        if current_chunk is not None and current_chunk in chunk_ids:
+            print(f"[DEBUG] 当前播放chunk {current_chunk} 转换失败，优先重试")
+            # 只重试当前播放的chunk和接下来的2个chunk
+            priority_chunks = [current_chunk]
+            # 添加后续的chunk（如果也在失败列表中）
+            for i in range(1, 3):
+                next_chunk = current_chunk + i
+                if next_chunk in chunk_ids:
+                    priority_chunks.append(next_chunk)
+
+            print(f"[DEBUG] 优先重试chunks: {priority_chunks}")
+            # 将这些chunks添加到待处理队列的最前面
+            for chunk_id in priority_chunks:
+                if chunk_id not in self._pending_chunks:
+                    self._pending_chunks.add(chunk_id)
+
+            # 如果TTS worker正在运行，停止它以优先处理当前播放的chunk
+            if self.tts_worker and self.tts_worker.isRunning():
+                print(f"[DEBUG] 停止当前TTS任务以优先重试当前播放chunk")
+                self._stop_tts_worker_safely()
+
+            # 立即处理
+            self._process_pending_chunks()
+        else:
+            # 将所有失败的chunks添加到待处理队列
+            self._pending_chunks.update(chunk_ids)
+            print(f"[DEBUG] 将 {len(chunk_ids)} 个失败chunks添加到待处理队列")
 
     def _convert_chapter_and_play(self, book_id: int, start_chunk: int):
         """
