@@ -31,21 +31,6 @@ class ReaderWidget(QWidget):
             "list_item_selected": "#007bff",
             "list_item_selected_text": "white",
         },
-        "dark": {
-            "bg_color": "#1e1e1e",
-            "border_color": "#3a3a3a",
-            "text_bg": "#2b2b2b",
-            "text_color": "#e0e0e0",
-            "title_color": "#c0c0c0",
-            "subtitle_color": "#a0a0a0",
-            "button_bg": "#3a3a3a",
-            "button_hover": "#4a4a4a",
-            "button_border": "#4a4a4a",
-            "list_bg": "#252525",
-            "list_item_hover": "#3a3a3a",
-            "list_item_selected": "#2a82da",
-            "list_item_selected_text": "white",
-        },
         "eye_protection": {
             "bg_color": "#f4ecd8",
             "border_color": "#d4c9b0",
@@ -60,14 +45,78 @@ class ReaderWidget(QWidget):
             "list_item_hover": "#e8dcc8",
             "list_item_selected": "#c9a227",
             "list_item_selected_text": "#5c4033",
-        }
+        },
+        # 起点风格主题
+        "qidian_beige": {
+            "bg_color": "#f7f3e8",
+            "border_color": "#e0d9c8",
+            "text_bg": "#faf8f3",
+            "text_color": "#5c4b3a",
+            "title_color": "#8b7355",
+            "subtitle_color": "#a89880",
+            "button_bg": "#efe8d8",
+            "button_hover": "#e5ddca",
+            "button_border": "#d9d1c0",
+            "list_bg": "#f2ebe1",
+            "list_item_hover": "#ebe4d8",
+            "list_item_selected": "#c9a86c",
+            "list_item_selected_text": "#5c4b3a",
+        },
+        "qidian_green": {
+            "bg_color": "#e8f5e9",
+            "border_color": "#c8e6c9",
+            "text_bg": "#f1f8f3",
+            "text_color": "#2e4a35",
+            "title_color": "#3d5b46",
+            "subtitle_color": "#6b8a73",
+            "button_bg": "#dceddc",
+            "button_hover": "#c8e6c9",
+            "button_border": "#a5d6a7",
+            "list_bg": "#e0f2e5",
+            "list_item_hover": "#dceddc",
+            "list_item_selected": "#66bb6a",
+            "list_item_selected_text": "#1b3a24",
+        },
+        "qidian_blue": {
+            "bg_color": "#e3f2fd",
+            "border_color": "#bbdefb",
+            "text_bg": "#e8f4fd",
+            "text_color": "#1a3a52",
+            "title_color": "#2a4a62",
+            "subtitle_color": "#5a7a92",
+            "button_bg": "#d0e8f8",
+            "button_hover": "#c0e0f5",
+            "button_border": "#a8d4f0",
+            "list_bg": "#dff0f8",
+            "list_item_hover": "#d0e8f8",
+            "list_item_selected": "#42a5f5",
+            "list_item_selected_text": "#0d2a42",
+        },
+        "dark": {
+            "bg_color": "#1a1a1a",
+            "border_color": "#333333",
+            "text_bg": "#222222",
+            "text_color": "#b0b0b0",
+            "title_color": "#d0d0d0",
+            "subtitle_color": "#808080",
+            "button_bg": "#333333",
+            "button_hover": "#404040",
+            "button_border": "#4a4a4a",
+            "list_bg": "#1f1f1f",
+            "list_item_hover": "#2a2a2a",
+            "list_item_selected": "#ed6a20",
+            "list_item_selected_text": "white",
+        },
     }
 
     # 主题显示名称
     THEME_NAMES = {
         "light": "☀️ 日间模式",
+        "eye_protection": "🌿 护眼模式",
+        "qidian_beige": "📖 米黄",
+        "qidian_green": "📖 淡绿",
+        "qidian_blue": "📖 淡蓝",
         "dark": "🌙 夜间模式",
-        "eye_protection": "🌿 护眼模式"
     }
 
     # 信号定义
@@ -323,7 +372,7 @@ class ReaderWidget(QWidget):
         self.theme_combo.setMinimumWidth(96)
         self.theme_combo.setStyleSheet("font-size: 12px;")
         # 添加主题选项
-        for theme_key in ["light", "eye_protection", "dark"]:
+        for theme_key in ["light", "eye_protection", "qidian_beige", "qidian_green", "qidian_blue", "dark"]:
             self.theme_combo.addItem(self.THEME_NAMES[theme_key], theme_key)
         # 设置当前主题
         index = self.theme_combo.findData(self.theme)
