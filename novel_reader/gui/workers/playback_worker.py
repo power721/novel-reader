@@ -57,15 +57,13 @@ class PlaybackWorker(QThread):
     def run(self):
         """执行播放任务"""
         # Log the TTS engine being used
-        from novel_reader.core import get_setting
-        tts_engine = get_setting("tts_engine", "piper")
-        print(f"[DEBUG] PlaybackWorker: TTS engine = {tts_engine}")
+        print("[DEBUG] PlaybackWorker: TTS engine = edge-tts")
 
         try:
             from novel_reader.core.player import play_audio, stop_playback
             from novel_reader.utils import parse_txt_cached
             from novel_reader.core import get_book, get_book_chapters
-            from novel_reader.core.tts import AUDIO_DIR
+            from novel_reader.core.tts_engine import AUDIO_DIR
             from pathlib import Path
             import os
             import subprocess
@@ -160,19 +158,12 @@ class PlaybackWorker(QThread):
                     self.progress_updated.emit(chunk_id + 1, total_chunks)
                     continue
 
-                # 获取当前设置的模型ID和TTS引擎
+                # 获取当前设置的语音ID
                 from novel_reader.core import get_setting
-                tts_engine = get_setting("tts_engine", "piper")
-                chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
+                edge_voice_id = get_setting("edge_chinese_voice_id", "xiaoxiao")
 
-                # 根据TTS引擎确定音频文件路径
-                if tts_engine == "edge":
-                    # Edge TTS format: chunk_edge_{voice_id}_{chunk_id:05d}.mp3
-                    edge_voice_id = get_setting("edge_chinese_voice_id", "xiaoxiao")
-                    audio_path = book_audio_dir / f"chunk_edge_{edge_voice_id}_{chunk_id:05d}.mp3"
-                else:
-                    # Piper TTS format: chunk_{model_id}_{chunk_id:05d}.wav
-                    audio_path = book_audio_dir / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
+                # Edge TTS format: chunk_edge_{voice_id}_{chunk_id:05d}.mp3
+                audio_path = book_audio_dir / f"chunk_edge_{edge_voice_id}_{chunk_id:05d}.mp3"
 
                 # print(f"[DEBUG PlaybackWorker] TTS engine={tts_engine}, audio_path={audio_path}")
 
@@ -383,8 +374,6 @@ class PlaybackWorker(QThread):
         for audio_file in book_audio_dir.glob("chunk_*.wav"):
             checked += 1
             try:
-                # Handle both Piper (chunk_{model_id}_{chunk_id:05d}.wav)
-                # and Edge TTS (chunk_edge_{voice_id}_{chunk_id:05d}.wav) formats
                 chunk_id_str = audio_file.stem.split('_')
                 if len(chunk_id_str) < 3:
                     continue
@@ -402,8 +391,6 @@ class PlaybackWorker(QThread):
         for audio_file in book_audio_dir.glob("chunk_*.mp3"):
             checked += 1
             try:
-                # Handle both Piper (chunk_{model_id}_{chunk_id:05d}.wav)
-                # and Edge TTS (chunk_edge_{voice_id}_{chunk_id:05d}.wav) formats
                 chunk_id_str = audio_file.stem.split('_')
                 if len(chunk_id_str) < 3:
                     continue

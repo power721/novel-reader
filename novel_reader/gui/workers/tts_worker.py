@@ -83,32 +83,14 @@ class TTSWorker(QThread):
             self.log.emit(
                 f"[DEBUG] TTS Worker started: book_id={self.book_id}, start_chunk={self.start_chunk}, chapter_mode={self.chapter_mode}")
 
-            from novel_reader.core import get_book, get_book_chapters, get_setting
+            from novel_reader.core import get_book, get_book_chapters
             from novel_reader.utils import parse_txt_cached
             from novel_reader.core.tts_engine import convert_chunk, chunk_to_audio_path
-            from novel_reader.core.models_v2 import TTSConfig
-
-            # 获取当前 TTS 引擎
-            tts_engine = get_setting("tts_engine", "piper")
-            self.log.emit(f"[DEBUG] Current TTS engine: {tts_engine}")
 
             # 检查引擎是否可用
-            tts_config = TTSConfig()
-            available_engines = tts_config.get_available_engines()
+            from novel_reader.core.edge_tts import check_edge_tts_available
 
-            if not available_engines:
-                error_msg = "没有可用的 TTS 引擎。请安装 piper-tts 或 edge-tts"
-                self.log.emit(f"❌ 错误: {error_msg}")
-                self.error.emit(error_msg)
-                return
-
-            if tts_engine == "piper" and "piper" not in available_engines:
-                error_msg = "Piper TTS 不可用，请在设置中选择 Edge TTS 或安装 Piper"
-                self.log.emit(f"❌ 错误: {error_msg}")
-                self.error.emit(error_msg)
-                return
-
-            if tts_engine == "edge" and "edge" not in available_engines:
+            if not check_edge_tts_available():
                 error_msg = "Edge TTS 不可用，请安装 edge-tts (pip install edge-tts)"
                 self.log.emit(f"❌ 错误: {error_msg}")
                 self.error.emit(error_msg)
@@ -200,7 +182,7 @@ class TTSWorker(QThread):
                     self.log.emit("转换已取消")
                     break
 
-                audio_path = chunk_to_audio_path(self.book_id, i, engine=tts_engine)
+                audio_path = chunk_to_audio_path(self.book_id, i)
 
                 # 检查是否已存在
                 if os.path.exists(audio_path) and os.path.getsize(audio_path) > MIN_SIZE:
@@ -218,7 +200,7 @@ class TTSWorker(QThread):
                     self.log.emit(f"[{i + 1}/{total}] 正在转换分段 {i}... (文本长度: {len(chunk_text)} 字符)")
 
                     try:
-                        convert_chunk(chunks[i], self.book_id, i, engine=tts_engine)
+                        convert_chunk(chunks[i], self.book_id, i)
                         converted += 1
                         self.log.emit(f"[{i + 1}/{total}] 转换完成")
 
@@ -252,7 +234,7 @@ class TTSWorker(QThread):
                         # 为空文本创建一个静音文件，避免播放卡住
                         try:
                             import wave
-                            audio_path = chunk_to_audio_path(self.book_id, i, engine=tts_engine)
+                            audio_path = chunk_to_audio_path(self.book_id, i)
                             Path(audio_path).parent.mkdir(parents=True, exist_ok=True)
                             with wave.open(str(audio_path), 'wb') as wav_file:
                                 wav_file.setnchannels(1)
@@ -285,7 +267,7 @@ class TTSWorker(QThread):
 
             # 第一阶段转换完成，重试失败的 chunks
             if self._is_running and self.failed_chunks:
-                self._retry_failed_chunks(chunks, total, tts_engine)
+                self._retry_failed_chunks(chunks, total)
 
             # 章节模式：发送当前章节完成信号
             if self.chapter_mode and self._is_running:
@@ -345,7 +327,7 @@ class TTSWorker(QThread):
                         self.log.emit("转换已取消")
                         break
 
-                    audio_path = chunk_to_audio_path(self.book_id, i, engine=tts_engine)
+                    audio_path = chunk_to_audio_path(self.book_id, i)
 
                     # 检查是否已存在
                     if os.path.exists(audio_path):
@@ -353,7 +335,7 @@ class TTSWorker(QThread):
                     else:
                         self.log.emit(f"[{i + 1}/{total}] 后台转换...")
                         try:
-                            convert_chunk(chunks[i], self.book_id, i, engine=tts_engine)
+                            convert_chunk(chunks[i], self.book_id, i)
                             converted += 1
                         except Exception as e:
                             self.log.emit(f"[{i + 1}/{total}] 转换失败: {e}")
@@ -378,14 +360,13 @@ class TTSWorker(QThread):
         self._is_running = False
         self.terminate()
 
-    def _retry_failed_chunks(self, chunks, total, tts_engine):
+    def _retry_failed_chunks(self, chunks, total):
         """
         重试失败的 chunks
 
         Args:
             chunks: 所有文本 chunks
             total: 总 chunk 数
-            tts_engine: TTS 引擎类型
         """
         import time
 
@@ -414,7 +395,7 @@ class TTSWorker(QThread):
                     # 等待一小段时间再重试，避免网络问题
                     time.sleep(0.5)
 
-                    convert_chunk(chunk_text, self.book_id, chunk_id, engine=tts_engine)
+                    convert_chunk(chunk_text, self.book_id, chunk_id)
 
                     # 成功则从失败列表中移除
                     del self.failed_chunks[chunk_id]

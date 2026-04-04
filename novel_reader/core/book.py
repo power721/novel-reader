@@ -318,7 +318,7 @@ def delete_book(book_id: int, delete_audio: bool = True) -> bool:
         是否删除成功
     """
     import shutil
-    from novel_reader.core.tts import AUDIO_DIR
+    from novel_reader.core.tts_engine import AUDIO_DIR
 
     conn = get_conn()
     cursor = conn.cursor()

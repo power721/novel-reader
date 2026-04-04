@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Novel Reader is a local audiobook management system written in Python. It converts text files into audiobooks using offline TTS (Piper) and plays them using mpv. The system uses a chunk-based architecture with intelligent caching and priority-based TTS scheduling for seamless playback.
+Novel Reader is a local audiobook management system written in Python. It converts text files into audiobooks using Edge TTS (Microsoft neural voices) and plays them using mpv. The system uses a chunk-based architecture with intelligent caching and priority-based TTS scheduling for seamless playback.
 
 ## Common Commands
 
@@ -12,11 +12,6 @@ Novel Reader is a local audiobook management system written in Python. It conver
 ```bash
 python -m novel_reader              # Start PySide6 GUI
 python -m novel_reader --test       # Start GUI with test data
-```
-
-### TTS Model Management
-```bash
-./download_piper_model.sh           # Download Piper TTS models
 ```
 
 ### Testing
@@ -106,7 +101,7 @@ Text File → ChunkManager → TextChunk[]
                               ↓
                          TTSScheduler (priority queue)
                               ↓
-                         AudioCache (LRU) ← Piper TTS
+                         AudioCache (LRU) ← Edge TTS
                               ↓
                          AudioPlayer → Speakers
 ```
@@ -130,13 +125,11 @@ Text File → ChunkManager → TextChunk[]
 - **Config**: `~/.config/novel-reader/config.json`
 - **Database**: `~/.local/share/novel-reader/library.db`
 - **Audio**: `~/.local/share/novel-reader/audio/`
-- **TTS Models**: `~/.local/share/novel-reader/models/`
 - **Logs**: `~/.cache/novel-reader/logs/`
 
-### TTS Models
-- **English**: lessac-medium, lessac-small
-- **Chinese**: huayan-medium, huayan-small, xiao_ya-medium, chaowen-medium
-- Downloaded from HuggingFace rhasspy/piper-voices
+### TTS Voices (Edge TTS)
+- **Chinese**: xiaoxiao, yunxi, yunjian, yunxia, xiaoyi, yunyang, hsiaochen, yunjia, hiuma, wanlung
+- **English**: jenny, guy, aria, davis, jason, sonia, ryan, libby, natasha, william, neerja, prabhat
 
 ## Important Notes
 
@@ -152,7 +145,7 @@ Text File → ChunkManager → TextChunk[]
 
 ### Dependencies
 - **PySide6** - GUI framework
-- **piper-tts** - Offline text-to-speech (optional)
+- **edge-tts** - Microsoft Edge text-to-speech (online)
 - **mpv** - Audio player (system dependency)
 - **SQLite** - Local database (Python stdlib)
 

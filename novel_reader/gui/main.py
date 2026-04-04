@@ -436,7 +436,7 @@ class NovelReaderGUI:
         try:
             from novel_reader.core import get_book
             from novel_reader.utils import load_txt_file, parse_txt
-            from novel_reader.core.tts import convert_chunk, chunk_to_audio_path
+            from novel_reader.core.tts_engine import convert_chunk, chunk_to_audio_path
             import os
 
             book = get_book(book_id)

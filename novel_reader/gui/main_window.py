@@ -656,11 +656,10 @@ class MainWindow(QMainWindow):
                 self.tts_widget.set_book(selected_book_id)
 
                 # 检查是否启用自动播放
-                from novel_reader.core.tts import check_models_available
-                zh_available, en_available, missing = check_models_available()
+                from novel_reader.core.edge_tts import check_edge_tts_available
 
                 auto_play_enabled = get_setting("auto_play_on_startup", True)
-                if auto_play and auto_play_enabled and zh_available:  # 只有在模型可用时才自动播放
+                if auto_play and auto_play_enabled and check_edge_tts_available():
                     # 延迟一点再自动播放，避免界面未完全加载
                     from PySide6.QtCore import QTimer
                     QTimer.singleShot(500, self._auto_play_last_position)
@@ -672,11 +671,10 @@ class MainWindow(QMainWindow):
         if not self.current_book_id:
             return
 
-        # 检查模型是否可用
-        from novel_reader.core.tts import check_models_available
-        zh_available, en_available, missing = check_models_available()
-        if not zh_available:
-            print("[INFO] Chinese model not available, skipping auto-play")
+        # 检查 TTS 是否可用
+        from novel_reader.core.edge_tts import check_edge_tts_available
+        if not check_edge_tts_available():
+            print("[INFO] Edge TTS not available, skipping auto-play")
             self.statusBar().showMessage("TTS 模型未安装，无法自动播放", 5000)
             return
 
@@ -1017,69 +1015,25 @@ class MainWindow(QMainWindow):
         # 重新创建菜单会复杂，所以这里只更新状态栏提示
 
     def _check_models_on_startup(self):
-        """启动时检查模型是否可用（仅 Piper TTS）"""
+        """启动时检查 TTS 是否可用"""
         # 避免重复检查
         if self._models_checked:
             return
         self._models_checked = True
 
-        from novel_reader.core import get_setting, get_current_engine
+        from novel_reader.core.edge_tts import check_edge_tts_available
 
-        # 只在 Piper TTS 引擎时检查模型
-        engine = get_current_engine()
-        if engine.engine_type != "piper":
-            # Edge TTS 不需要本地模型
-            print(f"📌 TTS 引擎: {engine.engine_type.upper()} - 跳过模型检查")
-            return
-
-        # 检查 Piper 模型
-        from novel_reader.core.tts import check_models_available
-        from PySide6.QtCore import QTimer
-
-        print("🔍 检查 Piper TTS 模型...")
-        zh_available, en_available, missing = check_models_available()
-
-        if not zh_available or not en_available:
-            # 延迟显示对话框，等待主窗口完全加载
-            missing_models = []
-            for lang, model_name in missing:
-                lang_name = "中文" if lang == "zh" else "英文"
-                missing_models.append(f"{lang_name}: {model_name}")
-
-            QTimer.singleShot(500, lambda: self._show_missing_models_dialog(missing_models))
+        if not check_edge_tts_available():
+            print("⚠️ Edge TTS 不可用，请安装 edge-tts (pip install edge-tts)")
         else:
-            print("✓ Piper TTS 模型检查完成")
-
-    def _show_missing_models_dialog(self, missing_models: list):
-        """显示缺失模型对话框（仅 Piper TTS）"""
-        from PySide6.QtWidgets import QMessageBox
-        from .dialogs import ModelSettingsDialog
-
-        msg = "以下 Piper TTS 模型文件未找到：\n\n"
-        msg += "\n".join(f"• {m}" for m in missing_models)
-        msg += "\n\n请下载所需的模型后才能使用 Piper TTS 功能。"
-        msg += "\n\n提示：您可以切换到 Edge TTS（在线服务）无需下载模型。"
-        msg += "\n\n点击「确定」打开模型设置对话框。"
-
-        reply = QMessageBox.warning(
-            self,
-            "Piper 模型文件缺失",
-            msg,
-            QMessageBox.Ok
-        )
-
-        # 打开模型设置对话框
-        self._show_model_settings()
+            print("✓ Edge TTS 可用")
 
     def _show_model_settings(self):
-        """显示TTS模型设置对话框"""
+        """显示TTS语音设置对话框"""
         from .dialogs import ModelSettingsDialog
 
         dialog = ModelSettingsDialog(self)
         dialog.exec()
-
-        # 模型设置更改后，可能需要更新TTS配置
-        # 这里可以选择重新初始化TTS或提示用户重启应用
 
     @Slot(int)
     def _on_delete_book(self, book_id: int):
@@ -1239,7 +1193,7 @@ class MainWindow(QMainWindow):
             (has_audio, count): has_audio 表示是否有音频，count 表示音频数量
         """
         from pathlib import Path
-        from novel_reader.core.tts import AUDIO_DIR
+        from novel_reader.core.tts_engine import AUDIO_DIR
 
         book_audio_dir = AUDIO_DIR / str(book_id)
 
@@ -1523,7 +1477,7 @@ class MainWindow(QMainWindow):
     def _on_last_chunk_of_chapter_started(self, next_chapter_start: int):
         """章节最后一个chunk开始播放，提前转换下一章节"""
         from novel_reader.core import get_book_chapters, get_setting
-        from novel_reader.core.tts import AUDIO_DIR
+        from novel_reader.core.tts_engine import AUDIO_DIR
         from pathlib import Path
 
         # 检查是否启用自动播放下一章节
@@ -1536,10 +1490,10 @@ class MainWindow(QMainWindow):
             print(f"[DEBUG] TTS already running, skipping pre-conversion")
             return
 
-        # 检查下一章节的音频是否存在（新格式）
-        chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
+        # 检查下一章节的音频是否存在（Edge TTS 格式）
+        edge_voice_id = get_setting("edge_chinese_voice_id", "xiaoxiao")
         next_chapter_audio_path = AUDIO_DIR / str(
-            self.current_book_id) / f"chunk_{chinese_model_id}_{next_chapter_start:05d}.wav"
+            self.current_book_id) / f"chunk_edge_{edge_voice_id}_{next_chapter_start:05d}.mp3"
 
         if Path(next_chapter_audio_path).exists():
             # 文件存在，检查大小
@@ -1667,19 +1621,12 @@ class MainWindow(QMainWindow):
         audio_dir = Path("data/audio") / str(book_id)
 
         # 获取TTS引擎类型
-        tts_engine = get_setting("tts_engine", "piper")
         chunks_to_convert = []
 
         for chunk_id in self._pending_chunks:
-            # 根据TTS引擎确定音频文件路径
-            if tts_engine == "edge":
-                # Edge TTS format: chunk_edge_{voice_id}_{chunk_id:05d}.mp3
-                edge_voice_id = get_setting("edge_chinese_voice_id", "xiaoxiao")
-                audio_path = audio_dir / f"chunk_edge_{edge_voice_id}_{chunk_id:05d}.mp3"
-            else:
-                # Piper TTS format: chunk_{model_id}_{chunk_id:05d}.wav
-                chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
-                audio_path = audio_dir / f"chunk_{chinese_model_id}_{chunk_id:05d}.wav"
+            # Edge TTS format: chunk_edge_{voice_id}_{chunk_id:05d}.mp3
+            edge_voice_id = get_setting("edge_chinese_voice_id", "xiaoxiao")
+            audio_path = audio_dir / f"chunk_edge_{edge_voice_id}_{chunk_id:05d}.mp3"
 
             if not audio_path.exists() or audio_path.stat().st_size < 5000:
                 chunks_to_convert.append(chunk_id)
@@ -2496,14 +2443,14 @@ class MainWindow(QMainWindow):
             return
 
         # 验证第一个chunk文件是否存在且有效
-        from novel_reader.core.tts import AUDIO_DIR
+        from novel_reader.core.tts_engine import AUDIO_DIR
         from novel_reader.core import get_setting
         from pathlib import Path
         import time
 
-        # 使用新格式
-        chinese_model_id = get_setting("chinese_model_id", "xiao_ya")
-        audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_{chinese_model_id}_{start_chunk:05d}.wav"
+        # Edge TTS format: chunk_edge_{voice_id}_{chunk_id:05d}.mp3
+        edge_voice_id = get_setting("edge_chinese_voice_id", "xiaoxiao")
+        audio_path = AUDIO_DIR / str(self.current_book_id) / f"chunk_edge_{edge_voice_id}_{start_chunk:05d}.mp3"
 
         # 等待文件就绪（最多等待120秒，给TTS转换足够的时间）
         max_wait = 120
@@ -2626,13 +2573,25 @@ class MainWindow(QMainWindow):
             return
 
         from novel_reader.core import get_book
-        from novel_reader.core.tts import debug_chunk_content
+        from novel_reader.core.tts_engine import chunk_to_audio_path
+        from novel_reader.utils import parse_txt_cached
+        from pathlib import Path
 
         book = get_book(self.current_book_id)
         current_chunk = book['current_chunk']
 
-        # 调试当前chunk
-        debug_info = debug_chunk_content(self.current_book_id, current_chunk)
+        # 解析文本
+        chunks, _ = parse_txt_cached(self.current_book_id, book)
+        chunk_text = chunks[current_chunk].strip() if current_chunk < len(chunks) else ""
+        audio_path = chunk_to_audio_path(self.current_book_id, current_chunk)
+
+        debug_info = {
+            "text_length": len(chunk_text),
+            "text_empty": len(chunk_text) == 0,
+            "audio_path": audio_path,
+            "audio_exists": Path(audio_path).exists(),
+            "audio_size": Path(audio_path).stat().st_size if Path(audio_path).exists() else 0,
+        }
 
         if "error" in debug_info:
             QMessageBox.critical(self, "错误", debug_info["error"])

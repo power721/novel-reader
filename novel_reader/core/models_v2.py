@@ -264,16 +264,6 @@ class Book:
 @dataclass
 class TTSConfig:
     """TTS配置"""
-    # TTS 引擎选择
-    tts_engine: str = "edge"  # "piper" 或 "edge"
-
-    # Piper路径
-    piper_bin: str = "piper"
-
-    # Piper 模型配置
-    chinese_model_id: str = "xiao_ya"  # 中文 Piper 模型 ID
-    english_model_id: str = "amy"  # 英文 Piper 模型 ID
-
     # Edge TTS 语音配置
     edge_chinese_voice_id: str = "xiaoxiao"  # 中文 Edge TTS 语音 ID
     edge_english_voice_id: str = "jenny"  # 英文 Edge TTS 语音 ID
@@ -283,14 +273,6 @@ class TTSConfig:
     edge_pitch: str = "+0Hz"  # 音调调整 (e.g., "+0Hz", "+10Hz")
     edge_volume: str = "+0%"  # 音量调整 (e.g., "+0%", "+10%")
 
-    # 旧版配置（保留用于向后兼容）
-    model_path: str = ""
-    config_path: str = ""
-
-    # 合成参数
-    voice: str = "default"
-    speed: float = 1.0
-
     # 音频参数
     sample_rate: int = 22050
     channels: int = 1
@@ -298,38 +280,14 @@ class TTSConfig:
     # 性能参数
     batch_size: int = 3  # 每次合成的chunk数
 
-    def __post_init__(self):
-        if not self.model_path and self.tts_engine == "piper":
-            # 自动查找模型（旧版兼容）
-            try:
-                from novel_reader.core.tts import find_model_file
-                from novel_reader.core.model_config import get_model
-
-                # 尝试使用新方式加载中文模型
-                model = get_model(self.chinese_model_id)
-                if model:
-                    from novel_reader.core.model_downloader import find_model_file
-                    model_path = find_model_file(model.model_filename)
-                    if model_path:
-                        self.model_path = str(model_path)
-                        # 查找配置文件
-                        config_path = find_model_file(model.config_name)
-                        self.config_path = str(config_path) if config_path else ""
-            except ImportError:
-                pass
-
     @property
     def is_valid(self) -> bool:
         """配置是否有效"""
-        if self.tts_engine == "piper":
-            return bool(self.model_path) and Path(self.model_path).exists()
-        elif self.tts_engine == "edge":
-            try:
-                from novel_reader.core.edge_tts import check_edge_tts_available
-                return check_edge_tts_available()
-            except ImportError:
-                return False
-        return False
+        try:
+            from novel_reader.core.edge_tts import check_edge_tts_available
+            return check_edge_tts_available()
+        except ImportError:
+            return False
 
     @property
     def is_edge_tts_available(self) -> bool:
@@ -339,53 +297,6 @@ class TTSConfig:
             return check_edge_tts_available()
         except ImportError:
             return False
-
-    @property
-    def is_piper_available(self) -> bool:
-        """检查 Piper TTS 是否可用"""
-        try:
-            from novel_reader.core.tts import _check_piper_python
-            return _check_piper_python()
-        except ImportError:
-            return False
-
-    def get_available_engines(self) -> List[str]:
-        """获取可用的 TTS 引擎列表"""
-        engines = []
-        if self.is_piper_available:
-            engines.append("piper")
-        if self.is_edge_tts_available:
-            engines.append("edge")
-        return engines
-
-    def get_piper_model_for_language(self, language: str) -> tuple:
-        """
-        根据语言获取 Piper 模型路径和配置路径
-
-        Args:
-            language: "zh" 或 "en"
-
-        Returns:
-            (model_path, config_path) 元组
-        """
-        from novel_reader.core.model_config import get_model
-        from novel_reader.core.model_downloader import find_model_file
-
-        model_id = self.chinese_model_id if language == "zh" else self.english_model_id
-        model = get_model(model_id)
-
-        if not model:
-            # 回退到旧配置
-            return self.model_path, self.config_path
-
-        model_path = find_model_file(model.model_filename)
-        config_path = find_model_file(model.config_name)
-
-        if not model_path:
-            # 回退到旧配置
-            return self.model_path, self.config_path
-
-        return str(model_path), str(config_path) if config_path else ""
 
     def get_edge_voice_for_language(self, language: str) -> Optional[str]:
         """

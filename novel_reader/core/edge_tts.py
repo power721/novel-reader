@@ -36,10 +36,8 @@ from novel_reader.core.edge_tts_config import (
     DEFAULT_ENGLISH_VOICE,
 )
 
-# Import text processing from Piper TTS
-from novel_reader.core.tts import (
-    normalize_for_novel_tts,
-)
+# Import text processing from text_normalizer
+from novel_reader.core.text_normalizer import normalize_for_novel_tts
 
 
 # ==================== Edge TTS Core Functions ====================
@@ -416,7 +414,7 @@ def get_recommended_voices(language: str) -> List[str]:
     return [v.id for v in voices if v.recommended]
 
 
-# ==================== Chunk Interface (compatible with Piper) ====================
+# ==================== Chunk Interface ====================
 
 def chunk_to_audio_path(book_id: int, chunk_id: int, voice_id: str = "xiaoxiao") -> str:
     """
@@ -430,7 +428,7 @@ def chunk_to_audio_path(book_id: int, chunk_id: int, voice_id: str = "xiaoxiao")
     Returns:
         Audio file path (MP3 format for Edge TTS)
     """
-    from novel_reader.core.tts import AUDIO_DIR
+    from novel_reader.core.tts_engine import AUDIO_DIR
     return str(AUDIO_DIR / str(book_id) / f"chunk_edge_{voice_id}_{chunk_id:05d}.mp3")
 
 

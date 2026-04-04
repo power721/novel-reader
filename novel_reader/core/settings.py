@@ -26,12 +26,6 @@ DEFAULT_SETTINGS = {
     "reader_show_chapter_list": True,  # 阅读模式是否显示章节列表
     "last_mode": "audio",  # 上次使用的模式: "audio" 或 "reading"
     "audio_compact_mode": False,  # 音频模式精简模式: True=只显示文本和播放控制
-    # TTS 引擎设置
-    "tts_engine": "edge",  # TTS 引擎: "piper" 或 "edge"
-    # Piper TTS 模型设置
-    "chinese_model_id": "xiao_ya",  # 中文 Piper TTS 模型 ID
-    "english_model_id": "amy",  # 英文 Piper TTS 模型 ID
-    "model_dir": "models",  # 模型存储目录
     # Edge TTS 语音设置
     "edge_chinese_voice_id": "xiaoxiao",  # 中文 Edge TTS 语音 ID
     "edge_english_voice_id": "jenny",  # 英文 Edge TTS 语音 ID
