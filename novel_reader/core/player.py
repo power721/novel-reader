@@ -1,7 +1,6 @@
 """
-播放器模块 - 使用 mpv 播放音频，支持断点续播
+播放器模块 - 使用 QMediaPlayer 播放音频，支持断点续播
 """
-import subprocess
 import os
 import sqlite3
 from pathlib import Path
@@ -812,16 +811,14 @@ if __name__ == "__main__":
     print("播放器模块测试")
     print("=" * 60)
 
-    # 检查 mpv 是否安装
-    print("\n[1] 检查 mpv 安装...")
+    # 检查 Qt Multimedia 是否可用
+    print("\n[1] 检查 Qt Multimedia...")
     if check_mpv_installed():
-        print("✓ mpv 已安装")
+        print("✓ Qt Multimedia 可用")
     else:
-        print("✗ mpv 未安装")
-        print("\n请安装 mpv:")
-        print("  Ubuntu/Debian: sudo apt install mpv")
-        print("  Arch: sudo pacman -S mpv")
-        print("  macOS: brew install mpv")
+        print("✗ Qt Multimedia 不可用")
+        print("\n请安装 PySide6.QtMultimedia:")
+        print("  pip install PySide6[QtMultimedia]")
         exit(1)
 
     # 初始化数据库

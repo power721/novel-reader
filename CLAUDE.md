@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Novel Reader is a local audiobook management system written in Python. It converts text files into audiobooks using Edge TTS (Microsoft neural voices) and plays them using mpv. The system uses a chunk-based architecture with intelligent caching and priority-based TTS scheduling for seamless playback.
+Novel Reader is a local audiobook management system written in Python. It converts text files into audiobooks using Edge TTS (Microsoft neural voices) and plays them using QMediaPlayer. The system uses a chunk-based architecture with intelligent caching and priority-based TTS scheduling for seamless playback.
 
 ## Common Commands
 
@@ -41,7 +41,7 @@ novel_reader/core/
 ├── chunk_manager_v2.py       # Text parsing and chunking
 ├── tts_scheduler_v2.py       # Priority-based TTS scheduling
 ├── audio_cache.py            # LRU cache for audio files
-├── audio_player_v2.py        # mpv wrapper
+├── audio_player_v2.py        # QMediaPlayer wrapper (legacy)
 └── sentence_manager.py       # Sentence-level processing
 ```
 
@@ -71,7 +71,7 @@ Main Thread (UI)
 PlaybackController (logic coordinator)
     ↓
     ├─→ TTS Worker Thread (background synthesis)
-    └─→ Audio Player Thread (mpv playback)
+    └─→ Audio Player Thread (QMediaPlayer playback)
 ```
 
 ### GUI Structure
@@ -103,7 +103,7 @@ Text File → ChunkManager → TextChunk[]
                               ↓
                          AudioCache (LRU) ← Edge TTS
                               ↓
-                         AudioPlayer → Speakers
+                         QtAudioPlayer (QMediaPlayer) → Speakers
 ```
 
 ## Configuration
@@ -144,9 +144,8 @@ Text File → ChunkManager → TextChunk[]
 - Manual testing with debug prints is currently used
 
 ### Dependencies
-- **PySide6** - GUI framework
+- **PySide6** - GUI framework (includes QtMultimedia for audio playback)
 - **edge-tts** - Microsoft Edge text-to-speech (online)
-- **mpv** - Audio player (system dependency)
 - **SQLite** - Local database (Python stdlib)
 
 ### Development Practices
