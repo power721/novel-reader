@@ -21,6 +21,15 @@ class QtAudioPlayer(QObject):
     error = Signal(str)  # Playback error
     position_changed = Signal(int, int)  # current_ms, total_ms
 
+    # Signals for thread-safe playback control
+    play_requested = Signal(str, int)  # audio_path, start_offset_ms
+    stop_requested = Signal()
+    pause_requested = Signal()
+    resume_requested = Signal()
+    volume_requested = Signal(float)  # volume
+    speed_requested = Signal(float)  # speed
+    seek_requested = Signal(int)  # offset_ms
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._volume = 1.0
@@ -40,12 +49,21 @@ class QtAudioPlayer(QObject):
         self._media_player.errorOccurred.connect(self._on_error_occurred)
         self._media_player.positionChanged.connect(self._on_position_changed)
 
+        # Connect control signals to slots for thread-safe operation
+        self.play_requested.connect(self._on_play_requested)
+        self.stop_requested.connect(self._on_stop_requested)
+        self.pause_requested.connect(self._on_pause_requested)
+        self.resume_requested.connect(self._on_resume_requested)
+        self.volume_requested.connect(self._on_volume_requested)
+        self.speed_requested.connect(self._on_speed_requested)
+        self.seek_requested.connect(self._on_seek_requested)
+
     def _on_media_status_changed(self, status):
         """Handle media status changes"""
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
             self._is_playing = False
             self.finished.emit()
-        elif status == QMediaPlayer.MediaStatus.Playing:
+        elif status == QMediaPlayer.MediaStatus.BufferedMedia:
             # Media is actually playing now, set the state
             self._is_playing = True
             self._is_paused = False
@@ -61,22 +79,40 @@ class QtAudioPlayer(QObject):
         if duration > 0:
             self.position_changed.emit(position, duration)
 
-    @property
-    def is_playing(self) -> bool:
-        return self._is_playing
+    def _on_play_requested(self, audio_path: str, start_offset_ms: int):
+        """Slot for thread-safe play requests"""
+        # Call the actual play method
+        self._play_impl(audio_path, start_offset_ms)
 
-    @property
-    def is_paused(self) -> bool:
-        return self._is_paused
+    def _on_stop_requested(self):
+        """Slot for thread-safe stop requests"""
+        # Call the actual stop method
+        self._stop_impl()
 
-    def play(self, audio_path: str, start_offset_ms: int = 0):
-        """
-        Play audio file
+    def _on_pause_requested(self):
+        """Slot for thread-safe pause requests"""
+        # Call the actual pause method
+        self._pause_impl()
 
-        Args:
-            audio_path: Path to audio file
-            start_offset_ms: Start position in milliseconds
-        """
+    def _on_resume_requested(self):
+        """Slot for thread-safe resume requests"""
+        # Call the actual resume method
+        self._resume_impl()
+
+    def _on_volume_requested(self, volume: float):
+        """Slot for thread-safe volume requests"""
+        self._set_volume_impl(volume)
+
+    def _on_speed_requested(self, speed: float):
+        """Slot for thread-safe speed requests"""
+        self._set_playback_speed_impl(speed)
+
+    def _on_seek_requested(self, offset_ms: int):
+        """Slot for thread-safe seek requests"""
+        self._seek_impl(offset_ms)
+
+    def _play_impl(self, audio_path: str, start_offset_ms: int):
+        """Internal play implementation (must run in main thread)"""
         # Check if file exists
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
@@ -97,65 +133,111 @@ class QtAudioPlayer(QObject):
         if start_offset_ms > 0:
             self._media_player.setPosition(start_offset_ms)
 
-        # Note: State will be set by _on_media_status_changed() when media actually starts
-        # QMediaPlayer loads media asynchronously, so we don't set _is_playing here
-        # to avoid race conditions
-
         print(f"[QtAudioPlayer] ▶ Playing: {os.path.basename(audio_path)}")
 
-    def stop(self):
-        """Stop playback"""
+    def _stop_impl(self):
+        """Internal stop implementation (must run in main thread)"""
         if self._is_playing or self._is_paused:
             self._media_player.stop()
             self._is_playing = False
             self._is_paused = False
             print("[QtAudioPlayer] ⏹ Stopped")
 
-    def pause(self):
-        """Pause playback"""
+    def _pause_impl(self):
+        """Internal pause implementation (must run in main thread)"""
         if self._is_playing and not self._is_paused:
             self._media_player.pause()
             self._is_paused = True
             print("[QtAudioPlayer] ⏸ Paused")
 
-    def resume(self):
-        """Resume playback"""
+    def _resume_impl(self):
+        """Internal resume implementation (must run in main thread)"""
         if self._is_paused:
             self._media_player.play()
-            # Note: State will be set by _on_media_status_changed() when media actually starts
             print("[QtAudioPlayer] ▶ Resumed")
 
-    def set_volume(self, volume: float):
-        """
-        Set volume
-
-        Args:
-            volume: Volume level (0.0 - 1.0)
-        """
+    def _set_volume_impl(self, volume: float):
+        """Internal set volume implementation (must run in main thread)"""
         self._volume = max(0.0, min(1.0, volume))
         self._audio_output.setVolume(self._volume)
         print(f"[QtAudioPlayer] 🔊 Volume: {int(self._volume * 100)}%")
 
-    def set_playback_speed(self, speed: float):
-        """
-        Set playback speed
-
-        Args:
-            speed: Playback speed (0.5 - 2.0)
-        """
+    def _set_playback_speed_impl(self, speed: float):
+        """Internal set playback speed implementation (must run in main thread)"""
         self._playback_speed = max(0.5, min(2.0, speed))
         self._media_player.setPlaybackRate(self._playback_speed)
         print(f"[QtAudioPlayer] ⏱ Speed: {self._playback_speed:.2f}x")
 
+    def _seek_impl(self, offset_ms: int):
+        """Internal seek implementation (must run in main thread)"""
+        self._media_player.setPosition(offset_ms)
+        print(f"[QtAudioPlayer] ⏩ Seek to {offset_ms}ms")
+
+    @property
+    def is_playing(self) -> bool:
+        return self._is_playing
+
+    @property
+    def is_paused(self) -> bool:
+        return self._is_paused
+
+    def play(self, audio_path: str, start_offset_ms: int = 0):
+        """
+        Play audio file (thread-safe via signal)
+
+        Args:
+            audio_path: Path to audio file
+            start_offset_ms: Start position in milliseconds
+        """
+        # Emit signal instead of direct call for thread safety
+        # If called from main thread, signal will be processed immediately
+        # If called from worker thread, signal will be queued to main thread
+        self.play_requested.emit(audio_path, start_offset_ms)
+
+    def stop(self):
+        """Stop playback (thread-safe via signal)"""
+        # Emit signal instead of direct call for thread safety
+        self.stop_requested.emit()
+
+    def pause(self):
+        """Pause playback (thread-safe via signal)"""
+        # Emit signal instead of direct call for thread safety
+        self.pause_requested.emit()
+
+    def resume(self):
+        """Resume playback (thread-safe via signal)"""
+        # Emit signal instead of direct call for thread safety
+        self.resume_requested.emit()
+
+    def set_volume(self, volume: float):
+        """
+        Set volume (thread-safe via signal)
+
+        Args:
+            volume: Volume level (0.0 - 1.0)
+        """
+        # Emit signal instead of direct call for thread safety
+        self.volume_requested.emit(volume)
+
+    def set_playback_speed(self, speed: float):
+        """
+        Set playback speed (thread-safe via signal)
+
+        Args:
+            speed: Playback speed (0.5 - 2.0)
+        """
+        # Emit signal instead of direct call for thread safety
+        self.speed_requested.emit(speed)
+
     def seek(self, offset_ms: int):
         """
-        Seek to position
+        Seek to position (thread-safe via signal)
 
         Args:
             offset_ms: Position in milliseconds
         """
-        self._media_player.setPosition(offset_ms)
-        print(f"[QtAudioPlayer] ⏩ Seek to {offset_ms}ms")
+        # Emit signal instead of direct call for thread safety
+        self.seek_requested.emit(offset_ms)
 
 
 # ==================== Singleton Instance ====================
@@ -391,7 +473,7 @@ def play_chunk(book_id: int, chunk_id: int) -> None:
 
 def play_audio(file_path: str, should_stop_check_fn=None) -> None:
     """
-    Play audio file using QMediaPlayer
+    Play audio file using QMediaPlayer (thread-safe via signals)
 
     Args:
         file_path: Audio file path
@@ -400,6 +482,8 @@ def play_audio(file_path: str, should_stop_check_fn=None) -> None:
     Raises:
         FileNotFoundError: If audio file not found
     """
+    from PySide6.QtCore import QThread, QCoreApplication
+
     # Check audio file exists
     if not os.path.exists(file_path):
         print(f"[player.play_audio] ERROR: Audio file not found: {file_path}")
@@ -432,6 +516,23 @@ def play_audio(file_path: str, should_stop_check_fn=None) -> None:
 
     player.play(str(file_path))
 
+    # If called from worker thread, process events to ensure signal is delivered
+    current_thread = QThread.currentThread()
+    main_thread = QCoreApplication.instance().thread()
+
+    if current_thread != main_thread:
+        # Called from worker thread - ensure signal is processed
+        # Process events until playback starts or timeout
+        import time
+        timeout = 50  # 5 seconds timeout
+        waited = 0
+        while not player.is_playing and waited < timeout:
+            time.sleep(0.1)
+            waited += 0.1
+
+        if not player.is_playing:
+            print(f"[player.play_audio] WARNING: Playback did not start within {timeout/10} seconds")
+
     # Wait for playback to complete (blocking wait for compatibility)
     # In practice, PlaybackWorker manages the flow
     import time
@@ -440,7 +541,7 @@ def play_audio(file_path: str, should_stop_check_fn=None) -> None:
 
 
 def stop_playback() -> None:
-    """Stop current playback"""
+    """Stop current playback (thread-safe via signal)"""
     global _player
 
     if _player:

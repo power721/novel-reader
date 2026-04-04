@@ -100,6 +100,11 @@ def run_gui(create_test: bool = False):
     app.setApplicationVersion("0.1.0")
     app.setOrganizationName("Novel Reader")
 
+    # Initialize QtAudioPlayer singleton on main thread
+    # This prevents threading issues when PlaybackWorker uses it later
+    from novel_reader.core.player import _get_player
+    _get_player()
+
     # 创建主窗口
     from .main_window import MainWindow
     window = MainWindow()
