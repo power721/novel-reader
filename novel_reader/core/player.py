@@ -8,7 +8,63 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime, timezone
 
+from PySide6.QtCore import QObject, Signal, QUrl
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+
 from novel_reader.models import get_conn
+
+
+class QtAudioPlayer(QObject):
+    """QMediaPlayer wrapper for audiobook playback"""
+
+    # Signals
+    finished = Signal()  # Playback completed
+    error = Signal(str)  # Playback error
+    position_changed = Signal(int, int)  # current_ms, total_ms
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._volume = 1.0
+        self._playback_speed = 1.0
+        self._is_playing = False
+        self._is_paused = False
+
+        # Create QMediaPlayer and QAudioOutput
+        self._media_player = QMediaPlayer(self)
+        self._audio_output = QAudioOutput(self)
+
+        # Connect audio output to media player
+        self._media_player.setAudioOutput(self._audio_output)
+
+        # Connect signals
+        self._media_player.mediaStatusChanged.connect(self._on_media_status_changed)
+        self._media_player.errorOccurred.connect(self._on_error_occurred)
+        self._media_player.positionChanged.connect(self._on_position_changed)
+
+    def _on_media_status_changed(self, status):
+        """Handle media status changes"""
+        if status == QMediaPlayer.MediaStatus.EndOfMedia:
+            self._is_playing = False
+            self.finished.emit()
+
+    def _on_error_occurred(self, error, error_string):
+        """Handle playback errors"""
+        print(f"[QtAudioPlayer] Error: {error_string}")
+        self.error.emit(error_string)
+
+    def _on_position_changed(self, position):
+        """Handle position changes during playback"""
+        duration = self._media_player.duration()
+        if duration > 0:
+            self.position_changed.emit(position, duration)
+
+    @property
+    def is_playing(self) -> bool:
+        return self._is_playing
+
+    @property
+    def is_paused(self) -> bool:
+        return self._is_paused
 
 
 def _is_meaningless_chunk(text: str) -> bool:
