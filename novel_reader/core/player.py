@@ -46,6 +46,10 @@ class QtAudioPlayer(QObject):
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
             self._is_playing = False
             self.finished.emit()
+        elif status == QMediaPlayer.MediaStatus.Playing:
+            # Media is actually playing now, set the state
+            self._is_playing = True
+            self._is_paused = False
 
     def _on_error_occurred(self, error, error_string):
         """Handle playback errors"""
@@ -74,8 +78,6 @@ class QtAudioPlayer(QObject):
             audio_path: Path to audio file
             start_offset_ms: Start position in milliseconds
         """
-        import os
-
         # Check if file exists
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
@@ -96,8 +98,9 @@ class QtAudioPlayer(QObject):
         if start_offset_ms > 0:
             self._media_player.setPosition(start_offset_ms)
 
-        self._is_playing = True
-        self._is_paused = False
+        # Note: State will be set by _on_media_status_changed() when media actually starts
+        # QMediaPlayer loads media asynchronously, so we don't set _is_playing here
+        # to avoid race conditions
 
         print(f"[QtAudioPlayer] ▶ Playing: {os.path.basename(audio_path)}")
 
