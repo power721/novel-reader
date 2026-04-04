@@ -218,9 +218,6 @@ def get_current_time() -> str:
 
 # ==================== 配置区 ====================
 
-# mpv 可执行文件路径
-MPV_BIN = "mpv"
-
 # 音频输出目录
 AUDIO_DIR = Path("data/audio")
 
@@ -620,10 +617,16 @@ def set_volume_realtime(volume: float) -> None:
 
 def check_mpv_installed() -> bool:
     """
-    检查 mpv 是否已安装
+    Check if Qt Multimedia is available
+
+    Returns:
+        True if available, False otherwise
     """
-    import shutil
-    return shutil.which(MPV_BIN) is not None
+    try:
+        from PySide6.QtMultimedia import QMediaPlayer
+        return True
+    except ImportError:
+        return False
 
 
 def pause_mpv() -> bool:
@@ -656,22 +659,6 @@ def resume_mpv() -> bool:
     return False
 
 
-def check_mpv_installed() -> bool:
-    """
-    检查 mpv 是否已安装
-
-    Returns:
-        True 如果 mpv 可用，否则 False
-    """
-    try:
-        result = subprocess.run(
-            [MPV_BIN, "--version"],
-            capture_output=True,
-            timeout=5
-        )
-        return result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return False
 
 
 def diagnose_audio_files(book_id: int) -> dict:
