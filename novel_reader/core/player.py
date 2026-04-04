@@ -159,6 +159,27 @@ class QtAudioPlayer(QObject):
         print(f"[QtAudioPlayer] ⏩ Seek to {offset_ms}ms")
 
 
+# ==================== Singleton Instance ====================
+
+# Singleton instance
+_player: Optional[QtAudioPlayer] = None
+
+
+def _get_player() -> QtAudioPlayer:
+    """
+    Get or create the singleton QtAudioPlayer instance
+
+    Returns:
+        QtAudioPlayer instance
+    """
+    global _player
+    if _player is None:
+        _player = QtAudioPlayer()
+    return _player
+
+
+# ==================== Legacy Functions ====================
+
 def _is_meaningless_chunk(text: str) -> bool:
     """
     判断分段是否没有有意义的内容，应该被跳过
@@ -211,21 +232,15 @@ LOOP = False
 
 # ================================================
 
-# 播放控制标志
-_playback_state = {
-    "should_stop": False,
-    "should_pause": False,
-    "current_process": None
-}
-
-# 音量控制 (0.0 - 1.0)
-_volume = 1.0
-
-# 播放速度 (0.5 - 2.0, 默认1.0)
-_playback_speed = 1.0
-
-# IPC socket 文件（用于实时控制 mpv）
-_ipc_socket = "/tmp/novel-reader-mpv.sock"
+# Old mpv global variables - deprecated, use QtAudioPlayer singleton instead
+# _playback_state = {
+#     "should_stop": False,
+#     "should_pause": False,
+#     "current_process": None
+# }
+# _volume = 1.0
+# _playback_speed = 1.0
+# _ipc_socket = "/tmp/novel-reader-mpv.sock"
 
 
 def play_book(book_id: int, start_chunk: Optional[int] = None) -> None:
