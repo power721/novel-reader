@@ -126,6 +126,38 @@ class QtAudioPlayer(QObject):
             # Note: State will be set by _on_media_status_changed() when media actually starts
             print("[QtAudioPlayer] ▶ Resumed")
 
+    def set_volume(self, volume: float):
+        """
+        Set volume
+
+        Args:
+            volume: Volume level (0.0 - 1.0)
+        """
+        self._volume = max(0.0, min(1.0, volume))
+        self._audio_output.setVolume(self._volume)
+        print(f"[QtAudioPlayer] 🔊 Volume: {int(self._volume * 100)}%")
+
+    def set_playback_speed(self, speed: float):
+        """
+        Set playback speed
+
+        Args:
+            speed: Playback speed (0.5 - 2.0)
+        """
+        self._playback_speed = max(0.5, min(2.0, speed))
+        self._media_player.setPlaybackRate(self._playback_speed)
+        print(f"[QtAudioPlayer] ⏱ Speed: {self._playback_speed:.2f}x")
+
+    def seek(self, offset_ms: int):
+        """
+        Seek to position
+
+        Args:
+            offset_ms: Position in milliseconds
+        """
+        self._media_player.setPosition(offset_ms)
+        print(f"[QtAudioPlayer] ⏩ Seek to {offset_ms}ms")
+
 
 def _is_meaningless_chunk(text: str) -> bool:
     """
