@@ -123,7 +123,7 @@ class QtAudioPlayer(QObject):
         """Resume playback"""
         if self._is_paused:
             self._media_player.play()
-            self._is_paused = False
+            # Note: State will be set by _on_media_status_changed() when media actually starts
             print("[QtAudioPlayer] ▶ Resumed")
 
 
