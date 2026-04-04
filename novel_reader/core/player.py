@@ -66,6 +66,63 @@ class QtAudioPlayer(QObject):
     def is_paused(self) -> bool:
         return self._is_paused
 
+    def play(self, audio_path: str, start_offset_ms: int = 0):
+        """
+        Play audio file
+
+        Args:
+            audio_path: Path to audio file
+            start_offset_ms: Start position in milliseconds
+        """
+        import os
+
+        # Check if file exists
+        if not os.path.exists(audio_path):
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+        # Set audio source
+        self._media_player.setSource(QUrl.fromLocalFile(audio_path))
+
+        # Set volume
+        self._audio_output.setVolume(self._volume)
+
+        # Set playback speed
+        self._media_player.setPlaybackRate(self._playback_speed)
+
+        # Start playback
+        self._media_player.play()
+
+        # Handle start offset
+        if start_offset_ms > 0:
+            self._media_player.setPosition(start_offset_ms)
+
+        self._is_playing = True
+        self._is_paused = False
+
+        print(f"[QtAudioPlayer] ▶ Playing: {os.path.basename(audio_path)}")
+
+    def stop(self):
+        """Stop playback"""
+        if self._is_playing or self._is_paused:
+            self._media_player.stop()
+            self._is_playing = False
+            self._is_paused = False
+            print("[QtAudioPlayer] ⏹ Stopped")
+
+    def pause(self):
+        """Pause playback"""
+        if self._is_playing and not self._is_paused:
+            self._media_player.pause()
+            self._is_paused = True
+            print("[QtAudioPlayer] ⏸ Paused")
+
+    def resume(self):
+        """Resume playback"""
+        if self._is_paused:
+            self._media_player.play()
+            self._is_paused = False
+            print("[QtAudioPlayer] ▶ Resumed")
+
 
 def _is_meaningless_chunk(text: str) -> bool:
     """
