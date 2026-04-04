@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04, windows-2019, macos-11]
+        include:
+          - os: ubuntu-20.04
+            platform: linux
+            artifact_name: novel-reader-*-linux.AppImage
+            asset_name: novelernoteamer-${{ github.ref_name }}-linux.AppImage
+          - os: windows-2019
+            platform: windows
+            artifact_name: novel-reader-*-windows.zip
+            asset_name: novel-reader-${{ github.ref_name }}-windows.zip
+          - os: macos-11
+            platform: macos
+            artifact_name: novel-reader-*-macos.zip
+            asset_name: novel-reader-${{ github.ref_name }}-macos.zip
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install system dependencies (Linux)
+      if: matrix.platform == 'linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y file libfuse2
+
+    - name: Install PyInstaller and project dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        pip install -r requirements.txt
+
+    - name: Build with PyInstaller
+      run: |
+        pyinstaller novel_reader.spec --clean --noconfirm
+
+    - name: Create Linux AppImage
+      if: matrix.platform == 'linux'
+      run: |
+        VERSION=${{ github.ref_name }} bash scripts/build_appimage.sh
+
+    - name: Create Windows package
+      if: matrix.platform == 'windows'
+      run: |
+        python scripts/build_windows.py
+      env:
+        VERSION: ${{ github.ref_name }}
+
+    - name: Create macOS package
+      if: matrix.platform == 'macos'
+      run: |
+        VERSION=${{ github.ref_name }} bash scripts/build_macos.sh
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.platform }}-release
+        path: |
+          dist/*.AppImage
+          dist/*.zip
+          dist/*.tar.gz
+        if-no-files-found: error
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/*.AppImage
+          dist/*.zip
+          dist/*.tar.gz
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

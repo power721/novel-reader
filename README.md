@@ -26,14 +26,22 @@
 
 ## 系统要求
 
-- **操作系统**: Linux（推荐），macOS，或其他 Unix-like 系统
-- **Python**: 3.11
-- **依赖程序**:
-  - `mpv` - 音频播放器（必需）
-  - `ffmpeg` - 音频转换工具（可选，Edge TTS 需要）
-  - `piper-tts` - 离线 TTS 引擎（可选，通过 pip 安装）
+- **操作系统**: Linux（推荐），Windows，macOS
+- **Python**: 3.11（仅从源码运行时需要）
 
-## 安装
+### 下载预编译版本（推荐）
+
+无需安装 Python 环境，直接下载运行：
+
+- **Linux**: [下载 AppImage](../../releases/latest) - 适用于大多数 Linux 发行版
+- **Windows**: [下载 ZIP](../../releases/latest) - 解压即用
+- **macOS**: [下载 ZIP](../../releases/latest) - 适用于 macOS 10.15+
+
+详见 [发布页面](../../releases/latest) 获取所有版本。
+
+## 从源码安装
+
+**注意**: 从源码运行需要安装系统依赖。预编译版本已包含所有依赖。
 
 ### 1. 克隆仓库
 
