@@ -395,34 +395,31 @@ def play_chunk(book_id: int, chunk_id: int) -> None:
 
 def play_audio(file_path: str, should_stop_check_fn=None) -> None:
     """
-    使用 mpv 播放音频文件
+    Play audio file using QMediaPlayer
 
     Args:
-        file_path: 音频文件路径
-        should_stop_check_fn: 可选的停止检查函数，定期调用以判断是否应该停止播放
+        file_path: Audio file path
+        should_stop_check_fn: Optional callback to check if should stop (deprecated, kept for compatibility)
 
     Raises:
-        FileNotFoundError: 如果 mpv 不存在或音频文件不存在
+        FileNotFoundError: If audio file not found
     """
-    global _playback_state
-
-    # 检查音频文件是否存在
+    # Check audio file exists
     if not os.path.exists(file_path):
         print(f"[player.play_audio] ERROR: Audio file not found: {file_path}")
         raise FileNotFoundError(f"音频文件不存在: {file_path}")
 
-    # 检查文件大小
+    # Check file size
     file_size = os.path.getsize(file_path)
-
     if file_size == 0:
-        # 删除空文件
         try:
             os.remove(file_path)
             print(f"  🗑 已删除空文件: {file_path}")
         except:
             pass
         raise FileNotFoundError(f"音频文件为空，已删除: {file_path}")
-    if file_size < 5000:  # 小于5KB可能损坏
+
+    if file_size < 5000:
         print(f"  ⚠ 警告: 文件大小异常 ({file_size} bytes)，删除并重新转换")
         try:
             os.remove(file_path)
@@ -431,131 +428,27 @@ def play_audio(file_path: str, should_stop_check_fn=None) -> None:
             pass
         raise FileNotFoundError(f"音频文件过小，已删除: {file_path}")
 
-    # 构建 mpv 命令
-    # --no-video: 只播放音频
-    # --really-quiet: 静默模式（减少输出）
-    # --volume: 音量 (0-100)
-    # --speed: 播放速度 (0.5-2.0)
-    # --input-ipc-server: 启用 IPC 用于实时控制
-    volume_percent = int(_volume * 100)
-    cmd = [
-        MPV_BIN,
-        "--no-video",
-        "--really-quiet",
-        f"--volume={volume_percent}",
-        f"--speed={_playback_speed}",
-        f"--input-ipc-server={_ipc_socket}",
-        file_path
-    ]
-    print(f"[player.play_audio] DEBUG: mpv command: {' '.join(cmd)}")
+    # Get player instance and play
+    player = _get_player()
 
-    try:
-        process = subprocess.Popen(cmd,
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE)
-        _playback_state["current_process"] = process
+    # Note: should_stop_check_fn is deprecated - stop is now handled via direct stop() call
+    # PlaybackWorker will call stop_playback() directly when needed
 
-        # 等待播放完成，定期检查是否应该停止
-        import time
-        check_interval = 0.1  # 每100ms检查一次
-        waited = 0
-        while waited < PLAY_TIMEOUT:
-            if should_stop_check_fn and should_stop_check_fn():
-                print(f"[player.play_audio] INFO: Stop requested, terminating process")
-                process.terminate()
-                try:
-                    process.wait(timeout=0.5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
-                # 正常退出，不检查返回码
-                _playback_state["current_process"] = None
-                return
+    player.play(str(file_path))
 
-            # 检查进程是否已结束
-            if process.poll() is not None:
-                # 进程已结束
-                break
-
-            time.sleep(check_interval)
-            waited += check_interval
-
-        # 检查返回码（只有在非停止请求结束时才检查）
-        if process.poll() is not None and process.returncode != 0:
-            # 检查是否是因为停止请求而结束的
-            if should_stop_check_fn and should_stop_check_fn():
-                # 是停止请求导致的结束，不报错
-                _playback_state["current_process"] = None
-                return
-
-            # 获取错误输出
-            _, stderr = process.communicate(timeout=1)
-            error_msg = stderr.decode('utf-8', errors='ignore').strip()
-
-            print(f"  ⚠ 播放失败 (返回码: {process.returncode})")
-            print(f"  📁 文件路径: {file_path}")
-            print(f"  📏 文件大小: {file_size:,} bytes")
-
-            # 检查文件是否存在
-            if not os.path.exists(file_path):
-                print(f"  ❌ 音频文件丢失: {file_path}")
-            else:
-                print(f"  💡 提示: 文件可能损坏，建议重新转换")
-                print(f"  🔧 测试测试命令: mpv --no-video \"{file_path}\"")
-
-                # 尝试获取更多信息
-                if file_size < 100:
-                    print(f"  ❌ 文件过小，可能是转换失败")
-
-    except FileNotFoundError:
-        print(f"[player.play_audio] ERROR: mpv not found!")
-        raise FileNotFoundError(
-            f"mpv 未找到，请确保已安装 mpv\n"
-            f"安装方法: sudo apt install mpv"
-        )
-    except Exception as e:
-        print(f"[player.play_audio] ERROR: Unexpected error: {e}")
-        import traceback
-        print(f"[player.play_audio] ERROR: Traceback:\n{traceback.format_exc()}")
-        raise
-    finally:
-        _playback_state["current_process"] = None
+    # Wait for playback to complete (blocking wait for compatibility)
+    # In practice, PlaybackWorker manages the flow
+    import time
+    while player.is_playing and not player.is_paused:
+        time.sleep(0.1)
 
 
 def stop_playback() -> None:
-    """停止当前播放"""
-    global _playback_state
+    """Stop current playback"""
+    global _player
 
-    # 首先设置停止标志，让 play_audio() 能检测到
-    _playback_state["should_stop"] = True
-
-    if _playback_state["current_process"]:
-        process = _playback_state["current_process"]
-
-        # 先尝试优雅终止
-        process.terminate()
-
-        # 等待最多1秒，如果还没退出则强制终止
-        try:
-            process.wait(timeout=1.0)
-        except subprocess.TimeoutExpired:
-            print(f"[player.stop_playback] Process didn't terminate, killing...")
-            process.kill()
-            try:
-                process.wait(timeout=0.5)
-            except:
-                pass  # Already killed
-
-    else:
-        print(f"[player.stop_playback] No current process to stop")
-
-    # 清理 IPC socket 文件
-    try:
-        if os.path.exists(_ipc_socket):
-            os.remove(_ipc_socket)
-            # print(f"[player.stop_playback] Removed IPC socket: {_ipc_socket}")
-    except:
-        pass
+    if _player:
+        _player.stop()
 
 
 def update_progress(book_id: int, chunk_id: int) -> None:
@@ -773,53 +666,31 @@ def check_mpv_installed() -> bool:
 
 def pause_mpv() -> bool:
     """
-    通过 IPC 暂停 mpv 播放
+    Pause playback
 
     Returns:
-        bool: 是否成功暂停
+        True if successful, False otherwise
     """
-    if _playback_state["current_process"] and os.path.exists(_ipc_socket):
-        import socket
-        try:
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.settimeout(0.5)
-            sock.connect(_ipc_socket)
+    global _player
 
-            # 发送暂停命令
-            command = '{"command": ["set_property", "pause", true]}\n'
-            sock.sendall(command.encode())
-
-            sock.close()
-            return True
-        except Exception as e:
-            print(f"暂停 mpv 失败: {e}")
-            return False
+    if _player and _player.is_playing:
+        _player.pause()
+        return True
     return False
 
 
 def resume_mpv() -> bool:
     """
-    通过 IPC 恢复 mpv 播放
+    Resume playback
 
     Returns:
-        bool: 是否成功恢复
+        True if successful, False otherwise
     """
-    if _playback_state["current_process"] and os.path.exists(_ipc_socket):
-        import socket
-        try:
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.settimeout(0.5)
-            sock.connect(_ipc_socket)
+    global _player
 
-            # 发送恢复命令
-            command = '{"command": ["set_property", "pause", false]}\n'
-            sock.sendall(command.encode())
-
-            sock.close()
-            return True
-        except Exception as e:
-            print(f"恢复 mpv 失败: {e}")
-            return False
+    if _player and _player.is_paused:
+        _player.resume()
+        return True
     return False
 
 
