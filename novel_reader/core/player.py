@@ -543,117 +543,79 @@ def reset_progress(book_id: int) -> None:
 
 def set_volume(volume: float) -> None:
     """
-    设置音量
+    Set volume
 
     Args:
-        volume: 音量值 (0.0 - 1.0)
+        volume: Volume value (0.0 - 1.0)
     """
-    global _volume
-    _volume = max(0.0, min(1.0, volume))
-    print(f"音量设置为: {_volume * 100:.0f}%")
+    player = _get_player()
+    player.set_volume(volume)
 
 
 def get_volume() -> float:
     """
-    获取当前音量
+    Get current volume
 
     Returns:
-        音量值 (0.0 - 1.0)
+        Volume value (0.0 - 1.0)
     """
-    return _volume
+    player = _get_player()
+    return player._volume
 
 
 def adjust_volume(delta: float) -> None:
     """
-    调整音量
+    Adjust volume
 
     Args:
-        delta: 音量变化量 (正数增大，负数减小)
+        delta: Volume change amount (positive to increase, negative to decrease)
     """
-    set_volume(_volume + delta)
+    current = get_volume()
+    set_volume(current + delta)
 
 
 def set_playback_speed(speed: float) -> None:
     """
-    设置播放速度
+    Set playback speed
 
     Args:
-        speed: 播放速度 (0.5 - 2.0, 1.0 为正常速度)
+        speed: Playback speed (0.5 - 2.0, 1.0 is normal speed)
     """
-    global _playback_speed
-    _playback_speed = max(0.5, min(2.0, speed))
-    print(f"播放速度设置为: {_playback_speed:.2f}x")
+    player = _get_player()
+    player.set_playback_speed(speed)
 
 
 def get_playback_speed() -> float:
     """
-    获取当前播放速度
+    Get current playback speed
 
     Returns:
-        播放速度 (0.5 - 2.0)
+        Playback speed (0.5 - 2.0)
     """
-    return _playback_speed
+    player = _get_player()
+    return player._playback_speed
 
 
 def set_playback_speed_realtime(speed: float) -> None:
     """
-    实时设置播放速度（控制正在运行的 mpv 进程）
+    Set playback speed in real-time (during playback)
 
     Args:
-        speed: 播放速度 (0.5 - 2.0)
+        speed: Playback speed (0.5 - 2.0)
     """
-    global _playback_speed
-    _playback_speed = max(0.5, min(2.0, speed))
-
-    # 如果 mpv 正在运行，通过 IPC 实时调整播放速度
-    if _playback_state["current_process"] and os.path.exists(_ipc_socket):
-        import socket
-        try:
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.settimeout(0.5)
-            sock.connect(_ipc_socket)
-
-            # 发送设置播放速度命令
-            command = f'{{"command": ["set_property", "speed", {_playback_speed:.2f}]}}\n'
-            sock.sendall(command.encode())
-
-            sock.close()
-            print(f"实时播放速度调整: {_playback_speed:.2f}x")
-        except Exception as e:
-            print(f"实时播放速度调整失败: {e}")
-    else:
-        print(f"播放速度设置为: {_playback_speed:.2f}x")
+    player = _get_player()
+    player.set_playback_speed(speed)
 
 
 def set_volume_realtime(volume: float) -> None:
     """
-    实时设置音量（控制正在运行的 mpv 进程）
+    Set volume in real-time (during playback)
 
     Args:
-        volume: 音量值 (0.0 - 1.0)
+        volume: Volume value (0.0 - 1.0)
     """
-    global _volume
-    _volume = max(0.0, min(1.0, volume))
-
-    # 如果 mpv 正在运行，通过 IPC 实时调整音量
-    if _playback_state["current_process"] and os.path.exists(_ipc_socket):
-        import socket
-        try:
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.settimeout(0.5)
-            sock.connect(_ipc_socket)
-
-            # 发送设置音量命令
-            volume_percent = int(_volume * 100)
-            command = f'{{"command": ["set_property", "volume", {volume_percent}]}}\n'
-            sock.sendall(command.encode())
-
-            sock.close()
-            print(f"实时音量调整: {volume_percent}%")
-        except Exception as e:
-            print(f"实时音量调整失败: {e}")
-    else:
-        print(f"音量设置为: {_volume * 100:.0f}%")
+    player = _get_player()
+    player.set_volume(volume)
 
 
 def check_mpv_installed() -> bool:
